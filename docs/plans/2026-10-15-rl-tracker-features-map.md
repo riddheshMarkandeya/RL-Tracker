@@ -52,13 +52,40 @@ mobile app are avoided, but that app is not designed here.
 - **Playlist ID mapping** (research): there is no official table.
   - Best source: rlapi's `population.py`, last updated Nov 2024. Ranked IDs: 10/11/13, 27–30 and
     34.
-  - Gap: the Quads IDs added in Season 20 are unknown.
+  - Gap: the Ranked Quads ID is unknown (Casual Quads = 4, seen live).
   - Approach: keep the mapping as data and store the raw ID. Show an unknown ID as "Unknown
     playlist (id)" with ranked left unknown, and log it. Unknown IDs are filled in by observing
     them live.
   - Notes: `docs/research/2026-10-15-rl-playlist-ids.md`.
+- **What the stream really sends** (live capture, details in
+  `docs/research/2026-10-15-live-capture-findings.md`):
+  - Car state (boost, speed, supersonic, on ground) arrives for you and your own team, and never
+    for opponents. `BoostPickup` never fires. So your own boost stats are possible, but
+    pad-pickup stats are not.
+  - `Game.Target` was always you in 1v1, 2v2 and 4v4.
+  - Playlists: Casual Quads = 4, Ranked Duel = 10, Ranked Doubles = 11. Ignore the leading
+    `PlaylistId: 0` states.
+  - `MatchEnded`, `PodiumStart`, `Win` and `MVP` fire only when you stay to the end. Leaving,
+    abandoning, leaving during the countdown and your own forfeit all produce just
+    `MatchDestroyed`, so they can't be told apart, and all count as a loss under Q13.
+  - Exception: if the match was already decided (an overtime goal, or 0 s left with different
+    scores), take the winner from the score. Snapshot the scoreboard at `MatchEnded`, because
+    players leave during the podium.
+  - A missing `MatchInitialized` means you joined in progress.
+  - Team names can be club names, so key results on `TeamNum`. Bots are `Unknown|0|0`.
+  - There is no party information.
+  - The game binds `0.0.0.0`, so the tracker connects to `127.0.0.1`.
 - **Confirmed assumptions**: the raw event stream is kept so new stats can be recomputed later;
-  period views use the recap shape plus a trend chart; data is kept forever and stays local.
+  period views use the recap shape plus a trend chart; data stays local.
+- **Raw event storage** (2026-10-15). This revisits "raw stream kept forever", because the
+  capture measured 300–450 MB per hour at 30/s.
+  - Every event except `UpdateState` is stored in full.
+  - `UpdateState` is downsampled to about 2/s, and `Loadout[]` is stored once per match. This is
+    roughly 1/15 of the size.
+  - A retention script deletes raw events older than a configurable age.
+  - Match records (the per-match scoreboard and result) are never deleted by retention. So old
+    matches keep their stats, but new stats can't be recomputed past the retention window.
+  - The default age is open (see "Not yet specified").
 
 ## Open tickets
 
@@ -75,7 +102,9 @@ Question: What does the stream actually send in normal online play?
 Type: task. It needs a throwaway capture script plus about 3 matches from the user, including one
 left early.
 Blocked by: none
-Status: open
+Status: done (2026-10-15). 6 online matches were captured. Findings are in
+`docs/research/2026-10-15-live-capture-findings.md`. Left to observe once live (no ticket needed):
+the Ranked Quads ID, an opponent's forfeit, a disconnect, and rarer Statfeed names.
 
 ### Background program form
 Question: How does the background program start and show it's alive?
@@ -91,8 +120,8 @@ Status: open
 Question: What should the session recap look like? This covers the headline comparison, the order
 of the sections, and how flagged matches and the extras are shown.
 Type: prototype
-Blocked by: Live capture of a real match, because boost/speed availability changes which stats
-exist
+Blocked by: none. The live capture is done: your own team's boost and speed are available, and
+opponents' are not.
 Status: open
 
 ### Period views and trends
@@ -107,8 +136,25 @@ Status: open
 ### Teammate and opponent features
 Question: Are any teammate or opponent features trivial enough for v1? Examples: win rate with a
 duo partner, or "played this opponent before". If none are, which come first later?
+User input (2026-10-15):
+- Friends are added manually.
+- The tracker suggests frequent co-players as friends to add.
+- Stats with friends cover every playlist, not only 2v2.
+
+Capture facts:
+- There is no party field.
+- `PrimaryId` is stable for humans.
+- Bots are `Unknown|0|0` and are excluded.
+
+Left to grill:
+- The threshold for suggesting a friend.
+- Which stats appear with a friend: W/L and win % per playlist? Their stats as well, given
+  their car state is visible?
+- Opponent history.
+- Whether friend stats is v1 or a fast follow, given Q7's "only if trivial".
+
 Type: grilling
-Blocked by: Live capture of a real match, to confirm IDs are stable for all players
+Blocked by: none (the live capture is done)
 Status: open
 
 ### Dashboard stack
@@ -122,6 +168,8 @@ Status: open
 - A live running total during play: what it shows and where (browser tab or overlay), and whether
   it's worth building at all.
 - Backup and export of the SQLite data (e.g. CSV), and what happens on a reinstall.
+- The default raw-event retention age, and how the retention script runs (on startup, or
+  manually).
 - How a later API update that adds MMR would be folded in.
 
 ## Out of scope

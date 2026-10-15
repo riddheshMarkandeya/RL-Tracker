@@ -21,7 +21,7 @@ All rows come from [S2]/[S3] (rlapi `population.py`) unless noted otherwise. "Ra
 | 1 | Duel | no | casual | unranked-duels | 1v1 |
 | 2 | Doubles | no | casual | unranked-doubles | 2v2 |
 | 3 | Standard | no | casual | unranked-standard | 3v3 |
-| 4 | Chaos | no | casual | unranked-chaos | 4v4; replaced in Casual by Quads in S20 [S7] |
+| 4 | Chaos → Casual Quads | no | casual | unranked-chaos | 4v4; Chaos replaced by Quads in S20 [S7]; ID 4 now means Casual Quads (observed live) |
 | 6 | Private Match | no | private | private | |
 | 7 | Season | no | offline | season | |
 | 8 | Exhibition | no | offline | offline | also offline splitscreen |
@@ -72,7 +72,7 @@ All rows come from [S2]/[S3] (rlapi `population.py`) unless noted otherwise. "Ra
 | 68 | G-Force Frenzy | no | LTM | — | |
 | 70 | Dropshot Rumble (2v2) | no | LTM | — | |
 | ? | Competitive 4v4 (Quads) | yes | ranked | — | added S20 [S7]; **ID not found** |
-| ? | Casual 4v4 (Quads) | no | casual | — | added S20, replaced Chaos [S7]; **ID not found** (may or may not reuse 4) |
+| **4** | Casual 4v4 (Quads) | no | casual | — | **observed live 2026-10-15: reuses Chaos's ID 4** (arenas `Labs_4v4_Arena15_*`); see `2026-10-15-live-capture-findings.md` |
 
 rlapi lists these IDs as unknown: 5, 14, 36 (rlapi comment: maybe "Rumble Labs"), 39 (maybe "Inverted Ball"), 40, 42, 45 (maybe "Rocket Labs Doubles"), 51, 53, 56–61, 63 and 69. [S3]
 
@@ -94,7 +94,7 @@ Recommended handling (inference, not sourced):
 ## Inferences (mine, not stated by sources)
 
 - rlapi's table probably comes from Psyonix's own playlist IDs, as returned by the in-game population endpoint; its docstring says "may be returned by population endpoint" [S3]. The Stats API's `PlaylistId` is *probably* the same ID space, because example value 11 matches Ranked Doubles. This is unverified.
-- Playlist IDs are probably append-only: rlapi keeps retired IDs (12, 15, 23) instead of reusing them. If so, the Quads playlists would have new IDs above 70 rather than reusing 4. This is unverified.
+- Playlist IDs are probably append-only: rlapi keeps retired IDs (12, 15, 23) instead of reusing them. If so, the Quads playlists would have new IDs above 70 rather than reusing 4. **Disproved for Casual Quads**: it reuses 4 (observed live 2026-10-15).
 - The 1:1 match between ballchasing's slug list and rlapi's names suggests ballchasing uses the same underlying IDs. ballchasing does not publish its mapping.
 
 ## Open questions
