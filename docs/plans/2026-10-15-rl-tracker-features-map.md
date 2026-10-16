@@ -9,7 +9,8 @@ mobile app are avoided, but that app is not designed here.
 - Research baseline: `docs/research/2026-10-15-rl-stats-api-and-trackers.md`. The Stats API
   claims that decisions depend on were verified against the official page on 2026-10-15.
 - Grilling transcripts with the user's own answers:
-  `docs/plans/2026-10-15-rl-tracker-grill-round1.md`, `…-round2.md`.
+  `docs/plans/2026-10-15-rl-tracker-grill-round1.md`, `…-round2.md`, `…-round3.md` (teammates and
+  opponents).
 - Rule: if a feature needs data the Stats API doesn't send in normal online play, it is cut or
   deferred. It is never worked around with BakkesMod or memory reading, because EAC blocks those.
 - UI tickets also load `ui-implementation-guidelines`. Chart work loads `dataviz`.
@@ -86,6 +87,30 @@ mobile app are avoided, but that app is not designed here.
   - Match records (the per-match scoreboard and result) are never deleted by retention. So old
     matches keep their stats, but new stats can't be recomputed past the retention window.
   - The default age is open (see "Not yet specified").
+- **Friends** (round 3, Q15–Q24). These are in v1 as the last work package. They pass Q7's "only
+  if trivial" because everything is a query over data already stored, with no new capture.
+  - Friends are added by hand and keyed on `PrimaryId`. The dashboard shows the last name seen, or
+    a nickname you set.
+  - Suggestions: a human who was your teammate in 3 or more matches across 2 or more sessions.
+    Each suggestion has "add" and "never suggest". Bots are never suggested.
+  - With a friend: W/L and win % per playlist, your stats with them compared to your overall
+    stats, and their scoreboard stats. No boost or speed for them. "With them" means on your team
+    at any point in the match.
+  - Against a friend (head-to-head): W/L per playlist, your scoreboard line next to theirs per
+    match with totals, and MVP count.
+  - Where it shows: a "with teammate" filter next to the playlist filter, plus a Friends page with
+    "with" and "against" tabs.
+  - Private matches (playlist 6) are recorded, but left out of overall stats and the 30-day average
+    by default. They show on the Friends page and under an explicit Private filter.
+  - Opponent history with random players is deferred. Player IDs are stored, so it costs nothing to
+    add later.
+- **Inferred MVP** (round 3, Q21). This applies to every match, not only friend views.
+  - If the `MVP` statfeed fires, use it.
+  - Otherwise, when the winner is known (from `MatchEnded` or the decided-match rule), the MVP is
+    the highest score on the winning team, taken from the scoreboard snapshot and flagged as
+    "inferred".
+  - If the top two on the winning team have the same score, no MVP is inferred.
+  - Inferred results and MVPs count normally.
 
 ## Open tickets
 
@@ -104,7 +129,9 @@ left early.
 Blocked by: none
 Status: done (2026-10-15). 6 online matches were captured. Findings are in
 `docs/research/2026-10-15-live-capture-findings.md`. Left to observe once live (no ticket needed):
-the Ranked Quads ID, an opponent's forfeit, a disconnect, and rarer Statfeed names.
+the Ranked Quads ID, an opponent's forfeit, a disconnect, rarer Statfeed names, and whether a
+private match (bots are fine) sends a `MatchGuid` and `PlaylistId` 6. If it doesn't, head-to-head
+only covers matchmade games, and the MVP tie-break stays unobserved.
 
 ### Background program form
 Question: How does the background program start and show it's alive?
@@ -118,7 +145,8 @@ Status: open
 
 ### Recap layout
 Question: What should the session recap look like? This covers the headline comparison, the order
-of the sections, and how flagged matches and the extras are shown.
+of the sections, and how flagged matches and the extras are shown. Flags include an inferred
+result or MVP. The recap also needs room for the "with teammate" filter.
 Type: prototype
 Blocked by: none. The live capture is done: your own team's boost and speed are available, and
 opponents' are not.
@@ -155,7 +183,8 @@ Left to grill:
 
 Type: grilling
 Blocked by: none (the live capture is done)
-Status: open
+Status: done (2026-10-15). The decisions are under "Friends" and "Inferred MVP" in Decisions so far,
+and the transcript is `docs/plans/2026-10-15-rl-tracker-grill-round3.md`.
 
 ### Dashboard stack
 Question: Which front-end approach and chart library should the dashboard use (plain TS vs. a
