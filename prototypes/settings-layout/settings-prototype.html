@@ -1,0 +1,697 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway, never merge. Branch: prototype/settings-layout (branched from prototype/period-views).
+  Plan: 3 variants of the v1 Settings page, in one standalone file, via ?variant=A|B|C (←/→ or the bottom bar).
+  Question (wayfinder ticket "Settings layout"): how the v1 Settings page looks — the sticky section list, the theme
+  swatches with live preview, the remarks switches (master, mood line, per tier, per trigger), the IDs and seasons
+  tables with per-row save, the "Saved" tick and the reset links.
+  Saving is stubbed and in-memory. The bottom bar can make saves fail, and "state" shows the stored settings object.
+
+  Design contract
+  - Job: change how the dashboard behaves and looks, and trust that the change stuck.
+  - Primary action: flip or pick one setting. Secondary: edit a table row; reset a section.
+  - States: saved, save failed (retry), invalid input (rolling window, table rows), section at defaults, remarks master
+    off (choices below kept but disabled), empty IDs list, a pending "is this you?" ID suggestion.
+  - Responsive: 320 / 768 / 1024 / 1440. Below 768 the section list becomes a sticky row across the top.
+  - Look: the recap's variant D tokens, carbon by default. Reject: counts in pickers, a global "Save" button,
+    modal dialogs for confirmations (undo instead), settings hidden behind accordions with no hint of their state.
+  Variants (the controls are the same; layout, hierarchy and the save/edit affordances differ):
+  A · Long scroll — every section on one page, sticky list with scroll-spy, label/help left and control right,
+      a tick next to each changed setting, tables edited in place, remarks tiers fold open.
+  B · One section at a time — the list picks a section, larger theme cards, one "saved" line per section,
+      remarks as three tier columns, tables edited in a form under the table.
+  C · Control panel — every section as a card in a two-column grid, terse labels (help on hover), chips for remarks,
+      tables always editable with a Save that appears on a changed row.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings prototype</title>
+<style>
+:root{
+  color-scheme:dark;
+  --page:#0f1218; --surf:#171b23; --surf2:#1f2430; --line:#2a303c; --grid:#262c38;
+  --ink:#e8eaf0; --ink2:#a8afbf; --muted:#7f8798;
+  --blue:#3987e5; --orange:#d95926;
+  --win:#2ca57a; --loss:#b84a63; --up:#4cc38a; --down:#e88394; --flag:#e0a63a;
+  --r:6px; --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  --accent:#9db7ff;
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+:root[data-theme=midnight]{--page:#0a0f1d;--surf:#121a2e;--surf2:#1a2440;--line:#24304d;--grid:#1e2942;--ink:#e6ecf8;--ink2:#a4b0c8;--muted:#7886a3;--accent:#3fc5f0}
+:root[data-theme=carbon]{--page:#0c0c0d;--surf:#161618;--surf2:#202023;--line:#2c2c30;--grid:#252528;--ink:#ededed;--ink2:#b0b0b5;--muted:#85858c;--accent:#c6f24e}
+:root[data-theme=oled]{--page:#000;--surf:#0b0b0b;--surf2:#161616;--line:#262626;--grid:#1c1c1c;--ink:#f5f5f5;--ink2:#b5b5b5;--muted:#8a8a8a;--accent:#fff}
+:root[data-theme=dusk]{--page:#111015;--surf:#1a1820;--surf2:#24212c;--line:#332f3d;--grid:#2a2733;--ink:#eceaf2;--ink2:#b3aec2;--muted:#8a859c;--accent:#d4b8ff}
+:root[data-theme=steel]{--page:#121417;--surf:#1b1e22;--surf2:#25292e;--line:#33383f;--grid:#2b2f35;--ink:#e9ecef;--ink2:#adb3ba;--muted:#868d96;--accent:#e8edf2}
+:root[data-theme=daylight]{color-scheme:light;--page:#f3f4f6;--surf:#fff;--surf2:#eceef2;--line:#d8dbe2;--grid:#e6e8ed;--ink:#14171c;--ink2:#4a5160;--muted:#687083;--accent:#4f46e5;--up:#1d7f55;--down:#bd3557;--flag:#a96c12}
+*{box-sizing:border-box}
+html{scroll-padding-top:16px}
+body{margin:0;background:var(--page);color:var(--ink);font-size:14px;line-height:1.45;padding-bottom:96px;transition:background-color .15s}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+.panel{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.tip{position:fixed;pointer-events:none;background:#0b0d12;color:#ededed;border:1px solid #2c2c30;border-radius:4px;padding:6px 8px;font-size:12px;z-index:50;max-width:260px;display:none;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+
+/* header, same as the recap and Trends */
+header{border-bottom:1px solid var(--line);background:var(--surf)}
+.hdr{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:center;justify-content:space-between;padding:var(--s3) var(--s4);max-width:1200px;margin:0 auto}
+.brand{font-weight:700;letter-spacing:.02em}
+.status{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--up);display:inline-block}
+.topnav{display:flex;gap:var(--s4);margin-right:auto;margin-left:var(--s5)}
+.topnav a{color:var(--ink2);text-decoration:none;font-weight:600;padding:6px 2px;border-bottom:2px solid transparent}
+.topnav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--accent)}
+.topnav a:hover{color:var(--ink)}
+.hdr-r{display:flex;align-items:center;gap:var(--s3)}
+.hbtn{background:var(--surf2);border:1px solid var(--line);border-radius:var(--r);padding:4px 10px;cursor:pointer;color:var(--ink2);text-decoration:none;font-weight:600;font-size:13px}
+.hbtn[aria-current=page]{color:var(--ink);border-color:var(--accent)}
+
+/* shared controls */
+.sw{width:36px;height:20px;border-radius:999px;background:var(--line);border:0;position:relative;cursor:pointer;flex:none;padding:0}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--ink2);transition:transform .15s,background-color .15s}
+.sw[aria-checked=true]{background:var(--accent)}
+.sw[aria-checked=true]::after{transform:translateX(16px);background:var(--page)}
+.sw[aria-checked=mixed]{background:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.sw[aria-checked=mixed]::after{transform:translateX(8px);background:var(--page);top:8px;height:4px;border-radius:2px}
+.sw:disabled,fieldset:disabled .sw{opacity:.4;cursor:default}
+.seg{display:inline-flex;gap:2px;background:var(--surf2);border:1px solid var(--line);border-radius:var(--r);padding:2px}
+.seg button{background:none;border:0;border-radius:4px;padding:4px 12px;cursor:pointer;color:var(--ink2);font-weight:600}
+.seg button[aria-checked=true]{background:var(--accent);color:var(--page)}
+.seg button:hover:not([aria-checked=true]){color:var(--ink)}
+select,input[type=text],input[type=number],input[type=date]{background:var(--surf2);border:1px solid var(--line);border-radius:var(--r);padding:5px 8px;min-width:0}
+input[aria-invalid=true]{border-color:var(--down)}
+input[type=number]{width:80px}
+.lnk{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font-size:13px}
+.lnk:hover{text-decoration:underline}
+.lnk.quiet{color:var(--ink2)}
+.btn{background:var(--surf2);border:1px solid var(--line);border-radius:var(--r);padding:5px 12px;cursor:pointer;font-weight:600}
+.btn.pri{background:var(--accent);color:var(--page);border-color:var(--accent)}
+.btn:hover{border-color:var(--ink2)}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+fieldset:disabled{opacity:.55}
+.tick{color:var(--up);font-size:12px;font-weight:600;animation:fade 2.3s forwards;white-space:nowrap}
+@keyframes fade{0%,70%{opacity:1}100%{opacity:0}}
+.err{color:var(--down);font-size:12px;font-weight:600;white-space:nowrap}
+.err .lnk{color:var(--down);text-decoration:underline;font-size:12px}
+.ferr{color:var(--down);font-size:12px;margin-top:4px}
+.note{border-left:3px solid var(--flag);background:var(--surf2);padding:8px 12px;border-radius:0 var(--r) var(--r) 0;font-size:13px;color:var(--ink2)}
+.note.info{border-left-color:var(--accent)}
+.suggest{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:center;justify-content:space-between}
+.plat{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--surf2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--ink2)}
+.badge{font-size:11px;font-weight:600;color:var(--page);background:var(--accent);border-radius:4px;padding:1px 6px;margin-left:6px}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--grid);white-space:nowrap;vertical-align:middle}
+th{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+td.act{text-align:right}
+td.act .lnk+.lnk{margin-left:12px}
+tr.sel td{background:var(--surf2)}
+.tscroll{overflow-x:auto}
+
+/* theme pickers */
+.swatches{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.swatch{width:76px;border:2px solid transparent;border-radius:var(--r);padding:0;background:none;cursor:pointer;text-align:center}
+.swatch .chip{display:block;height:44px;border-radius:4px;border:1px solid var(--line);position:relative;overflow:hidden}
+.swatch .chip i{position:absolute;left:8px;right:8px;top:8px;height:14px;border-radius:2px}
+.swatch .chip b{position:absolute;left:8px;width:24px;bottom:8px;height:4px;border-radius:2px}
+.swatch span{display:block;font-size:12px;color:var(--ink2);padding:3px 0 2px}
+.swatch[aria-checked=true]{border-color:var(--accent)}
+.swatch[aria-checked=true] span{color:var(--ink);font-weight:600}
+.tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:var(--s3)}
+.tcard{border:2px solid;border-radius:var(--r);padding:12px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:10px}
+.tc-bug{display:grid;grid-template-columns:1fr auto 1fr;font-weight:800;font-style:italic;font-size:20px;line-height:1.3;text-align:center}
+.tc-bug span:nth-child(2){font-size:11px;font-style:normal;letter-spacing:.06em;padding:0 8px;display:flex;align-items:center}
+.tc-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.tc-tiles i{height:22px;border:1px solid;border-radius:3px;position:relative}
+.tc-tiles i::after{content:'';position:absolute;left:4px;top:5px;width:50%;height:4px;border-radius:2px;background:currentColor;opacity:.6}
+.tc-name{font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:baseline}
+.tc-name small{font-weight:400;font-size:11px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0;position:relative}
+.dot::after{content:'';position:absolute;inset:6px;border-radius:50%;background:var(--a)}
+.dot[aria-checked=true]{border-color:var(--ink);box-shadow:0 0 0 2px var(--page) inset}
+
+/* A — long scroll */
+.layA{display:grid;grid-template-columns:180px minmax(0,1fr);gap:var(--s6);max-width:1040px;margin:0 auto;padding:var(--s5) var(--s4)}
+.toc{position:sticky;top:16px;align-self:start;display:flex;flex-direction:column;gap:2px}
+.toc a{color:var(--ink2);text-decoration:none;padding:6px 10px;border-left:2px solid var(--line);font-weight:500}
+.toc a:hover{color:var(--ink)}
+.toc a[aria-current=true]{color:var(--ink);border-left-color:var(--accent);font-weight:600}
+.toc a.ext{margin-top:var(--s3);border-left-color:transparent;color:var(--muted)}
+.secA{margin-bottom:var(--s6)}
+.sh{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s2)}
+.sh h2{font-size:18px;margin:0;font-weight:700}
+.sh .def{font-size:12px;color:var(--muted)}
+.row{display:flex;gap:var(--s4);justify-content:space-between;align-items:center;padding:14px var(--s4);border-bottom:1px solid var(--grid)}
+.row:last-child{border-bottom:0}
+.row .lbl{font-weight:600;display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap}
+.row .help{font-size:13px;color:var(--ink2);max-width:52ch}
+.row .ctl{flex:none;display:flex;align-items:center;gap:var(--s2)}
+.row.block{display:block}
+.row.block .ctl{margin-top:var(--s3)}
+.row.sub{padding-left:40px;background:color-mix(in srgb,var(--surf2) 45%,transparent)}
+.tierA{display:flex;align-items:center;gap:var(--s3);padding:12px var(--s4);border-bottom:1px solid var(--grid)}
+.tierA .disc{background:none;border:0;cursor:pointer;font-weight:600;display:flex;gap:8px;align-items:center;padding:0;margin-right:auto;text-align:left}
+.tierA .disc::before{content:'▸';color:var(--muted);transition:transform .15s;display:inline-block}
+.tierA .disc[aria-expanded=true]::before{transform:rotate(90deg)}
+.tierA .sum{font-size:12px;color:var(--muted);font-weight:400}
+
+/* B — one section at a time */
+.layB{display:grid;grid-template-columns:220px minmax(0,1fr);max-width:1100px;margin:0 auto;min-height:calc(100vh - 60px)}
+.side{border-right:1px solid var(--line);padding:var(--s5) var(--s3);display:flex;flex-direction:column;gap:2px;position:sticky;top:0;align-self:start;height:calc(100vh - 60px)}
+.side button,.side a{background:none;border:0;text-align:left;padding:8px 12px;border-radius:var(--r);cursor:pointer;color:var(--ink2);font-weight:600;text-decoration:none;font-size:14px}
+.side button:hover{background:var(--surf2);color:var(--ink)}
+.side button[aria-current=page]{background:var(--surf2);color:var(--ink);box-shadow:inset 3px 0 0 var(--accent)}
+.side .ext{margin-top:auto;color:var(--muted);font-weight:500}
+.paneB{padding:var(--s5) var(--s6);max-width:820px}
+.paneB h1{font-size:24px;margin:0}
+.lede{color:var(--ink2);margin:4px 0 var(--s3)}
+.savebar{font-size:12px;color:var(--muted);min-height:20px;margin-bottom:var(--s4)}
+.savebar .ok{color:var(--up);font-weight:600}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:var(--s4);margin-bottom:var(--s4)}
+.card h3{margin:0 0 4px;font-size:15px}
+.card .help{font-size:13px;color:var(--ink2);margin:0 0 var(--s3)}
+.kv{display:grid;grid-template-columns:minmax(140px,220px) 1fr;gap:var(--s3) var(--s4);align-items:center}
+.kv .k{font-weight:600}
+.kv .k small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.tiersB{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3)}
+.tiersB .card{margin:0}
+.tiersB .th{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s3)}
+.cb{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer}
+.cb input{margin-top:3px;accent-color:var(--accent);width:16px;height:16px;flex:none}
+.cb small{display:block;color:var(--muted);font-size:12px}
+.formB{background:var(--surf2);border:1px solid var(--line);border-radius:var(--r);padding:var(--s4);margin-top:var(--s3)}
+.formB .fr{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:flex-end}
+.formB label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink2);font-weight:600}
+.footB{border-top:1px solid var(--line);margin-top:var(--s5);padding-top:var(--s4);display:flex;justify-content:space-between;align-items:center}
+
+/* C — control panel */
+.layC{display:grid;grid-template-columns:150px minmax(0,1fr);gap:var(--s5);max-width:1280px;margin:0 auto;padding:var(--s4)}
+.layC .toc a{padding:4px 10px;font-size:13px}
+.gridC{columns:2 420px;column-gap:var(--s4)}
+.cardC{break-inside:avoid;background:var(--surf);border:1px solid var(--line);border-radius:var(--r);margin-bottom:var(--s4);display:inline-block;width:100%}
+.cardC.wide{column-span:all;display:block}
+.ch{display:flex;align-items:center;gap:var(--s2);padding:10px var(--s4);border-bottom:1px solid var(--line)}
+.ch h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--ink2);font-weight:700;margin-right:auto}
+.rst{background:none;border:1px solid transparent;border-radius:4px;color:var(--muted);cursor:pointer;width:26px;height:26px;font-size:15px;line-height:1}
+.rst:hover{color:var(--ink);border-color:var(--line)}
+.rC{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);padding:8px var(--s4);min-height:44px}
+.rC + .rC{border-top:1px solid var(--grid)}
+.rC .k{color:var(--ink2);border-bottom:1px dotted var(--muted);cursor:help}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:6px var(--s4) 12px}
+.chipsT{padding:8px var(--s4) 0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;gap:var(--s2);align-items:center}
+.pill{border:1px solid var(--line);background:var(--surf2);color:var(--muted);border-radius:999px;padding:3px 12px;cursor:pointer;font-size:13px;text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--muted) 60%,transparent)}
+.pill[aria-pressed=true]{background:color-mix(in srgb,var(--accent) 16%,var(--surf2));border-color:var(--accent);color:var(--ink);text-decoration:none}
+.pill[aria-pressed=mixed]{border-style:dashed;color:var(--ink2);text-decoration:none}
+tr.dirty td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+tr .rowsave{visibility:hidden}
+tr.dirty .rowsave,tr.new .rowsave{visibility:visible}
+td input[type=text]{width:100%;min-width:8ch}
+
+/* undo toast and live region */
+#toast{position:fixed;left:16px;bottom:72px;background:var(--ink);color:var(--page);border-radius:var(--r);padding:10px 14px;font-weight:600;display:none;gap:var(--s4);align-items:center;z-index:60;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+#toast .lnk{color:var(--page);text-decoration:underline;font-weight:700}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+@media (max-width:767px){
+  .layA,.layC{grid-template-columns:minmax(0,1fr);gap:var(--s3);padding-top:0}
+  .layB{grid-template-columns:minmax(0,1fr)}
+  .rC{flex-wrap:wrap}.gridC{columns:1}
+  .toc,.side{position:sticky;top:0;z-index:5;flex-direction:row;overflow-x:auto;background:var(--page);padding:var(--s2) 0;height:auto;border-right:0;border-bottom:1px solid var(--line);margin:0 calc(-1*var(--s4))}
+  .side{margin:0;padding:var(--s2)}
+  .toc a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .toc a[aria-current=true]{border-bottom-color:var(--accent)}
+  .toc a.ext,.side .ext{margin:0}
+  .side button,.side a{white-space:nowrap}
+  .paneB{padding:var(--s4)}
+  .row{flex-wrap:wrap}
+  .kv{grid-template-columns:1fr}
+  .tiersB{grid-template-columns:1fr}
+  .topnav{margin-left:0}
+}
+
+/* variant switcher — deliberately unlike the design under review */
+#vbar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:100;display:flex;align-items:center;gap:8px;
+  background:#fff;color:#111;border-radius:999px;padding:6px 8px;font:600 13px/1 ui-monospace,Consolas,monospace;box-shadow:0 4px 16px rgba(0,0,0,.5);white-space:nowrap}
+#vbar button{border:0;background:#111;color:#fff;border-radius:999px;min-width:28px;height:28px;cursor:pointer;font:inherit;padding:0 8px}
+#vbar span{min-width:230px;text-align:center}
+#vbar label{display:flex;gap:4px;align-items:center;color:#111}
+#dbg{position:fixed;right:16px;bottom:64px;width:min(380px,calc(100vw - 32px));max-height:60vh;overflow:auto;background:#fff;color:#111;font:12px/1.4 ui-monospace,Consolas,monospace;border-radius:8px;padding:12px;margin:0;z-index:99;box-shadow:0 4px 16px rgba(0,0,0,.5);display:none;white-space:pre-wrap}
+@media (max-width:600px){#vbar span{min-width:0}#vbar .opt{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr">
+    <span class="brand">RL Tracker</span>
+    <nav class="topnav" aria-label="Pages">
+      <a href="../recap-layout/recap-prototype.html?variant=D&amp;theme=carbon" data-tip="Opens the recap prototype (its own mock data)">Recap</a>
+      <a href="../period-views/period-views-prototype.html?variant=B" data-tip="Opens the Trends prototype">Trends</a>
+      <a href="#" data-tip="The Friends page isn't prototyped yet">Friends</a>
+    </nav>
+    <div class="hdr-r">
+      <span class="status" role="status"><i></i>connected · waiting for match</span>
+      <a class="hbtn" href="#" aria-current="page">⚙ Settings</a>
+      <button class="hbtn" type="button" data-tip="Stops the tracker (stubbed here)">Quit</button>
+    </div>
+  </div>
+</header>
+<main id="app"></main>
+<div id="toast" role="status"></div>
+<div id="live" class="sr" aria-live="polite"></div>
+<div class="tip" id="tip"></div>
+<pre id="dbg" aria-label="Stored settings"></pre>
+<div id="vbar" aria-label="Prototype variant switcher">
+  <button type="button" id="vprev" aria-label="Previous variant">←</button>
+  <span id="vlabel"></span>
+  <button type="button" id="vnext" aria-label="Next variant">→</button>
+  <label class="opt"><input type="checkbox" id="vfail"> fail saves</label>
+  <button type="button" id="vdbg" aria-pressed="false">state</button>
+</div>
+
+<script>
+// ---------------- data ----------------
+const P = new URLSearchParams(location.search);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const THEMES = {
+  carbon:  {page:'#0c0c0d',surf:'#161618',surf2:'#202023',line:'#2c2c30',ink:'#ededed',ink2:'#b0b0b5',accent:'#c6f24e',note:'default'},
+  slate:   {page:'#0f1218',surf:'#171b23',surf2:'#1f2430',line:'#2a303c',ink:'#e8eaf0',ink2:'#a8afbf',accent:'#9db7ff'},
+  midnight:{page:'#0a0f1d',surf:'#121a2e',surf2:'#1a2440',line:'#24304d',ink:'#e6ecf8',ink2:'#a4b0c8',accent:'#3fc5f0'},
+  oled:    {page:'#000000',surf:'#0b0b0b',surf2:'#161616',line:'#262626',ink:'#f5f5f5',ink2:'#b5b5b5',accent:'#ffffff'},
+  dusk:    {page:'#111015',surf:'#1a1820',surf2:'#24212c',line:'#332f3d',ink:'#eceaf2',ink2:'#b3aec2',accent:'#d4b8ff'},
+  steel:   {page:'#121417',surf:'#1b1e22',surf2:'#25292e',line:'#33383f',ink:'#e9ecef',ink2:'#adb3ba',accent:'#e8edf2'},
+  daylight:{page:'#f3f4f6',surf:'#ffffff',surf2:'#eceef2',line:'#d8dbe2',ink:'#14171c',ink2:'#4a5160',accent:'#4f46e5',note:'light'},
+};
+const cap = s => s[0].toUpperCase()+s.slice(1);
+const PLAYLISTS = [
+  ['', [['everything','Everything (excl. private)']]],
+  ['Ranked', [['ranked','All ranked'],['r1','Ranked Duel 1v1'],['r2','Ranked Doubles 2v2'],['r3','Ranked Standard 3v3']]],
+  ['Casual', [['casual','All casual'],['c1','Casual 1v1'],['c2','Casual 2v2'],['c3','Casual 3v3'],['c4','Casual 4v4']]],
+  ['Extra modes', [['hoops','Hoops'],['rumble','Rumble'],['dropshot','Dropshot'],['snowday','Snow Day'],['heatseeker','Heatseeker']]],
+  ['', [['private','Private']]],
+];
+const HEADLINE = [['same','Same filters as the recap'],['ranked','All ranked'],['everything','Everything']];
+const TIERS = {
+  Legendary: [['hat','Hat trick','Three goals in one match'],['savior','Savior','Three saves in one match'],['bicycle','Bicycle goal','You scored off a bicycle hit']],
+  Rare: [['aerial','Aerial goal','You scored in the air'],['long','Long goal','You scored from your own half'],['epic','Epic save','An epic save statfeed'],
+         ['otw','Overtime win','You won in overtime'],['otl','Overtime loss','You lost in overtime'],['mvp','MVP haul','Lots of MVPs this session'],
+         ['hard','Hard shot','A very fast shot'],['shut','Shut out','Your team didn’t score in a match']],
+  Common: [['wstreak','Win streak','Several wins in a row'],['lstreak','Loss streak','Several losses in a row'],['endw','Ended on a win','The last match was a win'],
+           ['endl','Ended on a loss','The last match was a loss'],['duog','Good duo record','Winning with a friend'],['duob','Bad duo record','Losing with a friend'],
+           ['solo','Soloqueue night','No friends on your team all session'],['demog','Demos given','You demolished a lot'],['demot','Demos taken','You got demolished a lot'],
+           ['xbar','Crossbar hits','The crossbar said no'],['marathon','Marathon','A session of 3 hours or more'],['late','Late night','The session ended at 1am or later']],
+};
+const TIER_HELP = {Legendary:'Rarest. Wins over everything else.', Rare:'Wins over common moments.', Common:'Everyday moments.'};
+const ALL_TRIG = Object.values(TIERS).flat();
+const PLATS = ['Epic','Steam','PS4','XboxOne','Switch'];
+const SEED_SEASONS = [{name:'S22',start:'2026-03-11'},{name:'S23',start:'2026-06-09'},{name:'S24',start:'2026-09-23'}];
+const TODAY = '2026-10-16';
+const DEF = {theme:'carbon', clock:'24h', speed:'kmh', start:'recap', plRecap:'everything', plTrends:'ranked', headline:'same', rolling:20,
+  remarks:true, mood:true, trig:Object.fromEntries(ALL_TRIG.map(t=>[t[0],true])), toast:true, ids:[], seasons:clone(SEED_SEASONS)};
+const SECTIONS = [
+  ['appearance','Appearance','How the dashboard looks.', ['theme','clock','speed']],
+  ['defaults','Defaults','What a page shows when you open it.', ['start','plRecap','plTrends','headline','rolling']],
+  ['remarks','Remarks','The mood line and quip under the recap scorebug.', ['remarks','mood','trig']],
+  ['you','You','The accounts the tracker counts as you.', null],
+  ['seasons','Seasons','Season start dates, used by Trends. A season ends the day before the next one starts.', ['seasons']],
+  ['app','App','The tracker itself.', ['toast']],
+];
+
+let S = clone(DEF);
+S.ids = [{id:'Epic|a71c3e09f2b84d1c9e0b|0', name:'Riddy'}];
+const ui = {
+  vi:0, section:P.get('section')||'appearance', fail:false, status:{}, preview:null, open:{},
+  edit:null, draft:null, rowErr:{}, cdraft:{}, toast:null, suggest:{id:'Steam|76561198034412345|0', name:'Riddy', where:'Ranked Doubles · today 21:14'},
+};
+
+// ---------------- saving (stubbed) ----------------
+const secOf = k => k.startsWith('trig')||k.startsWith('tier')||k==='remarks'||k==='mood' ? 'remarks'
+  : k.startsWith('ids') ? 'you' : k.startsWith('seasons') ? 'seasons' : SECTIONS.find(s=>s[3]&&s[3].includes(k))?.[0];
+function commit(key, fn){
+  if(ui.fail){ ui.status[key]={err:true,t:Date.now(),retry:fn}; announce('Couldn’t save. Retry?'); render(); return false; }
+  fn(S); ui.status[key]={t:Date.now()}; announce('Saved'); render(); return true;
+}
+const announce = m => { const l=document.getElementById('live'); l.textContent=''; setTimeout(()=>l.textContent=m,30); };
+const fresh = k => ui.status[k] && !ui.status[k].err && Date.now()-ui.status[k].t < 2300;
+function tick(key){                 // inline tick (A); B and C show save state per section/card instead
+  const s=ui.status[key]; if(!s) return '';
+  if(s.err) return `<span class="err">Couldn’t save · <button type="button" class="lnk" data-retry="${key}">Retry</button></span>`;
+  const el=Date.now()-s.t; return el>2300 ? '' : `<span class="tick" style="animation-delay:-${el}ms">✓ Saved</span>`;
+}
+function secState(sec){             // newest status inside one section
+  let best=null, bk=null;
+  for(const [k,s] of Object.entries(ui.status)) if(secOf(k)===sec && (!best||s.t>best.t)){best=s;bk=k;}
+  return best && {...best, key:bk};
+}
+const isDefault = sec => { const keys=SECTIONS.find(s=>s[0]===sec)[3]; return keys.every(k=>JSON.stringify(S[k])===JSON.stringify(DEF[k])); };
+function resetSec(sec){
+  const [,name,,keys]=SECTIONS.find(s=>s[0]===sec), snap=clone(S);
+  if(commit(sec+':reset', s=>keys.forEach(k=>s[k]=clone(DEF[k])))){ ui.edit=null; ui.cdraft={}; showToast(`${name} reset to defaults`, snap); }
+}
+function showToast(msg, snap){
+  ui.toast={msg,snap}; const t=document.getElementById('toast');
+  t.innerHTML=`${esc(msg)} <button type="button" class="lnk" data-undo>Undo</button>`; t.style.display='flex';
+  clearTimeout(showToast.h); showToast.h=setTimeout(()=>{t.style.display='none';ui.toast=null;},6000);
+}
+
+// ---------------- controls ----------------
+const sw = (k, on, label, dis=false) => `<button type="button" class="sw" role="switch" id="sw-${k}" aria-checked="${on}" aria-label="${esc(label)}" data-sw="${k}"${dis?' disabled':''}></button>`;
+const seg = (k, opts, label) => `<div class="seg" role="radiogroup" aria-label="${esc(label)}">${opts.map(([v,l])=>`<button type="button" role="radio" id="seg-${k}-${v}" aria-checked="${S[k]===v}" data-set="${k}" data-val="${v}">${l}</button>`).join('')}</div>`;
+const plSel = (k,label) => `<select id="sel-${k}" data-set="${k}" aria-label="${esc(label)}">${PLAYLISTS.map(([g,os])=>{
+  const o=os.map(([v,l])=>`<option value="${v}"${S[k]===v?' selected':''}>${l}</option>`).join(''); return g?`<optgroup label="${g}">${o}</optgroup>`:o;}).join('')}</select>`;
+const hlSel = () => `<select id="sel-headline" data-set="headline" aria-label="Headline compares against">${HEADLINE.map(([v,l])=>`<option value="${v}"${S.headline===v?' selected':''}>${l}</option>`).join('')}</select>`;
+function rollingInput(){
+  const e=ui.rowErr.rolling;
+  return `<input type="number" id="in-rolling" min="5" max="100" step="1" value="${esc(ui.rollDraft??S.rolling)}" aria-label="Rolling window in matches"${e?' aria-invalid="true" aria-describedby="rolling-err"':''}> <span class="muted">matches</span>${e?`<div class="ferr" id="rolling-err">${e}</div>`:''}`;
+}
+const CLOCK=[['24h','21:14'],['12h','9:14 pm']], SPEED=[['kmh','km/h'],['mph','mph']], START=[['recap','Recap'],['trends','Trends']];
+const tierState = T => { const on=TIERS[T].filter(t=>S.trig[t[0]]).length; return on===TIERS[T].length?'true':on===0?'false':'mixed'; };
+const tierSum = T => ({true:'all on','false':'all off',mixed:'some off'})[tierState(T)];
+
+// theme pickers: A swatches (hover previews live), B cards (each card is its own preview), C dots (hover previews live)
+const swatches = () => `<div class="swatches" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([t,k])=>
+  `<button type="button" class="swatch" role="radio" id="th-${t}" aria-checked="${S.theme===t}" data-set="theme" data-val="${t}" data-preview="${t}">
+    <span class="chip" style="background:${k.page}"><i style="background:${k.surf2}"></i><b style="background:${k.accent}"></b></span>
+    <span>${cap(t)}</span></button>`).join('')}</div>`;
+const themeCards = () => `<div class="tcards" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([t,k])=>
+  `<button type="button" class="tcard" role="radio" id="th-${t}" aria-checked="${S.theme===t}" data-set="theme" data-val="${t}" style="background:${k.page};border-color:${S.theme===t?k.accent:k.line}">
+    <div class="tc-bug"><span style="background:${k.surf2};color:${k.ink};border-bottom:3px solid #2ca57a">7</span><span style="background:${k.accent};color:${k.page}">W – L</span><span style="background:${k.surf2};color:${k.ink};border-bottom:3px solid #b84a63">4</span></div>
+    <div class="tc-tiles" style="color:${k.ink2}"><i style="background:${k.surf};border-color:${k.line}"></i><i style="background:${k.surf};border-color:${k.line}"></i><i style="background:${k.surf};border-color:${k.line}"></i></div>
+    <div class="tc-name" style="color:${k.ink}">${cap(t)} <small style="color:${S.theme===t?k.accent:k.ink2}">${S.theme===t?'✓ in use':k.note||''}</small></div></button>`).join('')}</div>`;
+const themeDots = () => `<div class="dots" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([t,k])=>
+  `<button type="button" class="dot" role="radio" id="th-${t}" aria-checked="${S.theme===t}" aria-label="${cap(t)}" data-set="theme" data-val="${t}" data-preview="${t}" data-tip="${cap(t)}${k.note?' ('+k.note+')':''}" style="background:${k.page};--a:${k.accent}"></button>`).join('')}
+  <b style="margin-left:6px">${cap(ui.preview||S.theme)}</b></div>`;
+
+// ---------------- tables ----------------
+const fmtD = d => new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+const dayBefore = d => { const x=new Date(d+'T12:00:00'); x.setDate(x.getDate()-1); return x.toISOString().slice(0,10); };
+const sortS = () => S.seasons.sort((a,b)=>a.start.localeCompare(b.start));
+const TABLES = {
+  seasons: {
+    noun:'season', heads:['Season','Starts','Ends'],
+    rows:()=>S.seasons,
+    view:(r,i)=>{ const nx=S.seasons[i+1], cur=r.start<=TODAY&&(!nx||nx.start>TODAY);
+      return [`<b>${esc(r.name)}</b>${cur?'<span class="badge">current</span>':''}`, fmtD(r.start), nx?fmtD(dayBefore(nx.start)):'<span class="muted">still running</span>']; },
+    fields:[{f:'name',label:'Season',type:'text'},{f:'start',label:'Starts',type:'date'}],
+    extra:(r,i)=>[ (S.seasons[i+1]?fmtD(dayBefore(S.seasons[i+1].start)):'<span class="muted">still running</span>') ],
+    blank:()=>({name:'S'+(Math.max(0,...S.seasons.map(s=>+s.name.replace(/\D/g,'')||0))+1), start:''}),
+    toDraft:r=>({name:r.name,start:r.start}),
+    validate:(d,i)=>{ const n=d.name.trim();
+      if(!n) return 'Give the season a name.';
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(d.start)) return 'Pick a start date.';
+      if(S.seasons.some((s,j)=>j!==i&&s.name.toLowerCase()===n.toLowerCase())) return `There’s already a season called ${esc(n)}.`;
+      if(S.seasons.some((s,j)=>j!==i&&s.start===d.start)) return 'Another season starts that day.';
+      return ''; },
+    apply:(d,i)=>s=>{ const r={name:d.name.trim(),start:d.start}; if(i==='new') s.seasons.push(r); else s.seasons[i]=r; sortS(); },
+    label:r=>r.name,
+  },
+  ids: {
+    noun:'ID', heads:['Platform','Account ID','Last name seen'],
+    rows:()=>S.ids,
+    view:r=>{ const [p,a]=r.id.split('|'); return [`<span class="plat">${esc(p)}</span>`, `<span class="mono">${esc(a)}</span>`, r.name?esc(r.name):'<span class="muted">not seen yet</span>']; },
+    fields:[{f:'plat',label:'Platform',type:'select',opts:PLATS},{f:'acct',label:'Account ID',type:'text'}],
+    extra:r=>[r.name?esc(r.name):'<span class="muted">not seen yet</span>'],
+    blank:()=>({plat:'Epic',acct:''}),
+    toDraft:r=>{ const [p,a]=r.id.split('|'); return {plat:p,acct:a}; },
+    validate:(d,i)=>{ const a=d.acct.trim();
+      if(!a) return 'Enter the account ID.';
+      if(d.plat==='Steam'&&!/^\d{17}$/.test(a)) return 'A Steam ID is 17 digits (SteamID64).';
+      if(S.ids.some((x,j)=>j!==i&&x.id===`${d.plat}|${a}|0`)) return 'That ID is already in the list.';
+      return ''; },
+    apply:(d,i)=>s=>{ const id=`${d.plat}|${d.acct.trim()}|0`; if(i==='new') s.ids.push({id,name:''}); else s.ids[i]={...s.ids[i],id}; },
+    label:r=>r.id.split('|')[0]+' ID',
+  },
+};
+function fieldHtml(tb, f, d, rk, opts={}){
+  const id=`f-${rk.replace(':','-')}-${f.f}`, err=ui.rowErr[rk], aria=`aria-label="${f.label}"${err?' aria-invalid="true"':''}`, da=`data-draft="${rk}" data-f="${f.f}"`;
+  if(f.type==='select') return `<select id="${id}" ${da} ${aria}>${f.opts.map(o=>`<option${d[f.f]===o?' selected':''}>${o}</option>`).join('')}</select>`;
+  return `<input type="${f.type}" id="${id}" ${da} ${aria} value="${esc(d[f.f])}"${opts.ph?` placeholder="${opts.ph}"`:''}>`;
+}
+const rowErrHtml = (rk, cols) => ui.rowErr[rk] ? `<tr><td colspan="${cols}"><div class="ferr" role="alert">${ui.rowErr[rk]}</div></td></tr>` : '';
+// A: edit in place — Edit turns the row into inputs with Save / Cancel
+function tableA(name){
+  const tb=TABLES[name], rows=tb.rows(), cols=tb.heads.length+1;
+  let h=`<div class="tscroll"><table><thead><tr>${tb.heads.map(x=>`<th>${x}</th>`).join('')}<th></th></tr></thead><tbody>`;
+  const editRow=(i, d)=>{ const rk=`${name}:${i}`;
+    return `<tr class="sel">${tb.fields.map(f=>`<td>${fieldHtml(tb,f,d,rk)}</td>`).join('')}${i==='new'?'<td></td>'.repeat(tb.heads.length-tb.fields.length):tb.extra(rows[i],i).map(x=>`<td>${x}</td>`).join('')}
+      <td class="act">${tick(rk)} <button type="button" class="btn pri" data-saverow="${rk}">Save</button> <button type="button" class="lnk quiet" data-cancel>Cancel</button></td></tr>${rowErrHtml(rk,cols)}`; };
+  rows.forEach((r,i)=>{ const rk=`${name}:${i}`;
+    h += ui.edit===rk ? editRow(i, ui.draft)
+      : `<tr>${tb.view(r,i).map(x=>`<td>${x}</td>`).join('')}<td class="act">${tick(rk)} <button type="button" class="lnk" data-edit="${rk}">Edit</button><button type="button" class="lnk quiet" data-del="${rk}">Remove</button></td></tr>`; });
+  if(ui.edit===`${name}:new`) h+=editRow('new', ui.draft);
+  h+=`</tbody></table></div>`;
+  if(!rows.length&&ui.edit!==`${name}:new`) h+=`<p class="muted" style="padding:0 10px">No ${tb.noun}s yet.</p>`;
+  if(ui.edit!==`${name}:new`) h+=`<div style="padding:10px">${tick(name+':new')} <button type="button" class="lnk" data-add="${name}" id="add-${name}">+ Add ${tb.noun}</button></div>`;
+  return h;
+}
+// B: rows are read-only; picking one (or "Add") opens a form under the table
+function tableB(name){
+  const tb=TABLES[name], rows=tb.rows(), ed=ui.edit&&ui.edit.startsWith(name+':')?ui.edit:null;
+  let h=`<div class="tscroll"><table><thead><tr>${tb.heads.map(x=>`<th>${x}</th>`).join('')}<th></th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{ const rk=`${name}:${i}`;
+    h+=`<tr class="${ed===rk?'sel':''}">${tb.view(r,i).map(x=>`<td>${x}</td>`).join('')}<td class="act"><button type="button" class="lnk" data-edit="${rk}" aria-pressed="${ed===rk}">${ed===rk?'Editing':'Edit'}</button></td></tr>`; });
+  h+=`</tbody></table></div>`;
+  if(!rows.length) h+=`<p class="muted">No ${tb.noun}s yet.</p>`;
+  if(ed){
+    const i=ed.split(':')[1], isNew=i==='new';
+    h+=`<div class="formB"><h3 style="margin:0 0 10px;font-size:14px">${isNew?`New ${tb.noun}`:`Edit ${esc(tb.label(rows[i]))}`}</h3><div class="fr">
+      ${tb.fields.map(f=>`<label>${f.label}${fieldHtml(tb,f,ui.draft,ed)}</label>`).join('')}
+      <button type="button" class="btn pri" data-saverow="${ed}">${isNew?`Add ${tb.noun}`:'Save'}</button>
+      <button type="button" class="lnk quiet" data-cancel>Cancel</button> ${tick(ed)}
+      ${isNew?'':`<button type="button" class="lnk quiet" style="margin-left:auto;color:var(--down)" data-del="${ed}">Remove ${tb.noun}</button>`}</div>
+      ${ui.rowErr[ed]?`<div class="ferr" role="alert">${ui.rowErr[ed]}</div>`:''}</div>`;
+  } else h+=`<div style="margin-top:10px"><button type="button" class="btn" data-add="${name}" id="add-${name}">+ Add ${tb.noun}</button></div>`;
+  return h;
+}
+// C: every row is always editable; a changed row shows Save (Enter) and ↺; a blank row at the end adds
+function tableC(name){
+  const tb=TABLES[name], rows=tb.rows(), cols=tb.heads.length+1;
+  let h=`<div class="tscroll"><table><thead><tr>${tb.heads.map(x=>`<th>${x}</th>`).join('')}<th></th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{ const rk=`${name}:${i}`, d=ui.cdraft[rk]||tb.toDraft(r);
+    h+=`<tr data-row="${rk}" class="${ui.cdraft[rk]?'dirty':''}">${tb.fields.map(f=>`<td>${fieldHtml(tb,f,d,rk)}</td>`).join('')}${tb.extra(r,i).map(x=>`<td>${x}</td>`).join('')}
+      <td class="act">${tick(rk)} <button type="button" class="btn pri rowsave" data-saverow="${rk}">Save</button> <button type="button" class="rst rowsave" data-revert="${rk}" data-tip="Undo changes to this row" aria-label="Undo changes to this row">↺</button> <button type="button" class="rst" data-del="${rk}" data-tip="Remove" aria-label="Remove ${esc(tb.label(r))}">✕</button></td></tr>${rowErrHtml(rk,cols)}`; });
+  const rk=`${name}:new`, bl=tb.blank(), d=ui.cdraft[rk]||{...bl, name:'', acct:''};
+  h+=`<tr data-row="${rk}" class="${ui.cdraft[rk]?'dirty':''}">${tb.fields.map(f=>`<td>${fieldHtml(tb,f,d,rk,{ph:f.f==='name'?bl.name+' (new)':'new '+tb.noun})}</td>`).join('')}${'<td></td>'.repeat(tb.heads.length-tb.fields.length)}
+    <td class="act">${tick(rk)} <button type="button" class="btn pri rowsave" data-saverow="${rk}">Add</button></td></tr>${rowErrHtml(rk,cols)}</tbody></table></div>`;
+  return h;
+}
+const suggestHtml = () => ui.suggest ? `<div class="note info suggest" style="margin-bottom:12px"><span>The tracker thinks this is also you: <span class="plat">${ui.suggest.id.split('|')[0]}</span> <span class="mono">${ui.suggest.id.split('|')[1]}</span> (“${esc(ui.suggest.name)}”, ${ui.suggest.where}).</span>
+  <span><button type="button" class="btn pri" data-sugg="yes">That’s me</button> <button type="button" class="lnk quiet" data-sugg="no">Not me</button></span></div>` : '';
+const emptyIds = () => S.ids.length ? '' : `<div class="note" style="margin-bottom:12px">No IDs. The tracker can’t tell which player is you, so it will ask after your next match.</div>`;
+const friendsLine = `Friends, nicknames and “never suggest” are on the <a href="#" data-tip="The Friends page isn't prototyped yet">Friends page →</a>`;
+
+// ---------------- variant A · long scroll ----------------
+const row = (label, help, ctl, key, cls='') => `<div class="row ${cls}"><div><div class="lbl">${label} ${key?tick(key):''}</div>${help?`<div class="help">${help}</div>`:''}</div><div class="ctl">${ctl}</div></div>`;
+function headA(sec){
+  const [id,name,,keys]=SECTIONS.find(s=>s[0]===sec);
+  const r = !keys ? '' : isDefault(sec) ? `<span class="def">Defaults</span>` : `<button type="button" class="lnk" data-reset="${sec}">Reset to defaults</button>`;
+  return `<div class="sh"><h2 id="h-${id}">${name}</h2><span>${tick(sec+':reset')} ${r}</span></div>`;
+}
+function VariantA(){
+  const remarksOff=!S.remarks;
+  const tiers = Object.keys(TIERS).map(T=>{ const open=!!ui.open[T];
+    return `<div class="tierA"><button type="button" class="disc" id="disc-${T}" aria-expanded="${open}" aria-controls="tier-${T}" data-open="${T}">${T} <span class="sum">${tierSum(T)}</span></button>${tick('tier:'+T)} ${sw('tier:'+T, tierState(T), `All ${T} triggers`)}</div>
+      <div id="tier-${T}"${open?'':' hidden'}>${TIERS[T].map(([k,n,d])=>row(n,d,sw('trig:'+k,S.trig[k],n),'trig:'+k,'sub')).join('')}</div>`; }).join('');
+  return `<div class="layA">
+  <nav class="toc" aria-label="Settings sections">${SECTIONS.map(([id,n])=>`<a href="#sec-${id}" data-nav="${id}">${n}</a>`).join('')}<a class="ext" href="#" data-tip="The Friends page isn't prototyped yet">Friends →</a></nav>
+  <div>
+    <section class="secA" id="sec-appearance" aria-labelledby="h-appearance">${headA('appearance')}<div class="panel">
+      ${row('Theme','Hover to preview, click to keep.', '', 'theme','block').replace('<div class="ctl"></div>', `<div class="ctl">${swatches()}</div>`)}
+      ${row('Clock','', seg('clock',CLOCK,'Clock'), 'clock')}
+      ${row('Speed','Hardest shot, fastest goal and the goal map.', seg('speed',SPEED,'Speed units'), 'speed')}
+    </div></section>
+    <section class="secA" id="sec-defaults" aria-labelledby="h-defaults">${headA('defaults')}<div class="panel">
+      ${row('Start page','Where the dashboard opens.', seg('start',START,'Start page'), 'start')}
+      ${row('Recap playlist','The recap’s filter when you open it.', plSel('plRecap','Recap playlist'), 'plRecap')}
+      ${row('Trends playlist','The Trends filter when you open it.', plSel('plTrends','Trends playlist'), 'plTrends')}
+      ${row('Headline compares against','The recap headline’s 30-day average.', hlSel(), 'headline')}
+      ${row('Trends rolling window','Matches per point when Trends is “By match”. 5–100.', rollingInput(), 'rolling')}
+    </div></section>
+    <section class="secA" id="sec-remarks" aria-labelledby="h-remarks">${headA('remarks')}<div class="panel">
+      ${row('Remarks','The mood line and quip under the recap scorebug.', sw('remarks',S.remarks,'Remarks'), 'remarks')}
+      <fieldset${remarksOff?' disabled':''}>
+      ${remarksOff?`<div class="row"><div class="help">Remarks are off. Your choices below are kept for when you turn them back on.</div></div>`:''}
+      ${row('Mood line','One line on how the night went. No numbers.', sw('mood',S.mood,'Mood line'), 'mood')}
+      <div class="row"><div><div class="lbl">Quips</div><div class="help">At most one per session. When several fire, the rarest tier wins.</div></div></div>
+      ${tiers}</fieldset>
+    </div></section>
+    <section class="secA" id="sec-you" aria-labelledby="h-you">${headA('you')}${suggestHtml()}${emptyIds()}<div class="panel">${tableA('ids')}</div></section>
+    <section class="secA" id="sec-seasons" aria-labelledby="h-seasons">${headA('seasons')}<p class="muted" style="margin:0 0 8px">A season ends the day before the next one starts.</p><div class="panel">${tableA('seasons')}</div></section>
+    <section class="secA" id="sec-app" aria-labelledby="h-app">${headA('app')}<div class="panel">
+      ${row('“No data” warning','A toast when the game is running but no stats arrive for about a minute (the Stats API is probably off).', sw('toast',S.toast,'No data warning'), 'toast')}
+    </div><p class="muted" style="margin-top:var(--s5)">${friendsLine}</p></section>
+  </div></div>`;
+}
+
+// ---------------- variant B · one section at a time ----------------
+function saveBar(sec){
+  const s=secState(sec);
+  if(s&&s.err) return `<div class="savebar">${tick(s.key)}</div>`;
+  if(s&&fresh(s.key)) return `<div class="savebar"><span class="tick" style="animation-delay:-${Date.now()-s.t}ms">✓ Saved</span></div>`;
+  return `<div class="savebar">Changes save as you make them.</div>`;
+}
+const kv = (k, small, ctl) => `<div class="k">${k}${small?`<small>${small}</small>`:''}</div><div>${ctl}</div>`;
+function paneB(sec){
+  switch(sec){
+  case 'appearance': return `<div class="card"><h3>Theme</h3><p class="help">Each card is a preview. Click one to use it.</p>${themeCards()}</div>
+    <div class="card"><div class="kv">${kv('Clock','',seg('clock',CLOCK,'Clock'))}${kv('Speed','Hardest shot, fastest goal, goal map',seg('speed',SPEED,'Speed units'))}</div></div>`;
+  case 'defaults': return `<div class="card"><h3>Opening a page</h3><p class="help">What each page shows before you touch a filter.</p><div class="kv">
+      ${kv('Start page','',seg('start',START,'Start page'))}${kv('Recap playlist','',plSel('plRecap','Recap playlist'))}${kv('Trends playlist','',plSel('plTrends','Trends playlist'))}</div></div>
+    <div class="card"><h3>Comparisons</h3><div class="kv">${kv('Headline compares against','The recap’s 30-day average',hlSel())}${kv('Trends rolling window','“By match” on Trends, 5–100',rollingInput())}</div></div>`;
+  case 'remarks': return `<div class="card"><div class="kv">${kv('Remarks','The mood line and quip under the scorebug',sw('remarks',S.remarks,'Remarks'))}
+      ${kv('Mood line','How the night went, no numbers',sw('mood',S.mood,'Mood line',!S.remarks))}</div></div>
+    ${!S.remarks?`<div class="note" style="margin-bottom:12px">Remarks are off. Your choices below are kept for when you turn them back on.</div>`:''}
+    <fieldset${S.remarks?'':' disabled'}><h3 style="margin:0 0 4px;font-size:15px">Quips</h3><p class="help" style="color:var(--ink2);font-size:13px;margin:0 0 12px">At most one per session. When several fire, the rarest tier wins.</p>
+    <div class="tiersB">${Object.keys(TIERS).map(T=>`<div class="card"><div class="th"><div><h3>${T}</h3><small class="muted">${TIER_HELP[T]}</small></div>${sw('tier:'+T,tierState(T),`All ${T} triggers`)}</div>
+      ${TIERS[T].map(([k,n,d])=>`<label class="cb"><input type="checkbox" id="cb-${k}" data-sw="trig:${k}"${S.trig[k]?' checked':''}><span>${n}<small>${d}</small></span></label>`).join('')}</div>`).join('')}</div></fieldset>`;
+  case 'you': return `${suggestHtml()}${emptyIds()}<div class="card">${tableB('ids')}</div>`;
+  case 'seasons': return `<div class="card">${tableB('seasons')}</div>`;
+  case 'app': return `<div class="card"><div class="kv">${kv('“No data” warning','A toast when the game runs but no stats arrive for about a minute',sw('toast',S.toast,'No data warning'))}</div></div>`;
+  }
+}
+function VariantB(){
+  const sec=SECTIONS.find(s=>s[0]===ui.section)||SECTIONS[0], [id,name,lede,keys]=sec;
+  return `<div class="layB">
+  <nav class="side" aria-label="Settings sections">${SECTIONS.map(([i,n])=>`<button type="button" id="nav-${i}" data-nav="${i}"${i===id?' aria-current="page"':''}>${n}</button>`).join('')}<a class="ext" href="#" data-tip="The Friends page isn't prototyped yet">Friends →</a></nav>
+  <div class="paneB"><h1>${name}</h1><p class="lede">${lede}</p>${saveBar(id)}${paneB(id)}
+    <div class="footB"><span class="muted">${id==='app'?friendsLine:''}</span>${keys?(isDefault(id)?`<span class="muted">Everything here is at its default.</span>`:`<button type="button" class="btn" data-reset="${id}">Reset ${name.toLowerCase()} to defaults</button>`):''}</div>
+  </div></div>`;
+}
+
+// ---------------- variant C · control panel ----------------
+function cardC(sec, body, wide=false){
+  const [id,name,lede,keys]=SECTIONS.find(s=>s[0]===sec), s=secState(sec);
+  const st = s&&s.err ? tick(s.key) : s&&fresh(s.key) ? `<span class="tick" style="animation-delay:-${Date.now()-s.t}ms">✓ Saved</span>` : '';
+  return `<section class="cardC${wide?' wide':''}" id="sec-${id}" aria-labelledby="h-${id}"><div class="ch"><h2 id="h-${id}" data-tip="${esc(lede)}">${name}</h2>${st}
+    ${keys&&!isDefault(sec)?`<button type="button" class="rst" data-reset="${sec}" data-tip="Reset ${name.toLowerCase()} to defaults" aria-label="Reset ${name.toLowerCase()} to defaults">↺</button>`:''}</div>${body}</section>`;
+}
+const rC = (k, tip, ctl) => `<div class="rC"><span class="k" data-tip="${esc(tip)}">${k}</span><span>${ctl}</span></div>`;
+function VariantC(){
+  const off=!S.remarks;
+  return `<div class="layC">
+  <nav class="toc" aria-label="Settings sections">${SECTIONS.map(([id,n])=>`<a href="#sec-${id}" data-nav="${id}">${n}</a>`).join('')}<a class="ext" href="#" data-tip="The Friends page isn't prototyped yet">Friends →</a></nav>
+  <div class="gridC">
+    ${cardC('appearance', rC('Theme','Hover to preview, click to keep.',themeDots()) + rC('Clock','12- or 24-hour times',seg('clock',CLOCK,'Clock')) + rC('Speed','Hardest shot, fastest goal, goal map',seg('speed',SPEED,'Speed units')))}
+    ${cardC('defaults', rC('Start page','Where the dashboard opens',seg('start',START,'Start page')) + rC('Recap playlist','The recap’s filter when you open it',plSel('plRecap','Recap playlist'))
+       + rC('Trends playlist','The Trends filter when you open it',plSel('plTrends','Trends playlist')) + rC('Headline vs','What the recap headline’s 30-day average uses',hlSel())
+       + rC('Rolling window','Matches per point when Trends is “By match”. 5–100.',rollingInput()))}
+    ${cardC('remarks', rC('Remarks','The mood line and quip under the scorebug',sw('remarks',S.remarks,'Remarks')) + `<fieldset${off?' disabled':''}>`
+       + rC('Mood line','How the night went, no numbers',sw('mood',S.mood,'Mood line'))
+       + Object.keys(TIERS).map(T=>`<div class="chipsT">${T} <button type="button" class="pill" id="pill-tier-${T}" aria-pressed="${tierState(T)}" data-sw="tier:${T}" data-tip="${TIER_HELP[T]} Click to turn the whole tier ${tierState(T)==='true'?'off':'on'}." style="font-size:11px;padding:1px 8px;text-decoration:none">${tierState(T)==='true'?'all on':tierState(T)==='false'?'all off':'some off'}</button></div>
+         <div class="chips">${TIERS[T].map(([k,n,d])=>`<button type="button" class="pill" id="pill-${k}" aria-pressed="${S.trig[k]}" data-sw="trig:${k}" data-tip="${esc(d)}">${n}</button>`).join('')}</div>`).join('') + `</fieldset>`)}
+    ${cardC('app', rC('“No data” warning','A toast when the game runs but no stats arrive for about a minute',sw('toast',S.toast,'No data warning')) + `<div class="rC"><span class="muted">${friendsLine}</span></div>`)}
+    ${cardC('you', `<div style="padding:12px 16px 0">${suggestHtml()}${emptyIds()}</div>${tableC('ids')}`, true)}
+    ${cardC('seasons', tableC('seasons'), true)}
+  </div></div>`;
+}
+
+// ---------------- render ----------------
+const VARIANTS = [['A','Long scroll',VariantA],['B','One section at a time',VariantB],['C','Control panel',VariantC]];
+ui.vi = Math.max(0, VARIANTS.findIndex(v=>v[0]===P.get('variant')));
+const applyTheme = () => document.documentElement.dataset.theme = ui.preview||S.theme;
+function render(){
+  const fid=document.activeElement&&document.activeElement.id, [k,name,fn]=VARIANTS[ui.vi];
+  document.getElementById('app').innerHTML=fn();
+  document.getElementById('vlabel').textContent=`${k} · ${name}`;
+  const u=new URL(location.href); u.searchParams.set('variant',k); if(k==='B') u.searchParams.set('section',ui.section); else u.searchParams.delete('section'); history.replaceState(null,'',u);
+  if(fid){ const el=document.getElementById(fid); if(el) el.focus({preventScroll:true}); }
+  applyTheme(); spy();
+  document.getElementById('dbg').textContent = JSON.stringify({...S, trig:Object.fromEntries(Object.entries(S.trig).filter(([,v])=>!v).map(([k])=>[k,false]))}, null, 1)
+    .replace('"trig": {', '"trig (only the ones off)": {');
+}
+function spy(){                      // scroll-spy for A and C's sticky list
+  const links=[...document.querySelectorAll('.toc a[data-nav]')]; if(!links.length) return;
+  let cur=links[0].dataset.nav, best=-Infinity;   // C's cards sit in two columns, so pick the lowest heading that has passed the top
+  for(const a of links){ const s=document.getElementById('sec-'+a.dataset.nav), y=s&&s.getBoundingClientRect().top; if(s&&y<140&&y>best+1){ best=y; cur=a.dataset.nav; } }
+  if(innerHeight+scrollY>=document.body.scrollHeight-4) cur=links[links.length-1].dataset.nav;
+  links.forEach(a=>a.setAttribute('aria-current', a.dataset.nav===cur));
+}
+addEventListener('scroll', spy, {passive:true});
+
+// ---------------- events ----------------
+const parse = v => v==='true'?true:v==='false'?false:v;
+function toggle(key){
+  if(key.startsWith('tier:')){ const T=key.slice(5), on=tierState(T)!=='true'; commit(key, s=>TIERS[T].forEach(t=>s.trig[t[0]]=on)); return; }
+  if(key.startsWith('trig:')){ const t=key.slice(5); commit(key, s=>s.trig[t]=!s.trig[t]); return; }
+  commit(key, s=>s[key]=!s[key]);
+}
+function saveRow(rk){
+  const [name,i]=rk.split(':'), tb=TABLES[name], idx=i==='new'?'new':+i, d=ui.vi===2?(ui.cdraft[rk]||(idx==='new'?{...tb.blank(),name:'',acct:''}:tb.toDraft(tb.rows()[idx]))):ui.draft;
+  const e=tb.validate(d, idx); ui.rowErr[rk]=e;
+  if(e){ render(); const f=document.querySelector(`[data-draft="${rk}"][aria-invalid]`); f&&f.focus(); return; }
+  const before=JSON.stringify(tb.rows());
+  if(commit(rk, tb.apply(d,idx))){
+    ui.edit=null; ui.draft=null; delete ui.cdraft[rk];
+    if(idx==='new'||JSON.stringify(tb.rows())!==before){ const nk=`${name}:${tb.rows().findIndex(r=>name==='seasons'?r.name===d.name.trim():r.id===`${d.plat}|${d.acct.trim()}|0`)}`; ui.status[nk]={t:Date.now()}; }
+    render();
+  }
+}
+document.addEventListener('click', e=>{
+  const t=e.target.closest('[data-sw],[data-set],[data-reset],[data-undo],[data-nav],[data-open],[data-edit],[data-add],[data-cancel],[data-saverow],[data-del],[data-revert],[data-retry],[data-sugg]');
+  if(!t) return; const ds=t.dataset;
+  if(t.tagName==='SELECT'||(t.tagName==='INPUT'&&t.type!=='checkbox')) return;
+  if(ds.sw!=null){ if(t.tagName==='INPUT') e.preventDefault(); toggle(ds.sw); return; }
+  if(ds.set!=null){ if(S[ds.set]!==parse(ds.val)) commit(ds.set, s=>s[ds.set]=parse(ds.val)); if(ds.set==='theme'){ui.preview=null;applyTheme();} return; }
+  if(ds.reset!=null){ resetSec(ds.reset); return; }
+  if(ds.undo!=null){ if(ui.toast){ S=ui.toast.snap; ui.toast=null; document.getElementById('toast').style.display='none'; announce('Undone'); render(); } return; }
+  if(ds.nav!=null){ if(ui.vi===1){ ui.section=ds.nav; ui.edit=null; render(); document.getElementById('nav-'+ds.nav).focus(); }
+    else { e.preventDefault(); document.getElementById('sec-'+ds.nav).scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); } return; }
+  if(ds.open!=null){ ui.open[ds.open]=!ui.open[ds.open]; render(); return; }
+  if(ds.edit!=null){ const [n,i]=ds.edit.split(':'); ui.edit=ds.edit; ui.draft=TABLES[n].toDraft(TABLES[n].rows()[+i]); ui.rowErr={}; render();
+    const f=document.querySelector(`[data-draft="${ds.edit}"]`); f&&f.focus(); return; }
+  if(ds.add!=null){ ui.edit=ds.add+':new'; ui.draft=TABLES[ds.add].blank(); ui.rowErr={}; render(); const f=document.querySelector(`[data-draft="${ds.add}:new"]`); f&&f.focus(); return; }
+  if(ds.cancel!=null){ const n=ui.edit&&ui.edit.split(':')[0]; ui.edit=null; ui.draft=null; ui.rowErr={}; render(); const a=document.getElementById('add-'+n); a&&a.focus(); return; }
+  if(ds.saverow!=null){ saveRow(ds.saverow); return; }
+  if(ds.revert!=null){ delete ui.cdraft[ds.revert]; delete ui.rowErr[ds.revert]; render(); return; }
+  if(ds.del!=null){ const [n,i]=ds.del.split(':'), tb=TABLES[n], r=tb.rows()[+i], snap=clone(S);
+    if(commit(ds.del, s=>s[n].splice(+i,1))){ delete ui.status[ds.del]; ui.status[n+':del']={t:Date.now()}; ui.edit=null; ui.cdraft={}; render(); showToast(`Removed ${tb.label(r)}`, snap); } return; }
+  if(ds.retry!=null){ const s=ui.status[ds.retry]; if(s&&s.retry) commit(ds.retry, s.retry); return; }
+  if(ds.sugg!=null){ const sg=ui.suggest;
+    if(ds.sugg==='yes'){ if(commit('ids:new', s=>s.ids.push({id:sg.id,name:sg.name}))){ ui.suggest=null; ui.status[`ids:${S.ids.length-1}`]={t:Date.now()}; render(); } }
+    else { ui.suggest=null; announce('Dismissed'); render(); } return; }
+});
+document.addEventListener('change', e=>{
+  const t=e.target;
+  if(t.matches('select[data-set]')){ commit(t.dataset.set, s=>s[t.dataset.set]=t.value); return; }
+  if(t.id==='in-rolling'){ const v=t.value.trim(), n=Number(v);
+    if(!/^\d+$/.test(v)||n<5||n>100){ ui.rowErr.rolling='Use a whole number from 5 to 100.'; ui.rollDraft=v; render(); return; }
+    delete ui.rowErr.rolling; ui.rollDraft=null; if(n!==S.rolling) commit('rolling', s=>s.rolling=n); else render(); }
+});
+document.addEventListener('input', e=>{
+  const t=e.target; if(!t.dataset.draft) return; const rk=t.dataset.draft;
+  if(ui.vi===2){ const [n,i]=rk.split(':'), tb=TABLES[n];
+    ui.cdraft[rk]=ui.cdraft[rk]||(i==='new'?{...tb.blank(),name:'',acct:''}:tb.toDraft(tb.rows()[+i])); ui.cdraft[rk][t.dataset.f]=t.value;
+    t.closest('tr').classList.add('dirty'); }
+  else ui.draft[t.dataset.f]=t.value;
+});
+document.addEventListener('keydown', e=>{
+  const t=e.target;
+  if(t.dataset&&t.dataset.draft){ if(e.key==='Enter'){ e.preventDefault(); saveRow(t.dataset.draft); } if(e.key==='Escape'){ if(ui.vi===2) delete ui.cdraft[t.dataset.draft]; else { ui.edit=null; ui.draft=null; } ui.rowErr={}; render(); } return; }
+  if(t.id==='in-rolling'&&e.key==='Enter'){ t.dispatchEvent(new Event('change',{bubbles:true})); return; }
+  if(t.closest('input,textarea,select,[contenteditable]')) return;
+  if(e.key==='ArrowLeft') go(-1); if(e.key==='ArrowRight') go(1);
+});
+// live theme preview on hover / focus (A and C; B's cards are themselves the preview)
+document.addEventListener('mouseover', e=>{ const p=e.target.closest('[data-preview]'); const v=p?p.dataset.preview:null;
+  if(v!==ui.preview){ ui.preview=v; applyTheme(); const b=document.querySelector('.dots b'); if(b) b.textContent=cap(v||S.theme); } });
+document.addEventListener('focusin', e=>{ const p=e.target.closest('[data-preview]'); if(p&&e.target.matches(':focus-visible')){ ui.preview=p.dataset.preview; applyTheme(); } });
+document.addEventListener('focusout', e=>{ if(e.target.closest('[data-preview]')){ ui.preview=null; applyTheme(); } });
+
+function go(d){ ui.vi=(ui.vi+d+VARIANTS.length)%VARIANTS.length; ui.edit=null; ui.cdraft={}; ui.rowErr={}; render(); scrollTo(0,0); }
+document.getElementById('vprev').onclick=()=>go(-1);
+document.getElementById('vnext').onclick=()=>go(1);
+document.getElementById('vfail').onchange=e=>{ ui.fail=e.target.checked; };
+document.getElementById('vdbg').onclick=e=>{ const d=document.getElementById('dbg'), on=d.style.display!=='block'; d.style.display=on?'block':'none'; e.target.setAttribute('aria-pressed',on); };
+const tip=document.getElementById('tip');
+addEventListener('mousemove', e=>{ const el=e.target.closest&&e.target.closest('[data-tip]');
+  if(!el){tip.style.display='none';return;} tip.textContent=el.dataset.tip; tip.style.display='block';
+  tip.style.left=Math.min(innerWidth-270,e.clientX+12)+'px'; tip.style.top=(e.clientY+14)+'px'; });
+render();
+</script>
+</body>
+</html>
