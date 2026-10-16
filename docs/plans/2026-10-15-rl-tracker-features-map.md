@@ -314,8 +314,8 @@ mobile app are avoided, but that app is not designed here.
 - **Settings page** (grilling, 2026-10-16). Rule for v1: a setting ships now if it's a single value
   read when a page renders or a query runs, without changing stored data, or if the app is wrong
   without it. Settings that rewrite or delete data, or reach outside the app, come later.
-  - Layout: one page with a sticky list of sections on the left. The look is left to the
-    "Settings layout" prototype.
+  - Layout: one page with a sticky list of sections on the left. The look is decided by the
+    "Settings layout" prototype (below).
   - v1 sections:
     - Appearance: theme (swatches that preview the theme live), 12h/24h clock, and speed units
       (km/h by default, or mph).
@@ -349,6 +349,40 @@ mobile app are avoided, but that app is not designed here.
   - Left out: trigger thresholds (marathon, late night) and the repeat window for remark lines
     (tuning knobs; the user adjusts jokes as they meet them). Also left out: a Quit button on
     Settings, since one is already in the header.
+- **Settings layout** (prototype, 2026-10-16). The reference is variant A of
+  `prototypes/settings-layout/settings-prototype.html` (branch `prototype/settings-layout`, which
+  branches from `prototype/period-views`), with B's theme picker.
+  - Page: every section on one scrolling page. A sticky section list on the left highlights the
+    section in view. Below 768px it becomes a sticky row across the top.
+  - Rows: label and help text on the left, the control on the right. Two-way choices (clock, speed,
+    start page) are segmented buttons; playlists and the headline comparison are dropdowns.
+  - Theme (from variant B): a grid of cards, each a small scorebug and tiles drawn in that theme,
+    so the card is the preview. Clicking one applies it at once. No hover preview: re-colouring
+    the whole page as the mouse moves was rejected.
+  - Saving: a "✓ Saved" tick appears next to the changed setting and fades after about 2 s. A
+    failed save shows "Couldn't save · Retry" in the same spot.
+  - Reset: a "Reset to defaults" link next to each section title. It reads "Defaults" when nothing
+    has changed. Resets and row removals show an Undo toast instead of a confirmation dialog.
+  - Remarks: the master switch, then the mood line, then "Quips" with one row per tier. Each tier
+    folds open to its trigger switches and shows "all on", "some off" or "all off" when closed.
+    A tier switch with some triggers off shows a half-way state, and clicking it turns them all
+    on. With the master off, everything below it is greyed out and the choices are kept.
+  - Tables (IDs, seasons): rows are edited in place. Edit turns the row into inputs with Save
+    and Cancel (Enter and Esc work too). "+ Add" adds an editable row at the end. Errors show under
+    the row (missing name or date, duplicate name, two seasons on one day, a Steam ID that isn't
+    17 digits, a duplicate ID).
+  - Seasons show the end date (the day before the next start), "still running" for the last one,
+    and a "current" badge.
+  - Assumptions the user accepted:
+    - "You" has no reset, since that would forget which player is you.
+    - The "is this also you?" confirmation for a guessed ID (Q14) sits at the top of "You" with
+      "That's me" and "Not me".
+    - An empty IDs list shows a warning that the tracker will ask after your next match.
+  - Rejected:
+    - Variant B (one section at a time): the user liked it too, but A shows everything on one
+      page. Only its theme cards were kept.
+    - Variant C (two-column control panel with chips and always-editable tables): the most
+      minimal of the three, but too terse.
 
 ## Open tickets
 
@@ -490,7 +524,7 @@ user likes having many settings, but don't show counts in dropdowns. Load `proto
 `ui-implementation-guidelines`.
 Type: prototype
 Blocked by: none
-Status: open
+Status: done (2026-10-16). See "Settings layout" under Decisions so far.
 
 ## Not yet specified
 - A live running total during play: what it shows and where (browser tab or overlay), and whether
