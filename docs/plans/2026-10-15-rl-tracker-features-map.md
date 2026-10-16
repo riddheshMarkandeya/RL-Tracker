@@ -383,6 +383,50 @@ mobile app are avoided, but that app is not designed here.
       page. Only its theme cards were kept.
     - Variant C (two-column control panel with chips and always-editable tables): the most
       minimal of the three, but too terse.
+- **Live running total** (grilling, 2026-10-16). This settles Q3/Q4's "optional" running total.
+  - Nothing extra in v1. The recap of the session in progress already refreshes on "match ended",
+    so it serves as the running total. The header also shows a "This session: 4–2" chip next to
+    the status.
+  - Later, not v1: mid-match stats, and an overlay above the game (that would be a different kind
+    of app).
+- **Data location, reinstall and backup** (grilling, 2026-10-16).
+  - Location: `%LOCALAPPDATA%\RLTracker\`, next to the logs and outside the repo. Re-cloning,
+    `npm install` and uninstalling autostart never touch it.
+  - Two SQLite files:
+    - `tracker.db` holds match records, settings, friends and seasons (a few MB a year).
+    - `raw.db` holds raw events (about 1 GB at 90 days). It can be deleted: losing it only means
+      new stats can't be recomputed for old matches.
+  - Upgrades: numbered schema migrations run at startup, tracked with `PRAGMA user_version`. A
+    reinstall finds the existing data and carries on.
+  - Backup: `VACUUM INTO` copies of `tracker.db` are made before each migration run and once a
+    day. The last 7 are kept. `raw.db` is not backed up.
+  - Later, not v1: CSV export, and a backup folder you choose (e.g. OneDrive). Both reach outside
+    the app (see the rule under "Settings page").
+- **Retention timing** (grilling, 2026-10-16).
+  - Retention runs automatically, with no manual step: 5 minutes after startup, then every 24 h,
+    since the process can stay up for days. It never runs while a match is recording.
+  - It deletes in batches and logs how many events and MB it removed. `raw.db` uses
+    `auto_vacuum=INCREMENTAL` so the space is returned.
+  - There is no manual button. It belongs with the retention-age setting, which is already later.
+- **New stats and MMR later** (grilling, 2026-10-16).
+  - General rule (user): the implementation must make it easy to add new stats later, not only
+    MMR.
+  - Each stat is a small computation over a match's events. Adding one means writing that
+    computation plus a migration.
+  - A new stat can be backfilled from `raw.db` for matches still inside the retention window.
+    Older matches show nothing for it.
+  - The recorder logs, once per run, any event name or field it doesn't recognise, so an API
+    update (e.g. one adding MMR) shows up in the logs. Events other than `UpdateState` are already
+    stored in full, so new fields are kept.
+  - No MMR design now. Later, if a source appears: a nullable MMR column added by a migration,
+    rank and MMR trend charts on Trends, and the MMR change per match on the recap.
+- **Little or no data** (user, 2026-10-16). Early on there's little data, so every view handles
+  null or empty values.
+  - A small item with nothing to show is hidden.
+  - A whole page that can't say anything yet shows a short "not enough data yet" note. An example
+    is Trends with only 2 matches.
+  - Nothing ever shows fake zeros or broken charts. This also covers a stat missing on older
+    matches.
 
 ## Open tickets
 
@@ -527,11 +571,10 @@ Blocked by: none
 Status: done (2026-10-16). See "Settings layout" under Decisions so far.
 
 ## Not yet specified
-- A live running total during play: what it shows and where (browser tab or overlay), and whether
-  it's worth building at all.
-- Backup and export of the SQLite data (e.g. CSV), and what happens on a reinstall.
-- How the retention script runs (on startup, or manually). The default age is decided: 90 days.
-- How a later API update that adds MMR would be folded in.
+None. The last four items (live running total, backup and reinstall, retention timing, adding MMR
+later) were decided on 2026-10-16; see Decisions so far. The map is ready to become a v1 roadmap
+with ordered work packages (user, 2026-10-16). The SQLite driver choice (`node:sqlite` or
+`better-sqlite3`) is left to the first work package.
 
 ## Out of scope
 - Designing the web or mobile app: it's a "maybe, future" item, so v1 only avoids blocking it.
