@@ -136,9 +136,56 @@ fires.
 - `CrossbarHit` also fires during goal replays and on the podium. Count it only when not in a
   replay and before `MatchEnded`.
 
+## Second capture (2026-10-16)
+
+Source: about 100 minutes, 15 casual 2v2 matches (playlist 2) with one friend at
+`PacketSendRate=30`. The file is 733 MB, about 440 MB per hour, and is in `captures/`.
+
+**Attribution: only `UpdateState` carries `PrimaryId`**
+- `BallHit.Players[]`, `StatfeedEvent.MainTarget` and `CrossbarHit.BallLastTouch.Player` have
+  only `Name`, `Shortcut` and `TeamNum`.
+- To attribute these events to a player, map `Shortcut` to `PrimaryId` through the current match's
+  `UpdateState.Players[]`. Matching on `PrimaryId` directly finds nothing.
+- In `BallHit`, `Players[0]` is taken as the hitter. With that rule, the hardest-shot values
+  (110–170 km/h) look plausible.
+
+**`CrossbarHit` repeats**
+- Each hit arrives as consecutive identical events (same `BallLocation`, `BallSpeed` and
+  `ImpactForce`), so de-duplicate them.
+- After de-duplication, one match still had 63 hits, most likely the ball rolling along the bar. Count
+  at most one hit per time window (for example 1 s), on top of the existing replay and podium rule.
+
+**Early ends with `MatchEnded`**
+- 5 of 15 matches sent a normal `MatchEnded{WinnerTeamNum}` with time left on the clock (19–164 s).
+  Two were wins (3–0 at 139 s, 4–1 at 39 s) and three were losses.
+- These look like forfeits that end the match for everyone. Which team forfeited wasn't confirmed
+  with the user.
+- So unlike your own leave, an early end like this keeps its winner, and the normal result rule
+  applies. A "forfeit" flag could be derived from `MatchEnded` arriving with
+  `TimeSeconds > 0` and no overtime.
+
+**Other**
+- New Statfeed names: `AerialGoal`, `EpicSave` and `Savior` (localized types not recorded).
+- A bot (`Unknown|0|0`) joined your team for part of one match while the friend was out, then the
+  friend returned. Friend features must ignore the bot and keep the friend's match.
+- No leaves, joins in progress or inferred results this time: every match sent `MatchEnded`.
+
+**Where goals came from** (checked for the Recap layout goal map, 63 live goals by all players)
+- `BallHit` carries `Ball.Location`. The last `BallHit` before a live `GoalScored` matched
+  `GoalScored.BallLastTouch.Player` for 62 of 63 goals.
+- That very last touch was by the **defending** team for 9 of 63 goals (14%): failed saves,
+  deflections, one right after kickoff. In all 9, the scoring team had touched the ball earlier in
+  the same kickoff (0–6.2 s before). So take a goal's origin as the scoring team's last touch since
+  `RoundStarted`, and mark it "deflected" when the other team touched it after. No pure own goal
+  (no scoring-team touch at all) occurred.
+- `GoalScored.ImpactLocation` again lagged one goal behind, so it can't place the goal itself.
+- Aerial goals: the 4 `AerialGoal` statfeeds were exactly the goals whose scoring touch was high,
+  with ball `Z` 588–815. Every other goal's touch was at `Z` ≤ 430. Use the statfeed to mark aerial
+  goals; ball `Z` at your own touches can count aerial touches (threshold to pick, about 500).
+
 ## Still unanswered
 - The Ranked Quads ID. The unknown-ID path covers it: it will be logged when first seen.
-- What an opponent's forfeit looks like, and what a disconnect looks like.
+- Which team forfeited in the early ends above, and what a disconnect looks like.
 - The rest of the Statfeed names (they accumulate naturally).
 
 ## Decisions to revisit

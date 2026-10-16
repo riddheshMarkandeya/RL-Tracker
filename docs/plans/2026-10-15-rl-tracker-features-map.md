@@ -38,6 +38,7 @@ mobile app are avoided, but that app is not designed here.
   - A by-playlist breakdown and the match list.
   - Headline: a comparison with your 30-day average.
   - Cheap extras: hardest shot and fastest goal (`BallHit` post-hit speed) and a touch heatmap.
+    The touch heatmap was later replaced by a goal map (see "Recap layout").
   - Whiffs are not possible (Q10).
 - **Stack**: TypeScript end to end, with Node for the background program and dashboard server, and
   SQLite (Q11).
@@ -131,6 +132,64 @@ mobile app are avoided, but that app is not designed here.
   - Logs: a rotating file in `%LOCALAPPDATA%\RLTracker\`, 5 files of 5 MB each.
   - Later, not v1: open the dashboard when the game closes, a one-click or one-command setup, and a
     tray icon if checking the dashboard gets tedious.
+- **Recap layout** (prototype, 2026-10-16). The reference is variant D of
+  `prototypes/recap-layout/recap-prototype.html` (branch `prototype/recap-layout`). Variants A–G
+  were explored over seven rounds.
+  - Two pages per session: **Overview** and **Matches & numbers**.
+  - Header: a session picker (a dropdown grouped by day, showing each session's time range, W–L,
+    match count, length and a mini W/L strip), plus ‹ › to step. A day with more than one session
+    labels it "2nd of 2 that day". Then the playlist filter and the "with teammate" filter.
+  - "With teammate" lists only **friends** who played in the selected session, with match counts.
+    It resets to Anyone when the friend isn't in the session, and is disabled when no friend is.
+    Random teammates are left out, because a session can hold many one-off players.
+  - Default filter on the recap: **everything except private**. This revisits Q5 ("ranked is the
+    default view") for the recap: the user asked for an overview of the whole last session. Q5
+    still stands for other views until "Period views and trends" decides them.
+  - Overview order:
+    1. A broadcast-style scorebug (from variant F): WINS | date, session length, win % and match
+       count | LOSSES.
+    2. A random remark plus quip (placeholder copy, see "Recap remarks copy"), and the change
+       against the 30-day average.
+    3. Four big stat tiles: best streak, ended on, shooting % against average, MVP count.
+    4. Match cards in wrapped rows: number, time, W/L and score, playlist, MVP icon, and an amber
+       dot when flagged. Clicking one opens the match.
+    5. Per-game stat cards against the 30-day average.
+    6. "What stood out" next to "By playlist".
+    7. The goal map (below).
+    8. Extras cards: hardest shot, fastest goal, crossbar hits, your average boost, supersonic %,
+       time on empty boost, aerial touches. Then a "Highlights" row of rare statfeed events (hat
+       tricks, overtime goals, Savior, epic saves, aerial, long and bicycle goals), shown only when
+       they happened.
+  - Dropped: the statfeed chip panel (its common counts are in the stat cards, MVP in the tiles,
+    rare ones in Highlights) and the touch heatmap.
+  - **Goal map**: a sideways pitch with one dot per goal, at the **scoring team's last touch**
+    since kickoff, for goals both scored and conceded. Your goals are filled, a teammate's are
+    rings, conceded goals are orange. A dashed ring marks "deflected": the other team touched it
+    last. Aerial goals (from the `AerialGoal` statfeed) are diamonds. Hovering shows match, speed,
+    distance and height; clicking opens the match. Beside it: scored and conceded, split into
+    close / mid-range / long, with an aerial count and your share of the team's goals. A pure own
+    goal gets no dot, only a count. The rule was checked against the second capture (see the
+    findings doc).
+  - Flags: minimal. An amber dot on match cards, ⚑ on the match list, and a slim left-border note
+    on the match page. No flag count.
+  - Matches & numbers: with no match open, a full-width table of every match (#, time, playlist,
+    result, score, G, A, Sv, Sh, Dm) with a totals row. It has no "with" column, because 3v3 can
+    have two teammates. With a match open: a side list ("← All matches" on top), the scoreboard,
+    that match's goal map, then its extras.
+  - The 30-day baseline follows the active filters. Changing what the headline compares against
+    (e.g. always ranked) should stay a small setting.
+  - Long history and long sessions (tested with about 90 sessions and a 40-match session):
+    - The session picker lists the last 2 weeks by day. Older sessions fold into one collapsed group
+      per month, showing session count and W–L. The real build loads a month's sessions only when it
+      is opened. Mini W/L strips stop at 24 squares and show "+N" after that.
+    - Sessions over 24 matches get denser match cards, about 13 per row.
+    - The match list on Matches & numbers scrolls inside a viewport-high box and keeps the open
+      match in view.
+    - The numbers table is capped at 70% of the viewport, with its header and totals row pinned.
+    - Goal-map marks shrink when a view has more than 60 goals.
+  - Themes are CSS tokens. **Carbon** is the default. Also offered: slate, midnight, oled, dusk,
+    steel and daylight (light). Accent colors avoid team blue and orange, win green, loss red and
+    the flag amber.
 
 ## Open tickets
 
@@ -175,16 +234,39 @@ page, added by the user. Extract usable icons and assets from it (playlist and r
 example) and look at its design for reference only, because the prototypes are our own design. The
 file is gitignored because it may hold session cookies, so never quote headers from it. Load
 `prototype`, `ui-implementation-guidelines` and `dataviz`.
-Status: open
+Status: done (2026-10-16). See "Recap layout" under Decisions so far.
 
 ### Period views and trends
 Question: How do the day, week, month, season and rolling views differ from the recap?
 - Which trend charts belong on them?
 - How do you move between periods?
 
+User input (2026-10-16, from the recap review):
+- A separate view or page from the session picker, for season, YTD and similar ranges.
+- A few headline numbers and trend graphs. It doesn't need every stat.
+- YTD is new: it isn't among Q9's periods yet.
+- MMR is out of v1, so trends are win % and per-game stats over time, not rank.
+- Start from the recap's look (variant D, carbon theme) so the views feel like one product.
+
 Type: prototype
-Blocked by: Recap layout
+Blocked by: none (Recap layout is done)
 Status: open
+
+### Recap remarks copy
+Question: What is the pool of random remarks and quips on the recap headline? This covers the
+tone, the triggers (better or worse than usual, streaks, a duo's record, demos, crossbar, hard
+shots, hat tricks, …) and how many variants each trigger needs so it doesn't repeat.
+Inputs: the placeholder pool in `remarks()` in the recap prototype. The user wants them funny.
+Type: grilling (`grill-me`)
+Blocked by: none
+Status: open
+
+### Daylight theme icons
+Question: The game's statfeed icons (e.g. MVP) are white and fade on the light "daylight" theme.
+Make dark or recolored versions, or tint them with CSS.
+Type: task
+Blocked by: none
+Status: later (after v1 views are built)
 
 ### Teammate and opponent features
 Question: Are any teammate or opponent features trivial enough for v1? Examples: win rate with a
@@ -215,7 +297,7 @@ and the transcript is `docs/plans/2026-10-15-rl-tracker-grill-round3.md`.
 Question: Which front-end approach and chart library should the dashboard use (plain TS vs. a
 framework)? Is it served by the background program itself or by a separate server?
 Type: grilling
-Blocked by: Recap layout, Period views and trends
+Blocked by: Period views and trends (Recap layout is done)
 Status: open
 
 ## Not yet specified
