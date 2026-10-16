@@ -4,8 +4,10 @@ Personal Rocket League stats tracker: a local Windows tracker first, with a web 
 maybe later.
 
 ## Plans
+- `docs/plans/2026-10-16-v1-roadmap.md`: v1 roadmap, ordered work packages WP1–WP9 with per-WP
+  status.
 - `docs/plans/2026-10-15-rl-tracker-features-map.md`: the wayfinder map for the v1 feature spec
-  (in progress).
+  (done; the spec WPs cite; build order lives in the roadmap).
 
 ## Research
 - `docs/research/2026-10-15-rl-stats-api-and-trackers.md`: Stats API events and limits, MMR

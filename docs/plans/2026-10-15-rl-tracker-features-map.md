@@ -43,6 +43,11 @@ mobile app are avoided, but that app is not designed here.
   - Whiffs are not possible (Q10).
 - **Stack**: TypeScript end to end, with Node for the background program and dashboard server, and
   SQLite (Q11).
+  - **Runtime revisited** (user, 2026-10-16): Bun replaces Node as the runtime and package
+    manager, so scripts become `bun run …` (and `npm install` becomes `bun install`). SQLite uses
+    `bun:sqlite`, which replaces the open `node:sqlite` / `better-sqlite3` choice. What changed:
+    the user wants to learn Bun, and Bun includes SQLite. The DB stays behind one thin module, so
+    going back to Node stays cheap. The Windows checks are in the roadmap's WP2.
 - **Running**: auto-start at Windows login, idle until the game's port opens. The performance
   footprint must be measured and shown to be low (Q12).
 - **Incomplete matches**:
@@ -287,6 +292,10 @@ mobile app are avoided, but that app is not designed here.
     one, since the project starts with no code.
   - Not decided here: the SQLite driver (`node:sqlite` or `better-sqlite3`), which belongs to the
     recorder work.
+  - **Runtime revisited** (user, 2026-10-16): Bun replaces Node here too, and `bun:sqlite` settles
+    the driver (see "Stack"). Everything else above still holds: React and Vite (run by Bun), an
+    HTTP server with a tiny router, Zod, SSE, and Vitest and Playwright, subject to the roadmap's
+    WP2 check.
 - **Recap remarks** (grilling, 2026-10-16). The full line pool is in
   `2026-10-16-recap-remarks-copy.md`. The user chose not to review it so the jokes stay a surprise;
   they'll ask for cuts as they meet lines they dislike.
@@ -575,6 +584,9 @@ None. The last four items (live running total, backup and reinstall, retention t
 later) were decided on 2026-10-16; see Decisions so far. The map is ready to become a v1 roadmap
 with ordered work packages (user, 2026-10-16). The SQLite driver choice (`node:sqlite` or
 `better-sqlite3`) is left to the first work package.
+
+Roadmap: `2026-10-16-v1-roadmap.md` holds the build order (2026-10-16); the SQLite driver is now
+`bun:sqlite` (see "Stack").
 
 ## Out of scope
 - Designing the web or mobile app: it's a "maybe, future" item, so v1 only avoids blocking it.
