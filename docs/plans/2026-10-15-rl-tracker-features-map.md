@@ -111,6 +111,26 @@ mobile app are avoided, but that app is not designed here.
     "inferred".
   - If the top two on the winning team have the same score, no MVP is inferred.
   - Inferred results and MVPs count normally.
+- **Background program form** (2026-10-15):
+  - Startup: a Task Scheduler "at log on" task for the current user (no admin, no console window).
+    It restarts on crash and never starts a second instance. `npm run install-autostart` and
+    `uninstall-autostart` add and remove it.
+  - Single instance: bind the dashboard port (`127.0.0.1` only) before connecting to the game. If
+    the port is taken, log that and exit. The game's Stats API port can't serve as the guard: two
+    clients can both connect and record every match twice.
+  - Stopping: `npm run stop` and a dashboard Quit button send a shutdown request that requires a
+    custom header, so a web page can't trigger it cross-origin. Turning off autostart is separate
+    (uninstall).
+  - One Node process runs the recorder and the dashboard server, always on from login. While the
+    game is closed, it tries the game's port every 5 s, backing off to 30 s.
+  - Alive indicator: no tray icon in v1. The dashboard header shows "waiting for game",
+    "connected", "recording match" or "Stats API off". One toast fires if the game is running and
+    no data arrives within about 60 s.
+  - Dashboard access: a fixed URL, plus a Start menu or desktop shortcut created at install. The
+    browser never opens by itself.
+  - Logs: a rotating file in `%LOCALAPPDATA%\RLTracker\`, 5 files of 5 MB each.
+  - Later, not v1: open the dashboard when the game closes, a one-click or one-command setup, and a
+    tray icon if checking the dashboard gets tedious.
 
 ## Open tickets
 
@@ -141,7 +161,7 @@ Question: How does the background program start and show it's alive?
 
 Type: grilling
 Blocked by: none
-Status: open
+Status: done (2026-10-15). See "Background program form" under Decisions so far.
 
 ### Recap layout
 Question: What should the session recap look like? This covers the headline comparison, the order
@@ -150,6 +170,11 @@ result or MVP. The recap also needs room for the "with teammate" filter.
 Type: prototype
 Blocked by: none. The live capture is done: your own team's boost and speed are available, and
 opponents' are not.
+Inputs: `HARs/rocketleague.com_profile.har` is a capture of the official rocketleague.com profile
+page, added by the user. Extract usable icons and assets from it (playlist and rank icons, for
+example) and look at its design for reference only, because the prototypes are our own design. The
+file is gitignored because it may hold session cookies, so never quote headers from it. Load
+`prototype`, `ui-implementation-guidelines` and `dataviz`.
 Status: open
 
 ### Period views and trends
