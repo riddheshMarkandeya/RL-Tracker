@@ -107,6 +107,11 @@ mobile app are avoided, but that app is not designed here.
     match with totals, and MVP count.
   - Where it shows: a "with teammate" filter next to the playlist filter, plus a Friends page with
     "with" and "against" tabs.
+  - **Soloqueue** (user, 2026-10-16): the "with teammate" filter lists Anyone, then Soloqueue, then
+    each friend. Soloqueue means matches where none of your added friends were on your team. A
+    friend on the other team doesn't count, since you didn't queue together. The user wants it to
+    see soloqueue performance in ranked. There is no party field, so a duo with
+    someone not on your friends list counts as soloqueue.
   - Private matches (playlist 6) are recorded, but left out of overall stats and the 30-day average
     by default. They show on the Friends page and under an explicit Private filter.
   - Opponent history with random players is deferred. Player IDs are stored, so it costs nothing to
@@ -145,8 +150,8 @@ mobile app are avoided, but that app is not designed here.
   - Header: a session picker (a dropdown grouped by day, showing each session's time range, W–L,
     match count, length and a mini W/L strip), plus ‹ › to step. A day with more than one session
     labels it "2nd of 2 that day". Then the playlist filter and the "with teammate" filter.
-  - "With teammate" lists only **friends** who played in the selected session. It shows no match
-    counts: the user asked for none in either dropdown (2026-10-16, revisiting the counts the recap
+  - "With teammate" lists Anyone, Soloqueue (see "Friends"), then only the **friends** who played
+    in the selected session. It shows no match counts: the user asked for none in either dropdown (2026-10-16, revisiting the counts the recap
     prototype showed). It resets to Anyone when the friend isn't in the session, and is disabled when no friend is.
     Random teammates are left out, because a session can hold many one-off players.
   - Default filter on the recap: **everything except private**. This revisits Q5 ("ranked is the
@@ -251,6 +256,37 @@ mobile app are avoided, but that app is not designed here.
     - A dashed previous-period line on the big chart: lining up day 3 with day 3 meant nothing and
       added noise. The tile deltas already answer "better than last time?".
   - Later, not v1: win % by hour or weekday, and win % by match number within a session.
+- **Dashboard stack** (grilling, 2026-10-16). The dashboard has to render the recap and Trends
+  prototypes. Those are plain JS template strings with hand-drawn SVG and no libraries.
+  - Front end: **React + TypeScript**, built with Vite. Preact was considered. Its only real gain
+    is size, which doesn't matter for a page served from your own PC, and React has better docs
+    and examples. The user knows React a little.
+  - Charts: hand-drawn SVG components ported from the prototypes (line, W/L bars, sparklines, goal
+    map, year strip). No chart library: the goal map and year strip are custom anyway, and a
+    library's styling would fight the theme tokens.
+  - Server: the always-on Node process from "Background program form" serves everything with plain
+    `node:http` and a tiny router: a JSON API under `/api`, the built static files, and the
+    shutdown endpoint. Move to Hono if routing gets messy. A JSON API keeps a later web or mobile
+    app unblocked.
+  - Live updates: Server-Sent Events push the header status and "match ended". On "match ended",
+    TanStack Query refetches the affected data, so the recap updates by itself.
+  - URLs: React Router with real paths (e.g. `/recap/:session/match/:id`, `/trends?…`), with filters
+    in the query string, so deep links, the back button and bookmarks work. The server returns
+    `index.html` for any page path it doesn't recognize.
+  - Validation: **Zod** schemas in `src/shared` validate query params and request bodies, and also
+    provide the API's TypeScript types, so types and validation can't drift apart. This was chosen
+    over hand-written parsers because the Settings page writes nested data (seasons table, ID list,
+    friends).
+  - Repo: one npm package with `src/server`, `src/web` and `src/shared`. `vite build` runs at
+    install. In development, Vite's dev server forwards `/api` to Node.
+  - Styling: plain CSS carrying over the prototypes' theme tokens as one global stylesheet, plus CSS
+    Modules per component.
+  - Tests: Vitest for the logic (aggregation, period bucketing, soloqueue and friend filters,
+    inferred MVP), plus a short Playwright check that each page renders in a real browser.
+  - Strict TypeScript and ESLint (`typescript-eslint` strict) across the whole codebase from day
+    one, since the project starts with no code.
+  - Not decided here: the SQLite driver (`node:sqlite` or `better-sqlite3`), which belongs to the
+    recorder work.
 
 ## Open tickets
 
@@ -359,7 +395,7 @@ Question: Which front-end approach and chart library should the dashboard use (p
 framework)? Is it served by the background program itself or by a separate server?
 Type: grilling
 Blocked by: none (Recap layout and Period views are done)
-Status: open
+Status: done (2026-10-16). See "Dashboard stack" under Decisions so far.
 
 ### Settings page
 Question: What can be changed on a settings page, and how is it laid out?
