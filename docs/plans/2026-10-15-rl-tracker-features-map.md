@@ -31,6 +31,7 @@ mobile app are avoided, but that app is not designed here.
   - Units: weeks start Monday; calendar months.
   - Seasons: an editable table seeded with S22 2026-03-11, S23 2026-06-09 and S24 2026-09-23.
   - Rolling views: last 7 and last 30 days (Q9).
+  - Added by "Period views and trends": this year (calendar year to date) and all time.
 - **Recap content**:
   - Wins and losses, win %, and streaks.
   - Goals, assists, saves, shots, demos and score, as totals and per game; shooting %.
@@ -87,7 +88,12 @@ mobile app are avoided, but that app is not designed here.
   - A retention script deletes raw events older than a configurable age.
   - Match records (the per-match scoreboard and result) are never deleted by retention. So old
     matches keep their stats, but new stats can't be recomputed past the retention window.
-  - The default age is open (see "Not yet specified").
+  - Default age: **90 days** (user, 2026-10-16). Downsampled raw events come to about 20–30 MB
+    per hour of play, so 90 days is roughly 1 GB at the prototype's pace (about 135 hours a year).
+    The age is a setting (see "Settings page").
+  - Every page reads match records only, never raw events. So anything a page shows is computed
+    when the match ends and stored on the match record. Match records are about 2–5 KB each,
+    roughly 3–6 MB a year.
 - **Friends** (round 3, Q15–Q24). These are in v1 as the last work package. They pass Q7's "only
   if trivial" because everything is a query over data already stored, with no new capture.
   - Friends are added by hand and keyed on `PrimaryId`. The dashboard shows the last name seen, or
@@ -139,8 +145,9 @@ mobile app are avoided, but that app is not designed here.
   - Header: a session picker (a dropdown grouped by day, showing each session's time range, W–L,
     match count, length and a mini W/L strip), plus ‹ › to step. A day with more than one session
     labels it "2nd of 2 that day". Then the playlist filter and the "with teammate" filter.
-  - "With teammate" lists only **friends** who played in the selected session, with match counts.
-    It resets to Anyone when the friend isn't in the session, and is disabled when no friend is.
+  - "With teammate" lists only **friends** who played in the selected session. It shows no match
+    counts: the user asked for none in either dropdown (2026-10-16, revisiting the counts the recap
+    prototype showed). It resets to Anyone when the friend isn't in the session, and is disabled when no friend is.
     Random teammates are left out, because a session can hold many one-off players.
   - Default filter on the recap: **everything except private**. This revisits Q5 ("ranked is the
     default view") for the recap: the user asked for an overview of the whole last session. Q5
@@ -177,7 +184,7 @@ mobile app are avoided, but that app is not designed here.
     have two teammates. With a match open: a side list ("← All matches" on top), the scoreboard,
     that match's goal map, then its extras.
   - The 30-day baseline follows the active filters. Changing what the headline compares against
-    (e.g. always ranked) should stay a small setting.
+    (e.g. always ranked) should stay a small setting (see "Settings page").
   - Long history and long sessions (tested with about 90 sessions and a 40-match session):
     - The session picker lists the last 2 weeks by day. Older sessions fold into one collapsed group
       per month, showing session count and W–L. The real build loads a month's sessions only when it
@@ -190,6 +197,60 @@ mobile app are avoided, but that app is not designed here.
   - Themes are CSS tokens. **Carbon** is the default. Also offered: slate, midnight, oled, dusk,
     steel and daylight (light). Accent colors avoid team blue and orange, win green, loss red and
     the flag amber.
+- **Period views — the Trends page** (prototype, 2026-10-16). The reference is variant B of
+  `prototypes/period-views/period-views-prototype.html` (branch `prototype/period-views`, which
+  branches from `prototype/recap-layout` for the icons).
+  - Trends is its own page, a second tab next to Recap in the header. The session picker stays on
+    the recap.
+  - Header: quick picks (Last 7 days, Last 30 days, This week, Last week, This year, All time),
+    then the playlist and "with teammate" filters.
+  - Default filter on Trends: **All ranked**. This upholds Q5 for this page: trends ask "am I
+    getting better?", and casual and extra modes would blur that. The recap keeps "everything
+    except private".
+  - Playlist dropdown, the same on both pages:
+    - Everything (excl. private).
+    - Ranked: All ranked, then each ranked playlist.
+    - Casual: All casual, then Casual 1v1, 2v2, 3v3 and 4v4.
+    - Extra modes (Hoops, Rumble, …).
+    - Private.
+    - Only playlists with matches in the period appear. The list comes from the stored playlist
+      IDs. "All casual" covers 1v1–4v4 only, because extra modes would skew per-game stats.
+    - No counts in either dropdown.
+  - Choosing a period, top to bottom:
+    1. A year stepper (‹ 2026 ›).
+    2. A year strip: season bands (clickable), month cells (clickable), and thin grey ticks for
+       the days you played. The selected period is shaded and today is marked.
+    3. The period title with ‹ › to step through weeks, months and seasons.
+  - Period header: title, date range, "still running" for an unfinished calendar period, what it
+    is compared with, W–L, matches, sessions, best streak and MVPs. When matches in the period
+    were left early, an amber "⚑ includes N matches you left early" note appears, because they
+    count as losses (Q13).
+  - Six metric tiles, in the user's order: **Win %, Goals, Shots, Shooting %, Assists, Saves**
+    (per game). Each tile shows the value, ▲▼ against the previous period of the same kind, and a
+    sparkline. Score/game and Demos/game were dropped from Trends; they stay on the recap.
+  - Comparison: the previous period of the same kind (last week, last month, the previous season,
+    the previous 30 days). This year and all time have nothing earlier, and the header says so.
+    The recap still compares against the 30-day average.
+  - One big chart of the selected tile's metric, with a dotted period-average line and season
+    start markers:
+    - Points per day for 7 days, 30 days, a week or a month; per week for a season or a year;
+      per month for all time.
+    - Hollow dots mark buckets with under 3 matches.
+    - An x-axis toggle between **By date** and **By match** (rolling average of the last 20
+      matches). The rolling window reaches back before the period, so its first points are full
+      windows.
+    - Auto: when a filter leaves fewer than 6 buckets with matches (e.g. one friend over 30
+      days), the chart switches to rolling-20 and says why. The user can switch back.
+  - A wins-and-losses bar chart per bucket: wins up, losses down, with W/L letters on the axis.
+    Clicking a day opens that day's recap; a week or month opens that period.
+  - Rejected:
+    - Variant A (tabs + six small charts): too many charts for "a few headline numbers". Its
+      by-playlist and session list duplicate the filter and the recap.
+    - Variant C (year calendar + drill-down table): a good way to browse, but table-heavy. Its
+      day → recap path survives as clicking a day in the wins-and-losses chart.
+    - A dashed previous-period line on the big chart: lining up day 3 with day 3 meant nothing and
+      added noise. The tile deltas already answer "better than last time?".
+  - Later, not v1: win % by hour or weekday, and win % by match number within a session.
 
 ## Open tickets
 
@@ -250,7 +311,7 @@ User input (2026-10-16, from the recap review):
 
 Type: prototype
 Blocked by: none (Recap layout is done)
-Status: open
+Status: done (2026-10-16). See "Period views — the Trends page" under Decisions so far.
 
 ### Recap remarks copy
 Question: What is the pool of random remarks and quips on the recap headline? This covers the
@@ -297,15 +358,34 @@ and the transcript is `docs/plans/2026-10-15-rl-tracker-grill-round3.md`.
 Question: Which front-end approach and chart library should the dashboard use (plain TS vs. a
 framework)? Is it served by the background program itself or by a separate server?
 Type: grilling
-Blocked by: Period views and trends (Recap layout is done)
+Blocked by: none (Recap layout and Period views are done)
 Status: open
+
+### Settings page
+Question: What can be changed on a settings page, and how is it laid out?
+User input (2026-10-16): the user is "big on having settings and options to change things", for
+example defaults and theme. To be mapped separately later.
+
+Candidates already named elsewhere in this map:
+- Theme (carbon by default).
+- The default playlist filter per page (recap: everything except private; Trends: all ranked).
+- What the recap headline compares against.
+- Raw-event retention age (90 days by default).
+- The rolling-window size on Trends (20).
+- Your IDs list, friends and nicknames.
+- The seasons table.
+- The session gap (30 minutes), the day cutoff (4am) and the week start (Monday).
+- Unknown playlist IDs.
+
+Type: grilling (`grill-me`), then a prototype if the layout isn't obvious
+Blocked by: none
+Status: open (the user will pick it up later)
 
 ## Not yet specified
 - A live running total during play: what it shows and where (browser tab or overlay), and whether
   it's worth building at all.
 - Backup and export of the SQLite data (e.g. CSV), and what happens on a reinstall.
-- The default raw-event retention age, and how the retention script runs (on startup, or
-  manually).
+- How the retention script runs (on startup, or manually). The default age is decided: 90 days.
 - How a later API update that adds MMR would be folded in.
 
 ## Out of scope
