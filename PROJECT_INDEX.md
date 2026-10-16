@@ -3,9 +3,20 @@
 Personal Rocket League stats tracker: a local Windows tracker first, with a web or mobile app
 maybe later.
 
+## Code layout and commands
+- `src/server/` (Bun process: `main.ts` entry, `log.ts` logger, `paths.ts` data dir),
+  `src/shared/` (`constants.ts`), `scripts/` (standalone `capture.ts`).
+- `bun run check` = typecheck + lint (zero warnings) + tests; `bun run start` runs the server.
+  Bun lives at `~/.bun/bin/bun` and may not be on PATH.
+- Data and logs: `%LOCALAPPDATA%\RLTracker\` (`tracker.log`, 5 × 5 MB, JSON lines);
+  `RLTRACKER_DATA_DIR` overrides it for tests and dev runs.
+
 ## Plans
 - `docs/plans/2026-10-16-v1-roadmap.md`: v1 roadmap, ordered work packages WP1–WP9 with per-WP
   status.
+- `docs/plans/2026-10-16-wp1-foundations.md`: WP1 plan (package, strict TS/ESLint, Vitest,
+  logger, constants); done.
+- `docs/reviews/2026-10-16-wp1-foundations.md`: WP1 review summary (2 rounds, all fixed).
 - `docs/plans/2026-10-15-rl-tracker-features-map.md`: the wayfinder map for the v1 feature spec
   (done; the spec WPs cite; build order lives in the roadmap).
 

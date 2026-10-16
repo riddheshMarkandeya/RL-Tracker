@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { createUpdateStateSampler, eventNameOf, matchGuidOf } from "./capture";
 
 describe("eventNameOf", () => {
@@ -14,8 +14,8 @@ describe("eventNameOf", () => {
   });
 });
 
-const state = (t: number) => ({ t, raw: `state@${t}`, event: "UpdateState" });
-const other = (t: number, event: string | null = "GoalScored") => ({ t, raw: `${event}@${t}`, event });
+const state = (t: number) => ({ t, raw: `state@${String(t)}`, event: "UpdateState" });
+const other = (t: number, event: string | null = "GoalScored") => ({ t, raw: `${String(event)}@${String(t)}`, event });
 
 describe("matchGuidOf", () => {
   test("reads MatchGuid from the nested Data string", () => {

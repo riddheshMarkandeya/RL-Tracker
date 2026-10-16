@@ -26,7 +26,9 @@ export function eventNameOf(frame: string): string | null {
 /** MatchGuid from the envelope's nested Data JSON string, or null. */
 export function matchGuidOf(raw: string): string | null {
   try {
-    const data: unknown = JSON.parse(JSON.parse(raw).Data);
+    const envelope = JSON.parse(raw) as { Data?: unknown };
+    if (typeof envelope.Data !== "string") return null;
+    const data: unknown = JSON.parse(envelope.Data);
     const guid = (data as { MatchGuid?: unknown }).MatchGuid;
     return typeof guid === "string" ? guid : null;
   } catch {
@@ -84,7 +86,7 @@ function main(): void {
   const logPath = join(dir, "capture.log");
 
   function log(event: string, fields: Fields = {}): void {
-    const kv = Object.entries(fields).map(([k, v]) => ` ${k}=${v}`).join("");
+    const kv = Object.entries(fields).map(([k, v]) => ` ${k}=${String(v)}`).join("");
     const line = `${new Date().toISOString()} [capture] ${event}${kv}`;
     console.log(line);
     try {
@@ -201,7 +203,9 @@ function main(): void {
       };
       log("connected", { url: STATS_URL });
     };
-    ws.onmessage = (ev) => onFrame(ev.data);
+    ws.onmessage = (ev) => {
+      onFrame(ev.data);
+    };
     // A failed connect fires both error and close; reconnect is scheduled only from close.
     ws.onclose = (ev) => {
       const totals = endSession();
@@ -226,9 +230,15 @@ function main(): void {
     log("shutdown", { signal, ...(totals ?? { kept: 0, dropped: 0 }) });
     process.exit(0);
   }
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGHUP", () => shutdown("SIGHUP")); // console window closed, on Windows
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => {
+    shutdown("SIGINT");
+  });
+  process.on("SIGHUP", () => {
+    shutdown("SIGHUP");
+  }); // console window closed, on Windows
+  process.on("SIGTERM", () => {
+    shutdown("SIGTERM");
+  });
 
   log("started", { dir });
   connect();
