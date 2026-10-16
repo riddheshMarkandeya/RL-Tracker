@@ -160,7 +160,7 @@ mobile app are avoided, but that app is not designed here.
   - Overview order:
     1. A broadcast-style scorebug (from variant F): WINS | date, session length, win % and match
        count | LOSSES.
-    2. A random remark plus quip (placeholder copy, see "Recap remarks copy"), and the change
+    2. A mood remark plus at most one quip (see "Recap remarks"), and the change
        against the 30-day average.
     3. Four big stat tiles: best streak, ended on, shooting % against average, MVP count.
     4. Match cards in wrapped rows: number, time, W/L and score, playlist, MVP icon, and an amber
@@ -287,6 +287,30 @@ mobile app are avoided, but that app is not designed here.
     one, since the project starts with no code.
   - Not decided here: the SQLite driver (`node:sqlite` or `better-sqlite3`), which belongs to the
     recorder work.
+- **Recap remarks** (grilling, 2026-10-16). The full line pool is in
+  `2026-10-16-recap-remarks-copy.md`. The user chose not to review it so the jokes stay a surprise;
+  they'll ask for cuts as they meet lines they dislike.
+  - Voice: mostly deadpan commentator, with some roasting friend and self-aware tracker mixed in.
+    It roasts you properly, but friends get only light teasing aimed at the pair. No swearing,
+    though the `$#@%!` quick chat is allowed. Plenty of Rocket League in-jokes, at most one per
+    line.
+  - Headline: one mood line with no numbers, plus at most one quip that uses real numbers.
+  - Mood is judged against how big the session was:
+    z = (session win % − 30-day win %) / (50 / √n). |z| < 0.5 is usual, 0.5–1.5 is good or
+    rough, and ≥ 1.5 is great or disaster (about 38 / 24 / 7 % of nights). A fixed ±6-point band
+    was dropped because luck alone swings a 10-match night by ±16 points. Under 4 matches there's
+    a separate "short" set that doesn't judge the night. The bands can be tuned later from the
+    user's own history.
+  - Triggers are sorted into tiers. The rarest tier that fired wins, with a random pick inside
+    the tier. Legendary: hat trick, Savior, bicycle goal. Rare: an aerial or long goal, epic saves,
+    overtime wins or losses, an MVP haul, a hard shot, a match where your team was shut out.
+    Common: a win or loss streak, ending on a win or a loss, a duo's good or bad record, a
+    soloqueue night, demos given or taken, crossbar hits, a marathon (3 h or more), late night
+    (ending at 1am or later). No own-goal trigger, since that statfeed event isn't confirmed.
+  - The pick is stored per session and filter combination on first view, so revisiting shows the
+    same lines. ↻ stays in the real app. A line shown in the last ~10 sessions is skipped while
+    other lines are still available.
+  - Settings: remarks on/off, plus an on/off switch per trigger.
 
 ## Open tickets
 
@@ -356,7 +380,7 @@ shots, hat tricks, …) and how many variants each trigger needs so it doesn't r
 Inputs: the placeholder pool in `remarks()` in the recap prototype. The user wants them funny.
 Type: grilling (`grill-me`)
 Blocked by: none
-Status: open
+Status: done (2026-10-16). See "Recap remarks" under Decisions so far.
 
 ### Daylight theme icons
 Question: The game's statfeed icons (e.g. MVP) are white and fade on the light "daylight" theme.
