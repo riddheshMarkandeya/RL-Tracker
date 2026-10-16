@@ -90,7 +90,7 @@ mobile app are avoided, but that app is not designed here.
     matches keep their stats, but new stats can't be recomputed past the retention window.
   - Default age: **90 days** (user, 2026-10-16). Downsampled raw events come to about 20–30 MB
     per hour of play, so 90 days is roughly 1 GB at the prototype's pace (about 135 hours a year).
-    The age is a setting (see "Settings page").
+    The age becomes a setting after v1. In v1 it's a constant (see "Settings page").
   - Every page reads match records only, never raw events. So anything a page shows is computed
     when the match ends and stored on the match record. Match records are about 2–5 KB each,
     roughly 3–6 MB a year.
@@ -311,6 +311,44 @@ mobile app are avoided, but that app is not designed here.
     same lines. ↻ stays in the real app. A line shown in the last ~10 sessions is skipped while
     other lines are still available.
   - Settings: remarks on/off, plus an on/off switch per trigger.
+- **Settings page** (grilling, 2026-10-16). Rule for v1: a setting ships now if it's a single value
+  read when a page renders or a query runs, without changing stored data, or if the app is wrong
+  without it. Settings that rewrite or delete data, or reach outside the app, come later.
+  - Layout: one page with a sticky list of sections on the left. The look is left to the
+    "Settings layout" prototype.
+  - v1 sections:
+    - Appearance: theme (swatches that preview the theme live), 12h/24h clock, and speed units
+      (km/h by default, or mph).
+    - Defaults: the start page (Recap or Trends), the default playlist filter per page, what the
+      headline compares against ("Same filters as the recap" by default, "All ranked" or
+      "Everything"), and the Trends rolling window (20).
+    - Remarks: a master switch, a mood-line switch, one all on/off switch per tier, then a switch
+      per trigger grouped Legendary / Rare / Common.
+    - You: the IDs list. It's in v1 because identifying you (Q14) depends on it.
+    - Seasons: the editable table. It's in v1 because otherwise S25 (around December) would need a
+      code edit.
+    - App: a switch for the "no data" toast.
+    - A link to the Friends page. Friends, nicknames and "never suggest" are managed there only,
+      to avoid two UIs that drift apart.
+  - Saving: each change saves at once with a "Saved" tick, and each section has a reset-to-default
+    link. Table rows save when you confirm the row.
+  - Storage: in SQLite, validated by the same Zod schemas as the API.
+  - Later, not v1. Each of these is already decided:
+    - Session gap, day cutoff and week start. A change re-cuts *past* sessions and days, since
+      they come from match timestamps. Re-cut sessions get fresh remark picks. This needs proper
+      testing (user).
+    - Retention age. Lowering it asks for confirmation and states how much it deletes (matches
+      and MB; match stats are kept). Raising it doesn't ask. This revisits "the age is a setting"
+      under Raw event storage, but only the timing: in v1 the age is a constant, 90 days, set in
+      one place.
+    - Unknown playlist IDs. A table of IDs the tracker has seen but can't map, where you give each
+      a name and a group (Ranked / Casual / Extra modes). Your entries override the built-in
+      mapping. Until then, edit the mapping data file in the repo.
+    - Autostart on/off. It needs Task Scheduler calls from the server. The `npm run` scripts cover
+      it until then.
+  - Left out: trigger thresholds (marathon, late night) and the repeat window for remark lines
+    (tuning knobs; the user adjusts jokes as they meet them). Also left out: a Quit button on
+    Settings, since one is already in the header.
 
 ## Open tickets
 
@@ -439,7 +477,20 @@ Candidates already named elsewhere in this map:
 
 Type: grilling (`grill-me`), then a prototype if the layout isn't obvious
 Blocked by: none
-Status: open (the user will pick it up later)
+Status: done (2026-10-16). See "Settings page" under Decisions so far. The layout went to its own
+prototype ticket, "Settings layout".
+
+### Settings layout
+Question: How does the v1 Settings page look? This covers the sticky section list, the theme
+swatches with live preview, the remarks switches (master, mood line, per tier, per trigger), the
+IDs and seasons tables with per-row save, the "Saved" tick and the reset links.
+Inputs: the v1 sections under "Settings page" in Decisions so far. Start from the recap's look
+(variant D, carbon theme) and its theme tokens. The trigger list is under "Recap remarks". The
+user likes having many settings, but don't show counts in dropdowns. Load `prototype` and
+`ui-implementation-guidelines`.
+Type: prototype
+Blocked by: none
+Status: open
 
 ## Not yet specified
 - A live running total during play: what it shows and where (browser tab or overlay), and whether
