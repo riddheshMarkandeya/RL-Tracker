@@ -27,6 +27,7 @@ The analysis scripts were throwaway and lived in the session scratchpad.
    - `MatchDestroyed` and the `PlayerLeft`s carry the new guid.
    - For about 5 s, `UpdateState` under the new guid still shows the old game: old arena, final score, `Winner`, `bReplay`.
    - This caused the duplicate `match_end` lines in `capture.log` (D900F932, D7B2C270).
+   - Not only after private games: the recorder's import of all 4 captures found 5 retagged teardowns. 4 were private (Oct 18), and one was casual on Oct 16 (F26679C2's teardown under F1EBF2AA, playlist 2).
 3. **The new guid appears before `MatchCreated`**, in one `UpdateState` or a `PlayerJoined`.
 4. **A player first shows up with `TeamNum` 255** (not on a team yet), and with a `Shortcut` that changes later.
 5. **Recording can start mid-match**: the Oct 18 capture has no `MatchCreated` for its first match.
@@ -38,10 +39,15 @@ The analysis scripts were throwaway and lived in the session scratchpad.
    - `Game.Winner` is empty at `MatchEnded` and only filled in at `PodiumStart`.
    - `WinnerTeamNum` on `MatchEnded` is the source.
 8. **Forfeits and early ends are common.**
-   - At least 5 matches ended with time left and no overtime (clock 171, 136, 132, …).
+   - 9 of the 42 matches ended with time left and no overtime (from 171 s down to 19 s left).
+   - The clock gives no time left at `MatchEnded` itself: every match, overtime included, gets a `TimeSeconds: 0` reading just before `MatchEnded`. Time left shows in the reading before that one. A full match counts down 3, 2, 1, 0; a forfeit jumps to 0 from where it stopped (0116A7EE: 68, then 0).
+   - In overtime the clock counts up, so a high reading there is not time left (39BF9A28 reached 132 in overtime and completed normally).
    - B6AC8902 ended 3–0 after all three opponents left.
 9. **Overtime:** `bOvertime` is set and the clock counts *up* from 0, so `TimeSeconds` at the end is the overtime's length (up to 180 s seen).
-10. **MVP:** exactly one `StatfeedEvent` `MVP` per finished match (41 of 41), naming the player in `MainTarget`.
+10. **MVP:** at most one `StatfeedEvent` `MVP` per match, naming the player in `MainTarget`.
+    - 41 MVPs across 42 `MatchEnded` (corrected 2026-10-19 in WP3a plan review).
+    - F6FE4498 (Oct 17) sent `MatchEnded` but no `PodiumStart` and no MVP.
+    - Every match with a `PodiumStart` had exactly one.
 11. **Your team number differs between matches** (0 or 1; private games reshuffle each game). Decide win or loss from your `TeamNum` in that match.
 12. **Team names are club names.**
     - Your side shows as "Naked Panda Mediation".

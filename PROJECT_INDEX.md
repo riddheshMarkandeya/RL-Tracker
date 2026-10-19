@@ -6,8 +6,11 @@ maybe later.
 ## Code layout and commands
 - `src/server/` (Bun process: `main.ts` entry, `log.ts` logger, `paths.ts` data dir,
   `storage.ts` opens both DBs, `maintenance.ts` schedules retention and backups; `db/`: `sqlite.ts` driver seam, `migrate.ts`, `migrations.ts`,
-  `backup.ts`, `retention.ts`), `src/shared/` (`constants.ts`), `scripts/` (standalone
-  `capture.ts`).
+  `backup.ts`, `retention.ts`; `recorder/`: Stats API client, lifecycle, raw store, dedup,
+  summary, checks), `src/shared/` (`constants.ts`), `scripts/` (standalone `capture.ts`;
+  `replay.ts` fake Stats API, `import-capture.ts`, `make-fixture.ts`), `test/fixtures/`
+  (anonymised capture excerpts).
+- `STATS_API_URL` points `bun run start` at a replay: `bun run scripts/replay.ts <file> --port P`.
 - `bun run check` = typecheck + lint (zero warnings) + tests (Vitest under Bun);
   `bun run start` runs the server.
   Bun lives at `~/.bun/bin/bun` and may not be on PATH.
@@ -16,10 +19,14 @@ maybe later.
   IDs; backed up to `backups/`, 7 kept), `raw.db` (raw events, 90-day retention).
 
 ## Decisions
+- `docs/decisions/2026-10-19-recorder-websocket-raw-store.md`: recorder reads the Stats API over
+  WebSocket, stores raw and dedups on read, attribution to a match is final at write time.
 - `docs/decisions/2026-10-16-bun-runtime.md`: Bun runtime, Vitest under Bun, Playwright on Node;
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-19-wp3a-recorder.md`: WP3a plan (recorder: lifecycle, raw store, dedup,
+  summary and checks, client, replay/import tools, fixtures); done, with review log.
 - `docs/plans/2026-10-16-wp2-storage.md`: WP2 plan (SQLite storage, migrations, backups,
   retention, Bun check).
 - `docs/plans/2026-10-16-v1-roadmap.md`: v1 roadmap, ordered work packages WP1–WP9 with per-WP

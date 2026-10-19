@@ -1,12 +1,12 @@
 // Standalone Stats API capture: records the game's WebSocket stream to NDJSON while you play,
-// so real sessions exist on disk before the recorder does. Run with `bun run scripts/capture.ts`
-// (or `node scripts/capture.ts`); Ctrl+C to stop.
+// so real sessions exist on disk before the recorder does. Run with `bun run scripts/capture.ts`;
+// Ctrl+C to stop.
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createUpdateStateSampler, UPDATE_STATE_INTERVAL_MS, type Line, type Sampler } from "../src/server/recorder/sampler";
 
 const STATS_URL = "ws://127.0.0.1:49124";
-const UPDATE_STATE_INTERVAL_MS = 500;
 const RECONNECT_MS = 5_000;
 const STILL_WAITING_MS = 5 * 60_000;
 const STATUS_MS = 10 * 60_000;
@@ -36,49 +36,6 @@ export function matchGuidOf(raw: string): string | null {
   }
 }
 
-export interface Line {
-  t: number;
-  raw: string;
-  event: string | null;
-}
-
-/**
- * Keeps every non-UpdateState line and roughly one UpdateState per `intervalMs`. The latest
- * dropped UpdateState is held and written just before the next other event (and by `flush` on
- * exit), so the scoreboard at MatchEnded, a goal or a disconnect is never lost. Writing a held
- * state restarts the interval; otherwise once-a-second events like ClockUpdatedSeconds would
- * each add a state and push the rate well past one per interval.
- */
-export function createUpdateStateSampler(intervalMs: number) {
-  let lastKeptT = Number.NEGATIVE_INFINITY;
-  let held: Line | null = null;
-  return {
-    offer(line: Line): Line[] {
-      if (line.event !== "UpdateState") {
-        if (!held) return [line];
-        const out = [held, line];
-        lastKeptT = held.t;
-        held = null;
-        return out;
-      }
-      // t is wall-clock, so a backwards clock step (negative elapsed) counts as a full interval
-      const elapsed = line.t - lastKeptT;
-      if (elapsed >= 0 && elapsed < intervalMs) {
-        held = line;
-        return [];
-      }
-      lastKeptT = line.t;
-      held = null;
-      return [line];
-    },
-    flush(): Line | null {
-      const out = held;
-      held = null;
-      return out;
-    },
-  };
-}
-
 type Fields = Record<string, string | number | null | undefined>;
 
 function main(): void {
@@ -106,7 +63,7 @@ function main(): void {
 
   // State of the current connection; null while waiting for the game.
   let session: {
-    sampler: ReturnType<typeof createUpdateStateSampler>;
+    sampler: Sampler<Line>;
     path: string | null;
     kept: number;
     statesSeen: number;
@@ -187,7 +144,7 @@ function main(): void {
     ws.onopen = () => {
       failStreakSince = null;
       session = {
-        sampler: createUpdateStateSampler(UPDATE_STATE_INTERVAL_MS),
+        sampler: createUpdateStateSampler<Line>(UPDATE_STATE_INTERVAL_MS),
         path: null,
         kept: 0,
         statesSeen: 0,
