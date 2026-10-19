@@ -6,8 +6,8 @@
     "start": "bun run src/server/main.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest run",
-    "check": "tsc --noEmit && eslint . --max-warnings 0 && vitest run"
+    "test": "bun --bun vitest run",
+    "check": "tsc --noEmit && eslint . --max-warnings 0 && bun --bun vitest run"
   },
   "dependencies": {
     "zod": "^4.6.7"
