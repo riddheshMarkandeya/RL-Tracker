@@ -31,6 +31,9 @@ maybe later.
   (done; the spec WPs cite; build order lives in the roadmap).
 
 ## Research
+- `docs/research/2026-10-19-weekend-captures.md`: weekend captures (casual/ranked, private,
+  spectated 1v1): duplicates, mis-tagged teardown, winner/MVP sources, bots, WP3a requirements,
+  captures still wanted.
 - `docs/research/2026-10-16-bun-windows-check.md`: Vitest/Playwright under Bun, Task Scheduler
   restart and console behaviour (sources only; results in the Bun ADR).
 - `docs/research/2026-10-15-rl-stats-api-and-trackers.md`: Stats API events and limits, MMR
