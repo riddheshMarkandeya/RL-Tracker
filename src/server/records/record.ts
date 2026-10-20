@@ -1,5 +1,7 @@
 // A finished match's summary mapped to the rows tracker.db stores. Nothing here depends on which
 // player is "you": every player gets a full row, and pages pick "you" by joining with my_ids.
+import { PLAYER_EXTRAS, type ExtraValues } from "../recorder/extras";
+import type { GoalPoint } from "../recorder/play";
 import type { MatchSummary, TeamNum } from "../recorder/summary";
 
 export interface MatchRow {
@@ -39,6 +41,8 @@ export interface PlayerRow {
   saves: number;
   touches: number;
   demos: number;
+  /** By registry column; all null when the summary has no extras. */
+  extras: ExtraValues;
 }
 
 export interface StatfeedRow {
@@ -51,7 +55,11 @@ export interface MatchRecord {
   match: MatchRow;
   players: PlayerRow[];
   statfeed: StatfeedRow[];
+  /** In match order. */
+  goals: GoalPoint[];
 }
+
+const NO_EXTRAS: ExtraValues = Object.fromEntries(PLAYER_EXTRAS.map((e) => [e.column, null]));
 
 function cameraPrimaryId(s: MatchSummary): string | null {
   const entry = s.roster.find((r) => r.key === s.cameraKey);
@@ -88,7 +96,9 @@ export function toRecord(s: MatchSummary): MatchRecord {
       teamsSeen: r.teamsSeen,
       presentAtEnd: r.presentAtEnd,
       ...r.stats,
+      extras: { ...NO_EXTRAS, ...s.extras?.players[r.key] },
     })),
     statfeed: Object.entries(s.statfeed).flatMap(([playerKey, counts]) => Object.entries(counts).map(([eventName, count]) => ({ playerKey, eventName, count }))),
+    goals: s.extras?.goals ?? [],
   };
 }

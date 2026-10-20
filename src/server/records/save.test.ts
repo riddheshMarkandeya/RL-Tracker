@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { openStorage, type Storage } from "../storage";
 import { memoryLogger } from "../testing";
+import type { GoalPoint } from "../recorder/play";
 import type { TeamNum } from "../recorder/summary";
 import type { MatchRecord, PlayerRow } from "./record";
 import { createRecordWriter } from "./save";
@@ -34,6 +35,21 @@ const player = (key: string, teamNum: TeamNum, over: Partial<PlayerRow> = {}): P
   saves: 0,
   touches: 5,
   demos: 0,
+  extras: { hardest_shot_kmh: 101.5, woodwork_hits: 1, aerial_touches: 2, car_ms: null, boost_avg: null, supersonic_ms: null, empty_boost_ms: null },
+  ...over,
+});
+
+const goal = (teamNum: TeamNum, scorerKey: string, over: Partial<GoalPoint> = {}): GoalPoint => ({
+  teamNum,
+  scorerKey,
+  assisterKey: null,
+  toucherKey: scorerKey,
+  pos: { x: 10, y: -20, z: 93 },
+  distance: 5000,
+  speedKmh: 88,
+  deflected: false,
+  aerial: false,
+  ownGoal: false,
   ...over,
 });
 
@@ -63,6 +79,7 @@ const record = (guid = "G", over: Partial<MatchRecord["match"]> = {}): MatchReco
     { playerKey: "Epic|me|0", eventName: "Goal", count: 1 },
     { playerKey: "Epic|them|0", eventName: "Goal", count: 1 },
   ],
+  goals: [goal(0, "Epic|me|0", { aerial: true }), goal(1, "Epic|them|0", { toucherKey: null, pos: null, distance: null, ownGoal: true })],
 });
 
 function setup() {
@@ -114,12 +131,23 @@ describe("record writer", () => {
       saves: 0,
       touches: 5,
       demos: 0,
+      hardest_shot_kmh: 101.5,
+      woodwork_hits: 1,
+      aerial_touches: 2,
+      car_ms: null,
+      boost_avg: null,
+      supersonic_ms: null,
+      empty_boost_ms: null,
     });
+    expect(storage.tracker.all("SELECT * FROM match_goals ORDER BY idx")).toEqual([
+      { match_guid: "G", idx: 0, team_num: 0, scorer_key: "Epic|me|0", assister_key: null, toucher_key: "Epic|me|0", x: 10, y: -20, z: 93, distance: 5000, speed_kmh: 88, deflected: 0, aerial: 1, own_goal: 0 },
+      { match_guid: "G", idx: 1, team_num: 1, scorer_key: "Epic|them|0", assister_key: null, toucher_key: null, x: null, y: null, z: null, distance: null, speed_kmh: 88, deflected: 0, aerial: 0, own_goal: 1 },
+    ]);
     expect(storage.tracker.all("SELECT match_guid, player_key, event_name, count FROM match_player_statfeed ORDER BY player_key")).toEqual([
       { match_guid: "G", player_key: "Epic|me|0", event_name: "Goal", count: 1 },
       { match_guid: "G", player_key: "Epic|them|0", event_name: "Goal", count: 1 },
     ]);
-    expect(fields("written")).toEqual([expect.objectContaining({ guid: "G", players: 2, winnerSource: "match_ended", mvpSource: "statfeed", checkFlags: ["camera_on_roster"], ms: expect.any(Number) as unknown })]);
+    expect(fields("written")).toEqual([expect.objectContaining({ guid: "G", players: 2, winnerSource: "match_ended", mvpSource: "statfeed", checkFlags: ["camera_on_roster"], goals: 2, ownGoals: 1, ms: expect.any(Number) as unknown })]);
   });
 
   test("saving a guid again (a Reconnect) replaces its rows rather than adding to them", () => {
@@ -129,6 +157,7 @@ describe("record writer", () => {
     const again = record("G", { scoreTeam0: 3, endKind: "left" });
     again.players = [player("Epic|me|0", 0, { goals: 3 })];
     again.statfeed = [{ playerKey: "Epic|me|0", eventName: "Goal", count: 3 }];
+    again.goals = [goal(0, "Epic|me|0", { speedKmh: 120 })];
     writer.save(again);
     expect(storage.tracker.all("SELECT guid, score_team0, end_kind FROM matches ORDER BY guid")).toEqual([
       { guid: "G", score_team0: 3, end_kind: "left" },
@@ -136,7 +165,9 @@ describe("record writer", () => {
     ]);
     expect(storage.tracker.all("SELECT player_key, goals FROM match_players WHERE match_guid = 'G'")).toEqual([{ player_key: "Epic|me|0", goals: 3 }]);
     expect(storage.tracker.all("SELECT player_key, count FROM match_player_statfeed WHERE match_guid = 'G'")).toEqual([{ player_key: "Epic|me|0", count: 3 }]);
+    expect(storage.tracker.all("SELECT idx, speed_kmh FROM match_goals WHERE match_guid = 'G'")).toEqual([{ idx: 0, speed_kmh: 120 }]);
     expect(count("match_players")).toBe(3);
+    expect(count("match_goals")).toBe(3);
   });
 
   test("a write that fails leaves the match as it was and throws to the caller", () => {

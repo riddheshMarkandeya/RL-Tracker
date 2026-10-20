@@ -54,7 +54,7 @@ describe("toRecord on the fixtures", () => {
     if (!s) throw new Error("no match");
     const { players } = toRecord(s);
     expect(players).toHaveLength(6);
-    expect(players.find((p) => p.playerKey === "Epic|anon1|0")).toEqual({
+    expect(players.find((p) => p.playerKey === "Epic|anon1|0")).toMatchObject({
       playerKey: "Epic|anon1|0",
       primaryId: "Epic|anon1|0",
       name: "Player 1",
@@ -88,6 +88,88 @@ describe("toRecord on the fixtures", () => {
       { playerKey: "Epic|anon3|0", eventName: "Shot", count: 1 },
       { playerKey: "Epic|anon3|0", eventName: "Win", count: 1 },
     ]);
+  });
+});
+
+// Regression values from the fixtures, cross-checked by hand: each team's points equal its score,
+// the scorers equal the roster's goals and the aerial goals equal the AerialGoal statfeeds. The
+// fixtures keep one state per 3 s, so their car stats only pin the computation, not real values.
+describe("toRecord: extras and goals on the fixtures", () => {
+  const goalsOf = (name: string) => {
+    const [s] = summariesOf(name);
+    if (!s) throw new Error(`no match in ${name}`);
+    return toRecord(s).goals.map((g) => [g.teamNum, g.scorerKey, Math.round(g.distance ?? -1), [g.deflected, g.aerial, g.ownGoal].map(Number).join("")]);
+  };
+
+  test.each<[string, (string | number | null)[][]]>([
+    [
+      "completed",
+      [
+        [1, "PS4|anon6|0", 6969, "000"],
+        [1, "Epic|anon5|0", 3979, "000"],
+        [0, "Epic|anon3|0", 5340, "110"],
+      ],
+    ],
+    [
+      "overtime-leavers",
+      [
+        [1, "Epic|anon1|0", 1247, "000"],
+        [0, "Epic|anon4|0", 5266, "000"],
+        [1, "PS4|anon6|0", 7761, "010"],
+        [1, "Epic|anon1|0", 3917, "000"],
+        [0, "Epic|anon3|0", 7283, "100"],
+        [0, "Epic|anon4|0", 9067, "100"],
+        [1, "Epic|anon1|0", 3198, "000"],
+        [0, "Epic|anon4|0", 693, "000"],
+        [0, "Epic|anon4|0", 1588, "010"],
+      ],
+    ],
+    // Joined at 1–1: the two earlier goals have no point.
+    [
+      "joined-in-progress",
+      [
+        [1, "Epic|anon3|0", 3083, "000"],
+        [0, "PS4|anon6|0", 4537, "000"],
+        [1, "Epic|anon2|0", 3742, "000"],
+        [1, "Epic|anon2|0", 4689, "000"],
+      ],
+    ],
+    [
+      "left-early",
+      [
+        [1, "Epic|anon2|0", 2342, "000"],
+        [1, "Epic|anon2|0", 1185, "000"],
+        [1, "Epic|anon2|0", 5046, "000"],
+        [1, "Epic|anon2|0", 2003, "100"],
+      ],
+    ],
+  ])("%s goals: team, scorer, distance, deflected/aerial/own goal", (name, expected) => {
+    expect(goalsOf(name)).toEqual(expected);
+  });
+
+  test("a player's extras, and nulls for an opponent's car stats", () => {
+    const [s] = summariesOf("completed");
+    if (!s) throw new Error("no match");
+    const { players } = toRecord(s);
+    const extras = (key: string) => players.find((p) => p.playerKey === key)?.extras;
+    expect(extras("Epic|anon3|0")).toEqual({
+      hardest_shot_kmh: expect.closeTo(93.6, 1) as number,
+      woodwork_hits: 0,
+      aerial_touches: 1,
+      car_ms: 105_155,
+      boost_avg: expect.closeTo(62.08, 2) as number,
+      supersonic_ms: 10_357,
+      empty_boost_ms: 9881,
+    });
+    expect(extras("Epic|anon4|0")).toMatchObject({ woodwork_hits: 1, car_ms: null, boost_avg: null, supersonic_ms: null, empty_boost_ms: null });
+  });
+
+  test("a summary without extras stores null extras and no goals", () => {
+    const [s] = summariesOf("completed");
+    if (!s) throw new Error("no match");
+    const record = toRecord({ ...s, extras: null });
+    expect(record.goals).toEqual([]);
+    expect(Object.values(record.players[0]?.extras ?? { x: 1 }).every((v) => v === null)).toBe(true);
   });
 });
 

@@ -8,8 +8,8 @@ maybe later.
   `supervisor.ts` restart loop (its own exe), `game-watch.ts` game detection and toast,
   `exit-codes.ts`, `log.ts` logger, `paths.ts` data dir and port, `storage.ts` opens both DBs, `maintenance.ts` schedules retention and backups; `db/`: `sqlite.ts` driver seam, `migrate.ts`, `migrations.ts`,
   `backup.ts`, `retention.ts`; `recorder/`: Stats API client, lifecycle, raw store, dedup,
-  summary, checks, `read-match.ts`); `records/`: `record.ts` summary → rows, `save.ts` writer,
-  `recompute.ts`), `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map),
+  summary, checks, `play.ts` live-play view, `extras.ts` stat registry, `read-match.ts`); `records/`: `record.ts` summary → rows, `save.ts` writer,
+  `recompute.ts`), `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts` close/mid/long),
   `scripts/` (standalone `capture.ts`; `stop.ts`, `autostart.ts`, `replay.ts` fake Stats API,
   `import-capture.ts` (also writes records), `recompute.ts`, `make-fixture.ts`), `test/fixtures/`
   (anonymised capture excerpts).
@@ -30,6 +30,8 @@ maybe later.
   IDs, match records; backed up to `backups/`, 7 kept), `raw.db` (raw events, 90-day retention).
 
 ## Decisions
+- `docs/decisions/2026-10-20-match-extras-play-view.md`: match extras and goal points read one
+  live-play view; shot, aerial, touch, woodwork and goal-origin rules; registry with ranges.
 - `docs/decisions/2026-10-20-match-records-per-player.md`: match records cover every player and
   "you" is joined at read time; result with no winner; camera share; final player stats.
 - `docs/decisions/2026-10-19-supervisor-autostart.md`: the background tracker is a compiled
@@ -40,6 +42,9 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-20-wp4b-match-extras.md`: WP4b plan (play view, extras registry, checks,
+  migration 3, `match_goals`, goal range), real-data figures, review log.
+- `docs/reviews/2026-10-20-wp4b-match-extras.md`: WP4b review summary.
 - `docs/plans/2026-10-20-wp4a-match-records.md`: WP4a plan (schema, record writer, recompute,
   result, MVP, pending guess, playlist map), capture-driven changes, review log.
 - `docs/plans/2026-10-19-wp3b-background-process.md`: WP3b plan (host, supervisor, autostart,

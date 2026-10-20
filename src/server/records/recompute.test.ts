@@ -24,7 +24,7 @@ afterEach(() => {
 
 const now = () => 42;
 const FIXTURES = ["completed", "early-end", "overtime-leavers", "joined-in-progress", "left-early", "left-countdown", "private-series"];
-const TABLES = ["matches", "match_players", "match_player_statfeed", "my_ids"];
+const TABLES = ["matches", "match_players", "match_player_statfeed", "match_goals", "my_ids"];
 
 /** Records the fixtures live, with the hook saving each match the way main does. */
 function recordLive(names: readonly string[]): void {
@@ -51,6 +51,7 @@ describe("recomputeAll", () => {
     recordLive(FIXTURES);
     const live = snapshot();
     expect(live.matches).toHaveLength(7);
+    expect(live.match_goals?.length).toBeGreaterThan(0);
     clear();
     const logger = memoryLogger();
     const result = recomputeAll({ raw: storage.raw, tracker: storage.tracker, logger, now });

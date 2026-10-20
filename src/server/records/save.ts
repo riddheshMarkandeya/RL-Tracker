@@ -4,6 +4,7 @@
 import type { Db } from "../db/sqlite";
 import type { Logger } from "../log";
 import { playlistInfo } from "../../shared/playlists";
+import { PLAYER_EXTRAS } from "../recorder/extras";
 import type { MatchRecord } from "./record";
 
 export interface RecordWriterOptions {
@@ -25,10 +26,14 @@ const UPSERT_MATCH = `
     winner_team_num = excluded.winner_team_num, winner_source = excluded.winner_source, mvp_key = excluded.mvp_key,
     mvp_source = excluded.mvp_source, camera_primary_id = excluded.camera_primary_id, check_flags = excluded.check_flags`;
 
-const INSERT_PLAYER = `
-  INSERT INTO match_players (match_guid, player_key, primary_id, name, is_bot, team_num, teams_seen, present_at_end,
-    score, goals, shots, assists, saves, touches, demos)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+// The extras' columns come from the registry, so a new stat needs only its entry and a migration.
+const BASE_PLAYER_COLUMNS = ["match_guid", "player_key", "primary_id", "name", "is_bot", "team_num", "teams_seen", "present_at_end", "score", "goals", "shots", "assists", "saves", "touches", "demos"];
+const PLAYER_COLUMNS = [...BASE_PLAYER_COLUMNS, ...PLAYER_EXTRAS.map((e) => e.column)];
+const INSERT_PLAYER = `INSERT INTO match_players (${PLAYER_COLUMNS.join(", ")}) VALUES (${PLAYER_COLUMNS.map(() => "?").join(", ")})`;
+
+const INSERT_GOAL = `
+  INSERT INTO match_goals (match_guid, idx, team_num, scorer_key, assister_key, toucher_key, x, y, z, distance, speed_kmh, deflected, aerial, own_goal)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 /**
  * The camera's id, unless it is already in my_ids (whatever its status: a rejected one is never
@@ -57,7 +62,7 @@ export function createRecordWriter({ tracker, logger, now = Date.now }: RecordWr
 
   /** Writes one match, replacing any earlier record of its guid. Returns whether a guess was added. */
   function write(record: MatchRecord): boolean {
-    const { match: m, players, statfeed } = record;
+    const { match: m, players, statfeed, goals } = record;
     tracker.run(
       UPSERT_MATCH,
       m.guid,
@@ -80,9 +85,15 @@ export function createRecordWriter({ tracker, logger, now = Date.now }: RecordWr
     );
     tracker.run("DELETE FROM match_players WHERE match_guid = ?", m.guid);
     tracker.run("DELETE FROM match_player_statfeed WHERE match_guid = ?", m.guid);
+    tracker.run("DELETE FROM match_goals WHERE match_guid = ?", m.guid);
     for (const p of players) {
-      tracker.run(INSERT_PLAYER, m.guid, p.playerKey, p.primaryId, p.name, p.isBot, p.teamNum, p.teamsSeen, p.presentAtEnd, p.score, p.goals, p.shots, p.assists, p.saves, p.touches, p.demos);
+      const extras = PLAYER_EXTRAS.map((e) => p.extras[e.column] ?? null);
+      tracker.run(INSERT_PLAYER, m.guid, p.playerKey, p.primaryId, p.name, p.isBot, p.teamNum, p.teamsSeen, p.presentAtEnd, p.score, p.goals, p.shots, p.assists, p.saves, p.touches, p.demos, ...extras);
     }
+    goals.forEach((g, idx) => {
+      const { pos } = g;
+      tracker.run(INSERT_GOAL, m.guid, idx, g.teamNum, g.scorerKey, g.assisterKey, g.toucherKey, pos?.x ?? null, pos?.y ?? null, pos?.z ?? null, g.distance, g.speedKmh, g.deflected, g.aerial, g.ownGoal);
+    });
     for (const s of statfeed) {
       tracker.run("INSERT INTO match_player_statfeed (match_guid, player_key, event_name, count) VALUES (?, ?, ?, ?)", m.guid, s.playerKey, s.eventName, s.count);
     }
@@ -98,6 +109,8 @@ export function createRecordWriter({ tracker, logger, now = Date.now }: RecordWr
       logger.info(C, "written", {
         guid: m.guid,
         players: record.players.length,
+        goals: record.goals.length,
+        ownGoals: record.goals.filter((g) => g.ownGoal).length,
         winnerSource: m.winnerSource,
         mvpSource: m.mvpSource,
         checkFlags: m.checkFlags,

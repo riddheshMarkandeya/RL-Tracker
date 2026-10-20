@@ -80,6 +80,32 @@ export const trackerMigrations: readonly string[] = [
     PRIMARY KEY (match_guid, player_key, event_name)
   );
   `,
+  // Extras: null on a row recorded before this means "not computed" until recompute. Time stats
+  // are ms beside car_ms (the time with car state), so shares aggregate across matches.
+  `
+  ALTER TABLE match_players ADD COLUMN hardest_shot_kmh REAL;
+  ALTER TABLE match_players ADD COLUMN woodwork_hits INTEGER;
+  ALTER TABLE match_players ADD COLUMN aerial_touches INTEGER;
+  ALTER TABLE match_players ADD COLUMN car_ms INTEGER; -- null for a player without car state (opponents)
+  ALTER TABLE match_players ADD COLUMN boost_avg REAL;
+  ALTER TABLE match_players ADD COLUMN supersonic_ms INTEGER;
+  ALTER TABLE match_players ADD COLUMN empty_boost_ms INTEGER;
+  CREATE TABLE match_goals (
+    match_guid   TEXT NOT NULL,
+    idx          INTEGER NOT NULL, -- order in the match
+    team_num     INTEGER NOT NULL, -- the scoring team
+    scorer_key   TEXT NOT NULL,
+    assister_key TEXT,
+    toucher_key  TEXT,             -- whose touch the dot sits at; null for an own goal
+    x REAL, y REAL, z REAL,        -- ball at that touch, raw field coords; null for an own goal
+    distance     REAL,             -- uu to the centre of the goal attacked
+    speed_kmh    REAL,
+    deflected    INTEGER NOT NULL,
+    aerial       INTEGER NOT NULL,
+    own_goal     INTEGER NOT NULL,
+    PRIMARY KEY (match_guid, idx)
+  );
+  `,
 ];
 
 export const rawMigrations: readonly string[] = [

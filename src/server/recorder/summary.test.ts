@@ -127,6 +127,13 @@ describe("summarise", () => {
     });
   });
 
+  test("a players or teams entry that isn't an object is skipped", () => {
+    const game = { Teams: [null, [], { TeamNum: 0, Score: 1 }, { TeamNum: 1, Score: 2 }] };
+    const s = summarise("G", [ev("MatchInitialized"), ev("UpdateState", { Players: [null, 7, [], player({ name: "A" })], Game: game })], destroyed);
+    expect(s.roster.map((r) => r.name)).toEqual(["A"]);
+    expect(s.score).toEqual([1, 2]);
+  });
+
   test("joined in progress: no MatchInitialized", () => {
     expect(summarise("G", [state([{ name: "A" }]), ev("RoundStarted")], destroyed).joinedInProgress).toBe(true);
   });

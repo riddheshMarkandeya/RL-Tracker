@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { runChecks } from "./checks";
+import type { ExtraValues } from "./extras";
+import { emptyFacts, type GoalPoint } from "./play";
 import type { MatchSummary, RosterEntry, TeamNum } from "./summary";
 
 const entry = (key: string, teamNum: TeamNum, goals: number, assists = 0): RosterEntry => ({
@@ -11,6 +13,28 @@ const entry = (key: string, teamNum: TeamNum, goals: number, assists = 0): Roste
   isBot: false,
   presentAtEnd: true,
   stats: { score: 100 * goals, goals, shots: goals, assists, saves: 0, touches: 1, demos: 0 },
+});
+
+const point = (teamNum: TeamNum, scorerKey: string): GoalPoint => ({
+  teamNum,
+  scorerKey,
+  assisterKey: null,
+  toucherKey: scorerKey,
+  pos: { x: 0, y: 0, z: 93 },
+  distance: 5120,
+  speedKmh: 90,
+  deflected: false,
+  aerial: false,
+  ownGoal: false,
+});
+const extrasFor = (car: boolean): ExtraValues => ({
+  hardest_shot_kmh: 120,
+  woodwork_hits: 0,
+  aerial_touches: 1,
+  car_ms: car ? 60_000 : null,
+  boost_avg: car ? 40 : null,
+  supersonic_ms: car ? 5000 : null,
+  empty_boost_ms: car ? 3000 : null,
 });
 
 /** A finished 2–1 match that passes every check. */
@@ -32,8 +56,23 @@ const clean = (): MatchSummary => ({
   cameraKey: "a",
   facts: { sawMatchEnded: true, endedWinnerTeamNum: 0, sawPodium: true, mvpCount: 1, liveGoals: 3, minClock: 0, unresolvedStatfeed: 0, rejectedScoreboards: 0, cameraTargets: 10 },
   dedupDropped: {},
+  extras: {
+    players: { a: { ...extrasFor(true), woodwork_hits: 1 }, b: extrasFor(true), c: extrasFor(false) },
+    goals: [point(0, "a"), point(1, "c"), point(0, "a")],
+    facts: { ...emptyFacts(), playMs: 60_000 },
+  },
+  extrasError: null,
   flags: [],
 });
+function x(s: MatchSummary) {
+  if (!s.extras) throw new Error("clean() always has extras");
+  return s.extras;
+}
+function player(s: MatchSummary, k: string): ExtraValues {
+  const v = x(s).players[k];
+  if (!v) throw new Error(`no extras for ${k}`);
+  return v;
+}
 
 const ids = (s: MatchSummary) => runChecks(s).map((f) => f.id);
 
@@ -73,12 +112,36 @@ describe("runChecks", () => {
     ["player_stats_non_negative", (s) => (s.roster = [...s.roster, { ...entry("d", 1, 0), stats: { ...entry("d", 1, 0).stats, saves: -1 } }])],
     ["clock_non_negative", (s) => (s.facts.minClock = -1)],
     ["playlist_present", (s) => (s.playlistId = null)],
+    ["goals_per_team_equal_score", (s) => x(s).goals.pop()],
+    ["goals_per_team_equal_score", (s) => (x(s).goals[1] = point(0, "a"))],
+    ["extras_computed", (s) => ((s.extras = null), (s.extrasError = "TypeError: boom"))],
+    ["goals_placed", (s) => (x(s).facts.droppedGoals = 1)],
+    ["touches_resolved", (s) => (x(s).facts.unresolved.hit = 1)],
+    ["touches_resolved", (s) => (x(s).facts.unresolved.shot = 1)],
+    ["touches_resolved", (s) => (x(s).facts.unresolved.woodwork = 1)],
+    ["touches_resolved", (s) => (x(s).facts.unresolved.lastTouch = 1)],
+    ["shots_have_touch", (s) => (x(s).facts.shotsWithoutTouch = 1)],
+    ["aerial_goals_match_statfeed", (s) => (x(s).goals[0] = { ...point(0, "a"), aerial: true })],
+    ["aerial_goals_match_statfeed", (s) => (s.statfeed.c = { ...s.statfeed.c, AerialGoal: 1 })],
+    ["goal_last_touch_agrees", (s) => (x(s).facts.lastTouchDisagrees = 1)],
+    ["extras_in_range", (s) => (player(s, "a").hardest_shot_kmh = 251)],
+    ["extras_in_range", (s) => (player(s, "a").hardest_shot_kmh = -1)],
+    ["extras_in_range", (s) => (player(s, "a").boost_avg = 101)],
+    ["extras_in_range", (s) => (player(s, "a").aerial_touches = 2)],
+    ["extras_in_range", (s) => (player(s, "a").car_ms = 61_001)],
   ])("%s fails on a summary built to break it", (id, breakIt) => {
     const s = clean();
     breakIt(s);
     // A broken roster also disagrees with its statfeed, which has its own rows.
     expect(ids(s).filter((x) => x === id || x !== "statfeed_matches_scoreboard")).toEqual([id]);
     expect(runChecks(s)[0]?.detail).toEqual(expect.any(String));
+  });
+
+  test("touches_resolved names only the kinds with unidentified players", () => {
+    const s = clean();
+    x(s).facts.unresolved.hit = 1;
+    x(s).facts.unresolved.lastTouch = 2;
+    expect(runChecks(s).find((f) => f.id === "touches_resolved")?.detail).toBe("unidentified: 1 hitter(s), 2 goal last toucher(s)");
   });
 
   test("an MVP-less MatchEnded without a podium is fine (seen once: F6FE4498)", () => {
@@ -120,6 +183,23 @@ describe("runChecks", () => {
     expect(runChecks(s)).toEqual([]);
     s.roster = [entry("a", 0, 3), entry("c", 1, 1)];
     expect(ids(s)).toEqual(["player_goals_equal_score"]);
+  });
+
+  test("joined in progress, the goal map isn't compared with the score", () => {
+    const s = clean();
+    s.joinedInProgress = true;
+    x(s).goals.pop();
+    expect(ids(s).filter((i) => i.startsWith("goals_"))).toEqual([]);
+  });
+
+  test("car time up to play time plus one sample cap passes", () => {
+    const s = clean();
+    player(s, "a").car_ms = 61_000;
+    expect(ids(s)).toEqual([]);
+  });
+
+  test("a summary without extras skips their checks", () => {
+    expect(runChecks({ ...clean(), extras: null })).toEqual([]);
   });
 
   test("score checks are skipped when no state was stored", () => {

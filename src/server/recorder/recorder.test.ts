@@ -360,11 +360,13 @@ describe("logging and failures", () => {
 
   test("a match that closes logs its summary and any failed check", () => {
     const { recorder, fields } = setup();
-    // Score 1–0 but nobody credited: player_goals_equal_score fails; the summary still goes out.
+    // Score 1–0 but nobody credited: player_goals_equal_score fails, and the goal gets no point (its
+    // scorer isn't on the roster); the summary still goes out.
     feed(recorder, [frame(1000, "MatchCreated", "G"), frame(2000, "MatchInitialized", "G"), frame(2500, "GoalScored", "G", { Scorer: { Name: "A" }, GoalSpeed: 90 })]);
     feed(recorder, [frame(3000, "UpdateState", "G", { Game: { Teams: [{ TeamNum: 0, Score: 1 }, { TeamNum: 1, Score: 0 }], PlaylistId: 10, TimeSeconds: 0 }, Players: [] })]);
     feed(recorder, [frame(4000, "MatchEnded", "G", { WinnerTeamNum: 0 }), frame(5000, "MatchDestroyed", "G")]);
-    expect(fields("check_failed").map((f) => f.check)).toEqual(["player_goals_equal_score"]);
-    expect(fields("summary")).toEqual([expect.objectContaining({ guid: "G", endKind: "completed", score: [1, 0], winner: 0, flags: ["player_goals_equal_score"] })]);
+    const failed = ["player_goals_equal_score", "goals_per_team_equal_score", "goals_placed"];
+    expect(fields("check_failed").map((f) => f.check)).toEqual(failed);
+    expect(fields("summary")).toEqual([expect.objectContaining({ guid: "G", endKind: "completed", score: [1, 0], winner: 0, flags: failed })]);
   });
 });

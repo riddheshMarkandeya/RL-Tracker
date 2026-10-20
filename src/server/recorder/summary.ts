@@ -2,9 +2,10 @@
 // fact has one source: the score and roster from the last state before MatchEnded (player stats
 // then catch up in the states after it), the winner from MatchEnded (else the decided rule), the
 // MVP from the MVP statfeed (else inferred from the scoreboard).
-import type { Data } from "./envelope";
+import { isObject, type Data } from "./envelope";
+import type { MatchExtras } from "./extras";
 import type { CloseVia } from "./lifecycle";
-import { BOT_ID, playerKey } from "./players";
+import { BOT_ID, playerKey, resolveTarget } from "./players";
 import type { StoredEvent } from "./store";
 
 export type EndKind = "completed" | "early_end" | "left" | "orphaned";
@@ -78,6 +79,10 @@ export interface MatchSummary {
     cameraTargets: number;
   };
   dedupDropped: Record<string, number>;
+  /** The extra stats and goal map from live play; readMatch fills them in after summarise. */
+  extras: MatchExtras | null;
+  /** Why computing the extras threw, if it did. */
+  extrasError: string | null;
   /** Ids of failed checks. */
   flags: string[];
 }
@@ -89,7 +94,7 @@ export interface MatchSummary {
  */
 export type TeamNum = 0 | 1;
 export const TEAMS: readonly TeamNum[] = [0, 1];
-const teamOf = (v: unknown): TeamNum | null => (v === 0 || v === 1 ? v : null);
+export const teamOf = (v: unknown): TeamNum | null => (v === 0 || v === 1 ? v : null);
 /** MatchEnded's WinnerTeamNum for a match with no winner. */
 export const NO_CONTEST = -1;
 
@@ -99,9 +104,23 @@ function uniqueTop<T>(items: readonly T[], value: (item: T) => number): T | null
   const best = items.filter((i) => value(i) === top);
   return best.length === 1 ? (best[0] ?? null) : null;
 }
-const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
-const players = (data: Data) => (Array.isArray(data.Players) ? (data.Players as Data[]) : []);
+export const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+export const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+/** The objects in an array field, skipping any other entry. */
+const objects = (v: unknown): Data[] => (Array.isArray(v) ? v.filter(isObject) : []);
+export const players = (data: Data): Data[] => objects(data.Players);
+
+/** Both teams' goals from a state's `Game`, or null unless both are whole and non-negative. */
+function readScore(game: Data): [number, number] | null {
+  const goals: (number | undefined)[] = [];
+  for (const t of objects(game.Teams)) {
+    const team = teamOf(t.TeamNum);
+    const score = num(t.Score);
+    if (team !== null && score !== null && Number.isInteger(score) && score >= 0) goals[team] = score;
+  }
+  const [blue, orange] = goals;
+  return blue === undefined || orange === undefined ? null : [blue, orange];
+}
 
 interface Acc {
   playlistId: number | null;
@@ -182,21 +201,13 @@ function catchUpStats(acc: Acc, list: Data[]): void {
   }
 }
 
-/** The statfeed target's roster key: its Shortcut in the latest state if name and team agree, else a unique name+team match. */
-function resolveTarget(acc: Acc, target: Data): string | null {
-  const name = str(target.Name);
-  const team = num(target.TeamNum);
-  const byShortcut = acc.latestPlayers.find((p) => p.Shortcut === target.Shortcut);
-  if (byShortcut?.Name === name && num(byShortcut.TeamNum) === team) return playerKey(byShortcut);
-  const matches = [...acc.roster.values()].filter((r) => r.name === name && r.teamNum === team);
-  return matches.length === 1 ? (matches[0]?.key ?? null) : null;
-}
+const resolve = (acc: Acc, target: Data) => resolveTarget(acc.latestPlayers, acc.roster.values(), target);
 
 /** Counts the state's camera target, during play only: replays and the podium show other players. */
 function countCamera(acc: Acc, game: Data): void {
   if (game.bHasTarget !== true || game.bReplay === true) return;
   acc.cameraTargets++;
-  const key = resolveTarget(acc, (game.Target ?? {}) as Data);
+  const key = resolve(acc, (game.Target ?? {}) as Data);
   if (key !== null) acc.camera.set(key, (acc.camera.get(key) ?? 0) + 1);
 }
 
@@ -218,15 +229,9 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
     if (playlist) acc.playlistId = playlist;
     acc.arena = str(game.Arena) ?? acc.arena;
     if (Array.isArray(game.Teams)) {
-      const goals: (number | undefined)[] = [];
-      for (const t of game.Teams as Data[]) {
-        const team = teamOf(t.TeamNum);
-        const score = num(t.Score);
-        if (team !== null && score !== null && Number.isInteger(score) && score >= 0) goals[team] = score;
-      }
       // A scoreboard missing either team's goals says nothing reliable; the last full one stands.
-      const [blue, orange] = goals;
-      if (blue !== undefined && orange !== undefined) acc.score = [blue, orange];
+      const score = readScore(game);
+      if (score) acc.score = score;
       else acc.rejectedScoreboards++;
     }
     updateRoster(acc, acc.latestPlayers);
@@ -251,7 +256,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   StatfeedEvent: (acc, data) => {
     const name = str(data.EventName) ?? "";
     const target = (data.MainTarget ?? {}) as Data;
-    const key = resolveTarget(acc, target);
+    const key = resolve(acc, target);
     if (key === null) acc.unresolvedStatfeed++;
     else {
       const counts = acc.statfeed.get(key) ?? {};
@@ -378,6 +383,8 @@ export function summarise(guid: string, events: readonly StoredEvent[], close: {
       cameraTargets: acc.cameraTargets,
     },
     dedupDropped: close.dedupDropped,
+    extras: null,
+    extrasError: null,
     flags: [],
   };
 }

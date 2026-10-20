@@ -6,6 +6,8 @@ export const SESSION_GAP_MS = 30 * 60 * 1000;
 export const DAY_CUTOFF_HOUR = 4;
 /** First day of the week, as Date.getDay() numbers it (1 = Monday). */
 export const WEEK_START_DAY = 1;
+/** The goal lines are at Y ±5120 on the pitch, goal line to goal line 10240 uu. */
+export const GOAL_LINE_Y = 5120;
 /** How long raw match data is kept. */
 export const RETENTION_DAYS = 90;
 /** The game's Stats API (WebSocket, ws://127.0.0.1:49124). */

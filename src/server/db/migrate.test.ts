@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { memoryLogger } from "../testing";
+import { PLAYER_EXTRAS } from "../recorder/extras";
 import { migrate } from "./migrate";
+import { trackerMigrations } from "./migrations";
 import { openDb, type Db } from "./sqlite";
 
 let dir: string;
@@ -110,5 +112,27 @@ describe("migrate", () => {
     }
     expect(logger.events()).toEqual(["db/migration_failed"]);
     expect(logger.lines[0]?.fields.err).toMatchObject({ code: "SQLITE_BUSY" });
+  });
+});
+
+describe("tracker schema", () => {
+  test("every registry stat has its match_players column, and match_goals exists", () => {
+    const d = db();
+    migrate(d, "tracker", trackerMigrations, { logger: memoryLogger() });
+    const cols = d.all<{ name: string }>("PRAGMA table_info(match_players)").map((c) => c.name);
+    expect(cols).toEqual(expect.arrayContaining(PLAYER_EXTRAS.map((e) => e.column)));
+    expect(tables(d)).toContain("match_goals");
+  });
+
+  test("a match recorded before the extras keeps its row, with the extras null until recompute", () => {
+    const logger = memoryLogger();
+    const d = db();
+    migrate(d, "tracker", trackerMigrations.slice(0, 2), { logger });
+    d.run(
+      `INSERT INTO match_players (match_guid, player_key, primary_id, name, is_bot, team_num, teams_seen, present_at_end,
+        score, goals, shots, assists, saves, touches, demos) VALUES ('G', 'k', 'k', 'n', 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0)`,
+    );
+    migrate(d, "tracker", trackerMigrations, { logger });
+    expect(d.all("SELECT woodwork_hits, car_ms FROM match_players")).toEqual([{ woodwork_hits: null, car_ms: null }]);
   });
 });

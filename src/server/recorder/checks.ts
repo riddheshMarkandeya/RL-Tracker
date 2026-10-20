@@ -1,5 +1,7 @@
 // Sanity checks over a MatchSummary, as a table. A failure is logged and flags the summary; the
 // summary still goes to the hook. Each stat added to the summary gets a row here.
+import { PLAYER_EXTRAS } from "./extras";
+import { REF_KINDS, type RefKind } from "./play";
 import { NO_CONTEST, TEAMS, type MatchSummary, type PlayerStats, type TeamNum } from "./summary";
 
 interface Check {
@@ -49,6 +51,27 @@ function statfeedMismatches(s: MatchSummary): string | null {
   }
   return bad.length ? bad.join("; ") : null;
 }
+
+type Extras = NonNullable<MatchSummary["extras"]>;
+
+/** A check against the extras; a summary without them (summarise alone) has nothing to check. */
+const withExtras = (run: (s: MatchSummary, x: Extras) => string | null) => (s: MatchSummary) => (s.extras ? run(s, s.extras) : null);
+
+const fails = (n: number, what: string) => (n === 0 ? null : `${String(n)} ${what}`);
+
+/** The players' extra stats outside their registry range. */
+function extrasOutOfRange(s: MatchSummary, x: Extras): string | null {
+  const bad: string[] = [];
+  for (const r of s.roster) {
+    for (const { column, inRange } of PLAYER_EXTRAS) {
+      const n = x.players[r.key]?.[column] ?? null;
+      if (n !== null && inRange && !inRange(n, r, x.facts)) bad.push(`${r.key} ${column} ${String(n)}`);
+    }
+  }
+  return bad.length ? bad.join("; ") : null;
+}
+
+const REF_LABELS: Record<RefKind, string> = { hit: "hitter(s)", shot: "shooter(s)", woodwork: "woodwork toucher(s)", lastTouch: "goal last toucher(s)" };
 
 const CHECKS: readonly Check[] = [
   {
@@ -105,6 +128,39 @@ const CHECKS: readonly Check[] = [
   },
   { id: "clock_non_negative", run: (s) => (s.facts.minClock !== null && s.facts.minClock < 0 ? `clock reached ${String(s.facts.minClock)}` : null) },
   { id: "playlist_present", run: (s) => (s.playlistId === null ? "no playlist id seen" : null) },
+  {
+    // Joined in progress, the goals before the recording began have no point.
+    id: "goals_per_team_equal_score",
+    appliesTo: (s) => !s.joinedInProgress,
+    run: withExtras((s, x) => {
+      const score = s.score;
+      if (!score) return null;
+      const bad = TEAMS.map((t) => [t, x.goals.filter((g) => g.teamNum === t).length] as const).filter(([t, n]) => n !== score[t]);
+      return bad.length ? bad.map(([t, n]) => `team ${String(t)}: ${String(n)} goal points, score ${String(score[t])}`).join("; ") : null;
+    }),
+  },
+  { id: "extras_computed", run: (s) => s.extrasError },
+  { id: "goals_placed", run: withExtras((_, x) => fails(x.facts.droppedGoals, "goal(s) whose scorer isn't a roster player with a team, so no point")) },
+  {
+    id: "touches_resolved",
+    run: withExtras((_, { facts: { unresolved: u } }) => {
+      const bad = REF_KINDS.filter((k) => u[k] > 0).map((k) => `${String(u[k])} ${REF_LABELS[k]}`);
+      return bad.length ? `unidentified: ${bad.join(", ")}` : null;
+    }),
+  },
+  // A Shot statfeed whose shooter never touched the ball since the kickoff has no speed.
+  { id: "shots_have_touch", run: withExtras((_, x) => fails(x.facts.shotsWithoutTouch, "shot(s) with no touch by the shooter since the kickoff")) },
+  {
+    id: "aerial_goals_match_statfeed",
+    run: withExtras((s, x) => {
+      const fed = Object.values(s.statfeed).reduce((sum, c) => sum + (c.AerialGoal ?? 0), 0);
+      const marked = x.goals.filter((g) => g.aerial).length;
+      return marked === fed ? null : `${String(marked)} aerial goal(s), ${String(fed)} AerialGoal statfeed(s)`;
+    }),
+  },
+  // The origin rule leans on BallHit; this keeps a disagreement with the game's own last touch visible.
+  { id: "goal_last_touch_agrees", run: withExtras((_, x) => fails(x.facts.lastTouchDisagrees, "goal(s) whose last touch isn't the last hit")) },
+  { id: "extras_in_range", run: withExtras(extrasOutOfRange) },
 ];
 
 export function runChecks(s: MatchSummary): CheckFailure[] {
