@@ -5,8 +5,8 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
   the milestone after WP4a (install autostart and play normally), then WP5a Query logic and API
-  (start in plan mode). After the WP4b commit: restart the tracker (`bun run stop`, then sign in
-  again or start it by hand) and run `bun run recompute` to backfill the extras.
+  (start in plan mode). Run `bun run deploy` to put WP4b into the background tracker and backfill
+  the extras.
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.

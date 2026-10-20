@@ -23,7 +23,9 @@ maybe later.
   PATH.
 - Background: `bun run install-autostart` compiles `rltracker-supervisor.exe` and `rltracker.exe`
   into `%LOCALAPPDATA%\RLTracker\bin\` and registers the `RLTracker` logon task. It runs that
-  snapshot, not the repo, so re-run it after code changes. `uninstall-autostart` removes both.
+  snapshot, not the repo. `bun run deploy` ships code changes: check, then install-autostart
+  (builds while the old one records, then swaps and restarts), then recompute. `uninstall-autostart`
+  removes both.
 - Data and logs: `%LOCALAPPDATA%\RLTracker\` (`tracker.log` and `supervisor.log`, 5 × 5 MB, JSON
   lines);
   `RLTRACKER_DATA_DIR` overrides it for tests and dev runs. Also `tracker.db` (settings, seasons,

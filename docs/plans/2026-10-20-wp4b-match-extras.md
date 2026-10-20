@@ -258,9 +258,9 @@ doesn't change that path.
 10. A real-data run (see Verification). Fix or explain any flags, and record the figures in the
     plan's Implementation notes.
 11. `bun run check` green → offer `/compact` → `independent-review-pass`.
-12. Docs, then commit only when asked. After that, the user restarts the tracker
-    (`bun run stop`, then sign in again or start it by hand) and runs `bun run recompute` to
-    backfill.
+12. Docs, then commit only when asked. After that, the user runs `bun run deploy`, which runs check, then
+    install-autostart, then recompute to backfill. (A plain restart would rerun the old compiled
+    copy; corrected after the commit.)
 
 ## Verification
 - `bun run check` (tsc, eslint, vitest) passes.

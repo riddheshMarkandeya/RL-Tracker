@@ -121,7 +121,7 @@ async function install(): Promise<void> {
   }
   run(["schtasks", "/Run", "/TN", TASK_NAME]);
   console.log(`RL Tracker is installed in ${bin} and running; it starts at each logon.`);
-  console.log("Stop it: bun run stop. Remove it: bun run uninstall-autostart. After code changes, run bun run install-autostart again.");
+  console.log("Stop it: bun run stop. Remove it: bun run uninstall-autostart. After code changes, run bun run deploy.");
 }
 
 async function uninstall(): Promise<void> {
