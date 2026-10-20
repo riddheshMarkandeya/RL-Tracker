@@ -4,6 +4,10 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/server/main.ts",
+    "dev": "RLTRACKER_DATA_DIR=.dev-data RLTRACKER_PORT=49101 bun run src/server/main.ts",
+    "stop": "bun run scripts/stop.ts",
+    "install-autostart": "bun run scripts/autostart.ts install",
+    "uninstall-autostart": "bun run scripts/autostart.ts uninstall",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test": "bun --bun vitest run",

@@ -29,10 +29,12 @@ export interface OpenDbOptions {
   busyTimeoutMs?: number;
   /** Only takes effect on a new, empty file. */
   autoVacuum?: "incremental";
+  /** "normal": in WAL mode, no fsync per commit; a power loss can drop the last commits but never corrupts. */
+  synchronous?: "normal";
 }
 
 export function openDb(path: string, opts: OpenDbOptions = {}): Db {
-  const { busyTimeoutMs = 5000, autoVacuum } = opts;
+  const { busyTimeoutMs = 5000, autoVacuum, synchronous } = opts;
   const db = new Database(path, { create: true, strict: true });
   try {
     db.run(`PRAGMA busy_timeout = ${String(busyTimeoutMs)}`);
@@ -43,6 +45,7 @@ export function openDb(path: string, opts: OpenDbOptions = {}): Db {
     const { journal_mode: mode } = db.query("PRAGMA journal_mode = WAL").get() as { journal_mode: string };
     if (mode !== "wal") throw new Error(`journal_mode is ${mode}, expected wal: ${path}`);
     db.run("PRAGMA foreign_keys = ON");
+    if (synchronous) db.run("PRAGMA synchronous = NORMAL");
   } catch (err) {
     db.close();
     throw err;
@@ -50,7 +53,8 @@ export function openDb(path: string, opts: OpenDbOptions = {}): Db {
 
   return {
     path,
-    run: (sql, ...params) => ({ changes: db.run(sql, params).changes }),
+    // query() caches the prepared statement by its SQL, so a hot insert isn't re-prepared each call.
+    run: (sql, ...params) => ({ changes: db.query(sql).run(...params).changes }),
     get: <T>(sql: string, ...params: Param[]) => (db.query(sql).get(...params) as T | null) ?? undefined,
     all: <T>(sql: string, ...params: Param[]) => db.query(sql).all(...params) as T[],
     exec: (sql) => {

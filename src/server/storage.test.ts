@@ -30,6 +30,9 @@ describe("openStorage", () => {
     expect(tracker.pragma("user_version")).toBe(1);
     expect(raw.pragma("user_version")).toBe(1);
     expect(raw.pragma("auto_vacuum")).toBe(2);
+    // raw.db holds re-recordable event data; tracker.db keeps full durability.
+    expect(raw.pragma("synchronous")).toBe(1);
+    expect(tracker.pragma("synchronous")).toBe(2);
     expect(tracker.all("SELECT id, name, start_date FROM seasons ORDER BY start_date")).toEqual([
       { id: 1, name: "S22", start_date: "2026-03-11" },
       { id: 2, name: "S23", start_date: "2026-06-09" },

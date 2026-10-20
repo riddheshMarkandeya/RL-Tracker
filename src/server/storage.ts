@@ -79,7 +79,7 @@ export function openStorage(opts: StorageOptions = {}): Storage {
   });
   let raw: Db;
   try {
-    raw = openOne(dir, logger, { name: "raw", migrations: migrations.raw, openOpts: { busyTimeoutMs, autoVacuum: "incremental" } });
+    raw = openOne(dir, logger, { name: "raw", migrations: migrations.raw, openOpts: { busyTimeoutMs, autoVacuum: "incremental", synchronous: "normal" } });
   } catch (err) {
     tracker.close();
     throw err;

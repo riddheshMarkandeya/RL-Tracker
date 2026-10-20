@@ -3,3 +3,4 @@ HARs/
 notes.md
 node_modules/
 dist/
+.dev-data/

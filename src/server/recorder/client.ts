@@ -52,8 +52,8 @@ export function startStatsClient(opts: StatsClientOptions) {
   let retry: ReturnType<typeof setTimeout> | undefined;
   let status: ConnectionStatus = "waiting";
   let frames = 0;
-  /** The current streak of failed attempts: when it began, how many, when it was last logged. */
-  let failing: { since: number; attempts: number; logged: number } | null = null;
+  /** The current streak of failed attempts: when it began, how many, when it was last logged, how many retryNow calls. */
+  let failing: { since: number; attempts: number; logged: number; retries: number } | null = null;
 
   function updateStatus(): void {
     const next: ConnectionStatus = !open ? "waiting" : recorder.isRecording() ? "recording" : "connected";
@@ -66,14 +66,14 @@ export function startStatsClient(opts: StatsClientOptions) {
   function failedAttempt(): void {
     const t = now();
     if (!failing) {
-      failing = { since: t, attempts: 1, logged: t };
+      failing = { since: t, attempts: 1, logged: t, retries: 0 };
       logger.warn("stats_api", "connect_failed", { url, retryMs: nextDelay(delay, minDelayMs, maxDelayMs), note: "is the game running with the Stats API on?" });
       return;
     }
     failing.attempts++;
     if (t - failing.logged < stillWaitingMs) return;
     failing.logged = t;
-    logger.info("stats_api", "still_waiting", { minutes: Math.round((t - failing.since) / 60_000), attempts: failing.attempts });
+    logger.info("stats_api", "still_waiting", { minutes: Math.round((t - failing.since) / 60_000), attempts: failing.attempts, retries: failing.retries });
   }
 
   function connect(): void {
@@ -120,6 +120,16 @@ export function startStatsClient(opts: StatsClientOptions) {
   connect();
   return {
     status: () => status,
+    /** Connects now and restarts the backoff, e.g. when the game has just started; a no-op while connected or mid-attempt. */
+    retryNow(): void {
+      if (stopped || socket) return;
+      clearTimeout(retry);
+      delay = null;
+      // The game watch asks on every poll while the game runs; still_waiting counts the rest.
+      if (!failing?.retries) logger.info("stats_api", "retry_now");
+      if (failing) failing.retries++;
+      connect();
+    },
     stop(): void {
       stopped = true;
       clearTimeout(retry);

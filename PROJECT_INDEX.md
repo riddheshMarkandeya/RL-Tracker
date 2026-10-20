@@ -4,27 +4,38 @@ Personal Rocket League stats tracker: a local Windows tracker first, with a web 
 maybe later.
 
 ## Code layout and commands
-- `src/server/` (Bun process: `main.ts` entry, `log.ts` logger, `paths.ts` data dir,
-  `storage.ts` opens both DBs, `maintenance.ts` schedules retention and backups; `db/`: `sqlite.ts` driver seam, `migrate.ts`, `migrations.ts`,
+- `src/server/` (Bun process: `main.ts` entry, `host.ts` HTTP server and shutdown endpoint,
+  `supervisor.ts` restart loop (its own exe), `game-watch.ts` game detection and toast,
+  `exit-codes.ts`, `log.ts` logger, `paths.ts` data dir and port, `storage.ts` opens both DBs, `maintenance.ts` schedules retention and backups; `db/`: `sqlite.ts` driver seam, `migrate.ts`, `migrations.ts`,
   `backup.ts`, `retention.ts`; `recorder/`: Stats API client, lifecycle, raw store, dedup,
   summary, checks), `src/shared/` (`constants.ts`), `scripts/` (standalone `capture.ts`;
-  `replay.ts` fake Stats API, `import-capture.ts`, `make-fixture.ts`), `test/fixtures/`
+  `stop.ts`, `autostart.ts`, `replay.ts` fake Stats API, `import-capture.ts`, `make-fixture.ts`), `test/fixtures/`
   (anonymised capture excerpts).
 - `STATS_API_URL` points `bun run start` at a replay: `bun run scripts/replay.ts <file> --port P`.
 - `bun run check` = typecheck + lint (zero warnings) + tests (Vitest under Bun);
-  `bun run start` runs the server.
-  Bun lives at `~/.bun/bin/bun` and may not be on PATH.
-- Data and logs: `%LOCALAPPDATA%\RLTracker\` (`tracker.log`, 5 × 5 MB, JSON lines);
+  `bun run start` runs the server from source on the real data dir and port 49100;
+  `bun run dev` runs it beside the background one (`.dev-data/`, port 49101); `bun run stop`
+  stops it (`RLTRACKER_PORT=49101` for dev). Bun lives at `~/.bun/bin/bun` and may not be on
+  PATH.
+- Background: `bun run install-autostart` compiles `rltracker-supervisor.exe` and `rltracker.exe`
+  into `%LOCALAPPDATA%\RLTracker\bin\` and registers the `RLTracker` logon task. It runs that
+  snapshot, not the repo, so re-run it after code changes. `uninstall-autostart` removes both.
+- Data and logs: `%LOCALAPPDATA%\RLTracker\` (`tracker.log` and `supervisor.log`, 5 × 5 MB, JSON
+  lines);
   `RLTRACKER_DATA_DIR` overrides it for tests and dev runs. Also `tracker.db` (settings, seasons,
   IDs; backed up to `backups/`, 7 kept), `raw.db` (raw events, 90-day retention).
 
 ## Decisions
+- `docs/decisions/2026-10-19-supervisor-autostart.md`: the background tracker is a compiled
+  snapshot run by a supervisor exe from a logon task; exit codes; the port as single-instance guard.
 - `docs/decisions/2026-10-19-recorder-websocket-raw-store.md`: recorder reads the Stats API over
   WebSocket, stores raw and dedups on read, attribution to a match is final at write time.
 - `docs/decisions/2026-10-16-bun-runtime.md`: Bun runtime, Vitest under Bun, Playwright on Node;
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-19-wp3b-background-process.md`: WP3b plan (host, supervisor, autostart,
+  game watch, stop/dev scripts), spike and footprint figures, review log.
 - `docs/plans/2026-10-19-wp3a-recorder.md`: WP3a plan (recorder: lifecycle, raw store, dedup,
   summary and checks, client, replay/import tools, fixtures); done, with review log.
 - `docs/plans/2026-10-16-wp2-storage.md`: WP2 plan (SQLite storage, migrations, backups,

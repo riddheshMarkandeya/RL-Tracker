@@ -4,28 +4,35 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP3b Background process (start in plan mode).
-  - WP3b: wire `recorder.isRecording` into `scheduleMaintenance` and the HTTP host; the
-    "Stats API off" state needs process detection (roadmap WP3b notes).
+  WP4 Match-record computation (start in plan mode).
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
-    with `app/stopped` (Git Bash can't send a console SIGINT).
-- [ ] **[design, High, Standard]** WP3b open decision: crash restart and a hidden window. Task
-  Scheduler doesn't restart a task that crashes after launching (tested, see
-  `docs/decisions/2026-10-16-bun-runtime.md`), so a mid-session crash silently stops recording
-  until the next logon. Choose a supervising wrapper loop (recommended: restart in seconds with
-  backoff, logs each restart, can also launch hidden) or a repeating trigger with "don't start a
-  new instance". Also hide `bun.exe`'s console (`--windows-hide-console` or the wrapper).
-
+    with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
+    covered by `src/server/main.test.ts`.
+  - WP3b's manual check still open: sign out and back in, and the tracker should autostart
+    (`supervisor/started`, then `app/started`).
+- [ ] **[design, Med, Trivial]** The "no data" toast is suppressed over the full-screen game and
+  only waits in the notification panel. (Its body now names the ini problem to fix.) WP5's status
+  display is the reliable signal (`statsConfig()` carries the same diagnosis); WP8 (toast
+  switch) decides whether to try an urgent/priority toast. Record: Verification results in
+  `docs/plans/2026-10-19-wp3b-background-process.md`.
+- [ ] **[performance, Med, Standard]** The tracker's working set peaked at 108–111 MB in the three
+  10× replay runs made with Rocket League open, against the user's 100 MB threshold (WP3b decision
+  4). It's one ~75 MB step at replay start, then flat, while private bytes barely moved: likely
+  shared or file-backed pages, not heap. Next: measure private bytes vs shared WS in a real match.
+  Record: "Footprint" in `docs/plans/2026-10-19-wp3b-background-process.md`.
 - [ ] **[refactor, Low, Standard]** `scripts/capture.ts` keeps its own envelope parse
   (`eventNameOf`/`matchGuidOf`), hardcoded URL and reconnect loop; reuse `parseFrame`,
   `statsApiUrl` and maybe `startStatsClient`, or retire it now the recorder stores raw events.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
-- [ ] **[performance, Low, Trivial]** `Db.run` re-prepares its statement on every call and raw.db
-  runs WAL with `synchronous=FULL`, so each stored event fsyncs on the socket thread. Use cached
-  statements (`db.query(sql).run`) and `PRAGMA synchronous = NORMAL` for raw.db; measure in WP3b's
-  footprint check. Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[bug (latent), Low, Standard]** A supervisor killed on its own (Task Scheduler's End)
+  leaves the tracker running unsupervised; a later supervisor exits on the taken port, so a crash
+  of that orphan isn't restarted. Trigger: a real `supervisor/stopped` with code 3 at logon or
+  install → tie the child to the supervisor (a job object) or let a new supervisor adopt it.
+  Same orphan, narrower: `bun run stop` in the moment a restarted tracker hasn't bound its port
+  yet ends the supervisor and leaves that tracker running.
+  Record: WP3b Review log round 1 in `docs/plans/2026-10-19-wp3b-background-process.md`.
 - [ ] **[bug (latent), Low, Trivial]** Windows antivirus may hold a fresh backup `.partial` and
   fail its rename (EPERM/EBUSY), aborting a pre-migration startup. Trigger: a real
   `backup/failed` on the rename → retry it briefly. Record: Review log round 3 #8 in

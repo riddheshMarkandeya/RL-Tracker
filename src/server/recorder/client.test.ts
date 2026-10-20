@@ -111,4 +111,44 @@ describe("startStatsClient against a replayed stream", () => {
     expect(logger.lines.find((l) => l.event === "still_waiting")?.fields.attempts).toBeGreaterThan(2);
     expect(client.status()).toBe("waiting");
   });
+
+  test("retryNow connects at once instead of after the backoff", async () => {
+    const closed = startReplayServer({ lines: [] });
+    const port = closed.port;
+    await closed.stop();
+    const logger = memoryLogger();
+    const client = startStatsClient({ url: `ws://127.0.0.1:${String(port)}`, recorder: recorderFor([]), logger, minDelayMs: 60_000 });
+    const replay = startReplayServer({ lines: [], port });
+    try {
+      await until(() => logger.events().includes("stats_api/connect_failed"));
+      client.retryNow();
+      await until(() => client.status() === "connected", 2000);
+      // Connected: another call has nothing to do.
+      client.retryNow();
+      expect(logger.events().filter((e) => e === "stats_api/retry_now")).toHaveLength(1);
+    } finally {
+      client.stop();
+      void replay.stop();
+    }
+  });
+
+  test("retryNow is logged once per failing streak, so a watch asking every poll doesn't flood the log", async () => {
+    const closed = startReplayServer({ lines: [] });
+    const port = closed.port;
+    await closed.stop();
+    const logger = memoryLogger();
+    const client = startStatsClient({ url: `ws://127.0.0.1:${String(port)}`, recorder: recorderFor([]), logger, minDelayMs: 60_000, stillWaitingMs: 0 });
+    const stillWaiting = () => logger.events().filter((e) => e === "stats_api/still_waiting").length;
+    try {
+      await until(() => logger.events().includes("stats_api/connect_failed"));
+      for (let i = 1; i <= 3; i++) {
+        client.retryNow();
+        await until(() => stillWaiting() === i);
+      }
+      expect(logger.events().filter((e) => e === "stats_api/retry_now")).toHaveLength(1);
+      expect(logger.lines.findLast((l) => l.event === "still_waiting")?.fields.retries).toBe(3);
+    } finally {
+      client.stop();
+    }
+  });
 });

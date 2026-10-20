@@ -19,6 +19,13 @@ describe("openDb", () => {
     expect(db.pragma("foreign_keys")).toBe(1);
     expect(db.pragma("busy_timeout")).toBe(5000);
     expect(db.pragma("auto_vacuum")).toBe(0);
+    expect(db.pragma("synchronous")).toBe(2); // FULL
+    db.close();
+  });
+
+  test("synchronous: normal trades the last commits on power loss for no fsync per write", () => {
+    const db = openDb(join(dir, "a.db"), { synchronous: "normal" });
+    expect(db.pragma("synchronous")).toBe(1);
     db.close();
   });
 
