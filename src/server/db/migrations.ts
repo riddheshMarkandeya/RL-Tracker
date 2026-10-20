@@ -29,6 +29,57 @@ export const trackerMigrations: readonly string[] = [
     at INTEGER PRIMARY KEY
   );
   `,
+  // Match records: every player gets a row, and "you" is found by joining with my_ids, so
+  // confirming an ID re-labels every match without a recompute. No foreign keys: a write deletes
+  // a match's child rows itself.
+  `
+  CREATE TABLE matches (
+    guid               TEXT PRIMARY KEY,
+    started_at         INTEGER NOT NULL,
+    ended_at           INTEGER NOT NULL,
+    playlist_id        INTEGER, -- raw id; names come from the playlist map at read time
+    arena              TEXT,
+    end_kind           TEXT NOT NULL CHECK (end_kind IN ('completed', 'early_end', 'left', 'orphaned')),
+    closed_via         TEXT NOT NULL CHECK (closed_via IN ('destroyed', 'timeout', 'restart', 'superseded')),
+    joined_in_progress INTEGER NOT NULL,
+    overtime           INTEGER NOT NULL,
+    score_team0        INTEGER,
+    score_team1        INTEGER,
+    winner_team_num    INTEGER,
+    winner_source      TEXT CHECK (winner_source IN ('match_ended', 'decided')),
+    mvp_key            TEXT,
+    mvp_source         TEXT CHECK (mvp_source IN ('statfeed', 'inferred')),
+    camera_primary_id  TEXT,
+    check_flags        TEXT NOT NULL -- JSON array of failed check ids
+  );
+  CREATE INDEX matches_started_at ON matches (started_at);
+  CREATE TABLE match_players (
+    match_guid    TEXT NOT NULL,
+    player_key    TEXT NOT NULL, -- PrimaryId, or bot:<Name>
+    primary_id    TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    is_bot        INTEGER NOT NULL,
+    team_num      INTEGER,
+    teams_seen    INTEGER NOT NULL, -- bit 1 << TeamNum per team the player was on
+    present_at_end INTEGER NOT NULL,
+    score         INTEGER NOT NULL,
+    goals         INTEGER NOT NULL,
+    shots         INTEGER NOT NULL,
+    assists       INTEGER NOT NULL,
+    saves         INTEGER NOT NULL,
+    touches       INTEGER NOT NULL,
+    demos         INTEGER NOT NULL,
+    PRIMARY KEY (match_guid, player_key)
+  );
+  CREATE INDEX match_players_primary_id ON match_players (primary_id);
+  CREATE TABLE match_player_statfeed (
+    match_guid TEXT NOT NULL,
+    player_key TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    count      INTEGER NOT NULL,
+    PRIMARY KEY (match_guid, player_key, event_name)
+  );
+  `,
 ];
 
 export const rawMigrations: readonly string[] = [

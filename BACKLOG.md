@@ -4,7 +4,8 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP4 Match-record computation (start in plan mode).
+  the milestone after WP4a (install autostart and play normally), then WP4b Match-record extras
+  (start in plan mode).
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.
@@ -26,6 +27,15 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Match records treat only team 0 and 1 as real teams (user's
+  choice). Knockout (playlist 54, an 8-player free-for-all) may number teams per player, and then
+  its players would get no team and no result. Trigger: a captured Knockout match → check its
+  `TeamNum`s and decide. Record: Review log round 6 in
+  `docs/plans/2026-10-20-wp4a-match-records.md`.
+- [ ] **[bug (latent), Low, Standard]** A match whose close marker failed to store is never closed,
+  so recompute skips it on every run. Trigger: a real `records/recompute_skipped` with reason
+  `open` at warn → let recompute close it (as `restart`) or add a manual close. Record: Review log
+  round 2 in `docs/plans/2026-10-20-wp4a-match-records.md`.
 - [ ] **[bug (latent), Low, Standard]** A supervisor killed on its own (Task Scheduler's End)
   leaves the tracker running unsupervised; a later supervisor exits on the taken port, so a crash
   of that orphan isn't restarted. Trigger: a real `supervisor/stopped` with code 3 at logon or

@@ -3,14 +3,14 @@
 // hook. One match is open at a time; the lifecycle decides which events belong to it.
 import type { Db } from "../db/sqlite";
 import type { Logger } from "../log";
-import { runChecks, type CheckFailure } from "./checks";
-import { dedupe } from "./dedup";
+import type { CheckFailure } from "./checks";
 import { parseFrame, type Data, type StatsEvent } from "./envelope";
 import { unknownFields } from "./known-fields";
-import { initialLife, isCloseMarker, orphan, rebuild, RECORDER_CLOSED, step, type CloseVia, type Effect, type Life, type OrphanCause } from "./lifecycle";
+import { initialLife, isCloseMarker, orphan, rebuild, RECORDER_CLOSED, recorderClosedData, step, type CloseVia, type Effect, type Life, type OrphanCause } from "./lifecycle";
+import { readMatch } from "./read-match";
 import { createUpdateStateSampler, UPDATE_STATE_INTERVAL_MS } from "./sampler";
 import { createRawStore, newTrimState, trimForStorage, type TrimState } from "./store";
-import { summarise, type MatchSummary } from "./summary";
+import type { MatchSummary } from "./summary";
 
 /** No events for the open match this long means the game went away without a MatchDestroyed. */
 export const ORPHAN_TIMEOUT_MS = 10 * 60 * 1000;
@@ -117,10 +117,7 @@ export function createRecorder(opts: RecorderOptions) {
     let summary: MatchSummary;
     let failures: CheckFailure[];
     try {
-      const { kept, dropped } = dedupe(store.matchEvents(guid).filter((e) => e.name !== RECORDER_CLOSED));
-      summary = summarise(guid, kept, { via, dedupDropped: dropped });
-      failures = runChecks(summary);
-      summary.flags = failures.map((f) => f.id);
+      ({ summary, failures } = readMatch(store, guid, via));
     } catch (err) {
       // Broad on purpose: a read failure or a bug in a handler or check loses this summary, not
       // the recording. The raw events stay, so recompute can rebuild it.
@@ -133,8 +130,10 @@ export function createRecorder(opts: RecorderOptions) {
       endKind: summary.endKind,
       playlistId: summary.playlistId,
       score: summary.score,
-      winner: summary.winnerTeamNum,
+      winner: summary.winner?.teamNum ?? null,
+      winnerSource: summary.winner?.source ?? null,
       mvp: summary.mvp?.name ?? null,
+      mvpSource: summary.mvp?.source ?? null,
       players: summary.roster.length,
       dedupDropped: summary.dedupDropped,
       flags: summary.flags,
@@ -142,7 +141,7 @@ export function createRecorder(opts: RecorderOptions) {
     try {
       onMatchFinished(summary, failures);
     } catch (err) {
-      // Broad on purpose: the hook is WP4's code, and its failure must not stop recording.
+      // Broad on purpose: the hook is outside the recorder, and its failure must not stop recording.
       logger.error(C, "hook_failed", { guid, err });
     }
   }
@@ -169,7 +168,7 @@ export function createRecorder(opts: RecorderOptions) {
         return;
       case "closed": {
         const m = current(e.guid);
-        if (e.via !== "destroyed") storeEvent(m, RECORDER_CLOSED, { MatchGuid: e.guid, Reason: e.via }, t);
+        if (e.via !== "destroyed") storeEvent(m, RECORDER_CLOSED, recorderClosedData(e.guid, e.via), t);
         cur = null;
         logger.info(C, "match_closed", { guid: e.guid, via: e.via, phase: e.phase, stored: m.stored, storeFailed: m.storeFailed });
         // It never got past the lobby: nothing was played, so there is nothing to summarise.

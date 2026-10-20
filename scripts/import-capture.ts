@@ -1,11 +1,14 @@
-// Imports captures into the data dir's raw.db through the recorder, with each file's own times, so
-// later work packages can run on real sessions. Files are fed in the order given.
+// Imports captures into the data dir through the recorder, with each file's own times, so later
+// work packages can run on real sessions: raw.db gets the events and tracker.db the match
+// records. Files are fed in the order given.
 // `bun run scripts/import-capture.ts <file>...`; RLTRACKER_DATA_DIR picks another data dir.
 import { readFileSync } from "node:fs";
 import { log } from "../src/server/log";
 import { feed, readCapture } from "../src/server/recorder/feed";
 import { createRecorder } from "../src/server/recorder/recorder";
 import type { MatchSummary } from "../src/server/recorder/summary";
+import { toRecord } from "../src/server/records/record";
+import { createRecordWriter } from "../src/server/records/save";
 import { openStorage } from "../src/server/storage";
 
 const files = process.argv.slice(2);
@@ -23,7 +26,15 @@ try {
     process.exit(1);
   }
   const summaries: MatchSummary[] = [];
-  const recorder = createRecorder({ raw: storage.raw, logger: log, onMatchFinished: (s) => summaries.push(s) });
+  const writer = createRecordWriter({ tracker: storage.tracker, logger: log });
+  const recorder = createRecorder({
+    raw: storage.raw,
+    logger: log,
+    onMatchFinished: (s) => {
+      summaries.push(s);
+      writer.save(toRecord(s));
+    },
+  });
   for (const file of files) {
     const lines = readCapture(readFileSync(file, "utf8"));
     log.info("import", "file", { file, frames: lines.length });
@@ -38,8 +49,8 @@ try {
       via: s.closedVia,
       playlist: s.playlistId,
       score: s.score?.join("-") ?? "",
-      winner: s.winnerTeamNum ?? "",
-      mvp: s.mvp ? (s.mvp.key ? "yes" : "unresolved") : "",
+      winner: s.winner ? `${String(s.winner.teamNum)} ${s.winner.source}` : "",
+      mvp: s.mvp ? (s.mvp.key ? s.mvp.source : "unresolved") : "",
       players: s.roster.length,
       flags: s.flags.join(" "),
     })),

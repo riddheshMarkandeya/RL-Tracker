@@ -6,6 +6,8 @@ import { scheduleMaintenance, type Maintenance } from "./maintenance";
 import { dashboardPort, dataDir } from "./paths";
 import { startStatsClient, statsApiUrl, type StatsClient } from "./recorder/client";
 import { createRecorder, type Recorder } from "./recorder/recorder";
+import { toRecord } from "./records/record";
+import { createRecordWriter } from "./records/save";
 import { expectedPort } from "./stats-config";
 import { openStorage, type Storage } from "./storage";
 
@@ -80,11 +82,14 @@ function main(): void {
   let storage, recorder;
   try {
     storage = parts.storage = openStorage();
+    const writer = createRecordWriter({ tracker: storage.tracker, logger: log });
     recorder = parts.recorder = createRecorder({
       raw: storage.raw,
       logger: log,
-      // WP4 turns finished matches into records; the recorder already logs each summary.
-      onMatchFinished: () => undefined,
+      // A failed write is logged by the recorder as hook_failed; recompute can rebuild it.
+      onMatchFinished: (s) => {
+        writer.save(toRecord(s));
+      },
     });
     recorder.recoverAtStartup();
   } catch (err) {

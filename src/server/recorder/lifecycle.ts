@@ -6,7 +6,8 @@
 export type Phase = "pending" | "live" | "ended";
 /** How a match closed: the stream's MatchDestroyed, or one of the recorder's orphan causes. */
 export type CloseVia = "destroyed" | OrphanCause;
-export type OrphanCause = "timeout" | "restart" | "superseded";
+export const ORPHAN_CAUSES = ["timeout", "restart", "superseded"] as const;
+export type OrphanCause = (typeof ORPHAN_CAUSES)[number];
 
 export interface OpenMatch {
   guid: string;
@@ -40,6 +41,18 @@ export interface StepResult {
 export const RECORDER_CLOSED = "RecorderClosed";
 const CLOSE_MARKERS = new Set(["MatchDestroyed", RECORDER_CLOSED]);
 export const isCloseMarker = (name: string) => CLOSE_MARKERS.has(name);
+/** The data the recorder stores with its close marker. */
+export const recorderClosedData = (guid: string, cause: OrphanCause) => ({ MatchGuid: guid, Reason: cause });
+
+/** How a match closed, from its last stored event; null while it is still open. Throws on an unknown cause. */
+export function closeViaOf(last: { name: string; data: string } | undefined): CloseVia | null {
+  if (!last || !isCloseMarker(last.name)) return null;
+  if (last.name !== RECORDER_CLOSED) return "destroyed";
+  const reason = (JSON.parse(last.data) as { Reason?: unknown }).Reason;
+  const cause = ORPHAN_CAUSES.find((c) => c === reason);
+  if (!cause) throw new Error(`unknown close reason ${String(reason)}`);
+  return cause;
+}
 
 /** Phase changes by event name; anything not listed leaves the phase alone. */
 const TRANSITIONS: Readonly<Record<string, Partial<Record<Phase, Phase>>>> = {

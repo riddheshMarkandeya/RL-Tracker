@@ -1,12 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { runChecks } from "./checks";
-import type { MatchSummary, RosterEntry } from "./summary";
+import type { MatchSummary, RosterEntry, TeamNum } from "./summary";
 
-const entry = (key: string, teamNum: number, goals: number, assists = 0): RosterEntry => ({
+const entry = (key: string, teamNum: TeamNum, goals: number, assists = 0): RosterEntry => ({
   key,
   primaryId: key,
   name: key,
   teamNum,
+  teamsSeen: 1 << teamNum,
   isBot: false,
   presentAtEnd: true,
   stats: { score: 100 * goals, goals, shots: goals, assists, saves: 0, touches: 1, demos: 0 },
@@ -24,10 +25,12 @@ const clean = (): MatchSummary => ({
   joinedInProgress: false,
   overtime: false,
   score: [2, 1],
-  winnerTeamNum: 0,
-  mvp: { name: "a", teamNum: 0, key: "a" },
+  winner: { teamNum: 0, source: "match_ended" },
+  mvp: { name: "a", teamNum: 0, key: "a", source: "statfeed" },
   roster: [entry("a", 0, 2), entry("b", 0, 0, 1), entry("c", 1, 1)],
-  facts: { sawMatchEnded: true, sawPodium: true, mvpCount: 1, liveGoals: 3, minClock: 0 },
+  statfeed: { a: { Goal: 2, Shot: 2, MVP: 1 }, b: { Assist: 1 }, c: { Goal: 1, Shot: 1 } },
+  cameraKey: "a",
+  facts: { sawMatchEnded: true, endedWinnerTeamNum: 0, sawPodium: true, mvpCount: 1, liveGoals: 3, minClock: 0, unresolvedStatfeed: 0, rejectedScoreboards: 0, cameraTargets: 10 },
   dedupDropped: {},
   flags: [],
 });
@@ -40,16 +43,30 @@ describe("runChecks", () => {
   });
 
   test("a left match with no winner, MVP or podium passes", () => {
-    const s = { ...clean(), endKind: "left" as const, winnerTeamNum: null, mvp: null, facts: { ...clean().facts, sawMatchEnded: false, sawPodium: false, mvpCount: 0 } };
+    const s = { ...clean(), endKind: "left" as const, winner: null, mvp: null, facts: { ...clean().facts, sawMatchEnded: false, sawPodium: false, mvpCount: 0 } };
+    expect(runChecks(s)).toEqual([]);
+  });
+
+  test("a no contest (MatchEnded winner -1) passes with no winner", () => {
+    const s = { ...clean(), winner: null, mvp: null, facts: { ...clean().facts, endedWinnerTeamNum: -1, sawPodium: false, mvpCount: 0 } };
     expect(runChecks(s)).toEqual([]);
   });
 
   test.each<[string, (s: MatchSummary) => void]>([
-    ["winner_valid", (s) => (s.winnerTeamNum = 2)],
-    ["winner_valid", (s) => (s.winnerTeamNum = null)],
+    ["winner_valid", (s) => ((s.winner = null), (s.facts.endedWinnerTeamNum = 2))],
+    ["winner_valid", (s) => ((s.winner = null), (s.facts.endedWinnerTeamNum = null))],
+    ["winner_valid", (s) => ((s.winner = null), (s.facts.endedWinnerTeamNum = 255))],
     ["mvp_count", (s) => (s.facts.mvpCount = 2)],
     ["mvp_count", (s) => ((s.facts.mvpCount = 0), (s.mvp = null))],
-    ["mvp_on_roster", (s) => (s.mvp = { name: "x", teamNum: 0, key: null })],
+    ["mvp_on_roster", (s) => (s.mvp = { name: "x", teamNum: 0, key: null, source: "statfeed" })],
+    ["statfeed_resolved", (s) => (s.facts.unresolvedStatfeed = 1)],
+    ["scoreboards_complete", (s) => (s.facts.rejectedScoreboards = 1)],
+    ["statfeed_matches_scoreboard", (s) => (s.statfeed.a = { Goal: 1, Shot: 2 })],
+    ["statfeed_matches_scoreboard", (s) => (s.statfeed.b = {})],
+    ["statfeed_matches_scoreboard", (s) => (s.statfeed.c = { Goal: 1, Shot: 1, Save: 1 })],
+    ["statfeed_matches_scoreboard", (s) => (s.statfeed.c = { Goal: 1, Shot: 1, Demolish: 1 })],
+    ["statfeed_matches_scoreboard", (s) => (s.statfeed.c = { Goal: 1 })],
+    ["camera_on_roster", (s) => (s.cameraKey = null)],
     ["goal_events_equal_score", (s) => (s.facts.liveGoals = 6)],
     ["player_goals_equal_score", (s) => (s.roster = [entry("a", 0, 1), entry("b", 0, 0, 1), entry("c", 1, 1)])],
     ["assists_within_goals", (s) => (s.roster = [entry("a", 0, 2, 3), entry("c", 1, 1)])],
@@ -59,7 +76,8 @@ describe("runChecks", () => {
   ])("%s fails on a summary built to break it", (id, breakIt) => {
     const s = clean();
     breakIt(s);
-    expect(ids(s)).toEqual([id]);
+    // A broken roster also disagrees with its statfeed, which has its own rows.
+    expect(ids(s).filter((x) => x === id || x !== "statfeed_matches_scoreboard")).toEqual([id]);
     expect(runChecks(s)[0]?.detail).toEqual(expect.any(String));
   });
 
@@ -71,10 +89,26 @@ describe("runChecks", () => {
     expect(runChecks(s)).toEqual([]);
   });
 
+  test("saves on the scoreboard are Save plus EpicSave statfeeds", () => {
+    const s = clean();
+    s.roster = [entry("a", 0, 2), entry("b", 0, 0, 1), { ...entry("c", 1, 1), stats: { ...entry("c", 1, 1).stats, saves: 3 } }];
+    s.statfeed.c = { Goal: 1, Shot: 1, Save: 2, EpicSave: 1 };
+    expect(runChecks(s)).toEqual([]);
+  });
+
+  test("no camera target at all is not a camera failure", () => {
+    const s = clean();
+    s.cameraKey = null;
+    s.facts.cameraTargets = 0;
+    expect(runChecks(s)).toEqual([]);
+  });
+
   test("goal events aren't compared when joined in progress: earlier goals were never seen", () => {
     const s = clean();
     s.joinedInProgress = true;
     s.facts.liveGoals = 1;
+    // Statfeeds before the recording began were never seen either.
+    s.statfeed = {};
     expect(runChecks(s)).toEqual([]);
   });
 
@@ -89,7 +123,7 @@ describe("runChecks", () => {
   });
 
   test("score checks are skipped when no state was stored", () => {
-    const s = { ...clean(), score: null, winnerTeamNum: null, facts: { ...clean().facts, sawMatchEnded: false } };
+    const s = { ...clean(), score: null, winner: null, facts: { ...clean().facts, sawMatchEnded: false } };
     expect(ids(s)).toEqual([]);
   });
 });

@@ -27,7 +27,7 @@ describe("openStorage", () => {
     const { tracker, raw } = storage;
     expect(existsSync(join(dir, "tracker.db"))).toBe(true);
     expect(existsSync(join(dir, "raw.db"))).toBe(true);
-    expect(tracker.pragma("user_version")).toBe(1);
+    expect(tracker.pragma("user_version")).toBe(trackerMigrations.length);
     expect(raw.pragma("user_version")).toBe(1);
     expect(raw.pragma("auto_vacuum")).toBe(2);
     // raw.db holds re-recordable event data; tracker.db keeps full durability.
@@ -39,14 +39,14 @@ describe("openStorage", () => {
       { id: 3, name: "S24", start_date: "2026-09-23" },
     ]);
     const names = (d: typeof tracker) => d.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").map((r) => r.name);
-    expect(names(tracker)).toEqual(["my_ids", "seasons", "session_breaks", "settings"]);
+    expect(names(tracker)).toEqual(["match_player_statfeed", "match_players", "matches", "my_ids", "seasons", "session_breaks", "settings"]);
     expect(names(raw)).toEqual(["events"]);
     expect(logger.lines.filter((l) => l.event === "migrated").map((l) => l.fields)).toMatchObject([
-      { db: "tracker", from: 0, to: 1 },
+      { db: "tracker", from: 0, to: trackerMigrations.length },
       { db: "raw", from: 0, to: 1 },
     ]);
     expect(logger.lines.filter((l) => l.event === "opened").map((l) => l.fields)).toMatchObject([
-      { db: "tracker", version: 1 },
+      { db: "tracker", version: trackerMigrations.length },
       { db: "raw", version: 1 },
     ]);
   });
@@ -85,7 +85,7 @@ describe("openStorage backups", () => {
   const backups = () => join(dir, "backups");
   const list = () => readdirSync(backups()).sort();
   const clock = (iso: string) => () => new Date(iso);
-  const fakeV2 = { tracker: [...trackerMigrations, "CREATE TABLE extra(x);"], raw: rawMigrations };
+  const fakeNext = { tracker: [...trackerMigrations, "CREATE TABLE extra(x);"], raw: rawMigrations };
 
   test("a fresh start makes one daily backup and no pre-migration one", () => {
     const logger = memoryLogger();
@@ -108,11 +108,11 @@ describe("openStorage backups", () => {
     storage = openStorage({ dir, logger: memoryLogger(), now: clock("2026-10-16T12:00:00.000Z") });
     storage.close();
     const logger = memoryLogger();
-    storage = openStorage({ dir, logger, now: clock("2026-10-16T13:00:00.000Z"), migrations: fakeV2 });
-    expect(storage.tracker.pragma("user_version")).toBe(2);
+    storage = openStorage({ dir, logger, now: clock("2026-10-16T13:00:00.000Z"), migrations: fakeNext });
+    expect(storage.tracker.pragma("user_version")).toBe(trackerMigrations.length + 1);
     expect(list()).toEqual(["tracker-20261016-120000-000-daily.db", "tracker-20261016-130000-000-premigration.db"]);
     const copy = openDb(join(backups(), "tracker-20261016-130000-000-premigration.db"));
-    expect(copy.pragma("user_version")).toBe(1);
+    expect(copy.pragma("user_version")).toBe(trackerMigrations.length);
     copy.close();
     expect(logger.events().indexOf("backup/created")).toBeLessThan(logger.events().indexOf("db/migrated"));
   });
@@ -124,11 +124,11 @@ describe("openStorage backups", () => {
     rmSync(backups(), { recursive: true });
     writeFileSync(backups(), "a file where the backups dir should be");
     const logger = memoryLogger();
-    expect(() => openStorage({ dir, logger, now, migrations: fakeV2 })).toThrow();
+    expect(() => openStorage({ dir, logger, now, migrations: fakeNext })).toThrow();
     expect(logger.lines.find((l) => l.event === "failed")).toMatchObject({ cat: "backup", fields: { reason: "premigration" } });
     expect(logger.events()).not.toContain("db/migrated");
     const tracker = openDb(join(dir, "tracker.db"));
-    expect(tracker.pragma("user_version")).toBe(1);
+    expect(tracker.pragma("user_version")).toBe(trackerMigrations.length);
     tracker.close();
   });
 
@@ -136,7 +136,7 @@ describe("openStorage backups", () => {
     writeFileSync(backups(), "a file where the backups dir should be");
     const logger = memoryLogger();
     storage = openStorage({ dir, logger, now });
-    expect(storage.tracker.pragma("user_version")).toBe(1);
+    expect(storage.tracker.pragma("user_version")).toBe(trackerMigrations.length);
     expect(logger.lines.find((l) => l.cat === "backup")).toMatchObject({ event: "failed", fields: { reason: "daily" } });
   });
 });

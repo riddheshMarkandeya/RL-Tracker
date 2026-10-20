@@ -1,6 +1,6 @@
 // Sanity checks over a MatchSummary, as a table. A failure is logged and flags the summary; the
-// summary still goes to the hook. WP4 adds a row for each stat it adds.
-import type { MatchSummary } from "./summary";
+// summary still goes to the hook. Each stat added to the summary gets a row here.
+import { NO_CONTEST, TEAMS, type MatchSummary, type PlayerStats, type TeamNum } from "./summary";
 
 interface Check {
   id: string;
@@ -14,24 +14,48 @@ export interface CheckFailure {
   detail: string;
 }
 
-const hasScore = (s: MatchSummary) => s.score !== null;
-const total = (score: number[]) => score.reduce((a, b) => a + b, 0);
-const teams = (score: number[]) => [...score.keys()].filter((t) => score[t] !== undefined);
-const teamSum = (s: MatchSummary, team: number, stat: "goals" | "assists") =>
+type Score = NonNullable<MatchSummary["score"]>;
+const total = (score: Score) => score[0] + score[1];
+
+/** A check against the score; with no usable score there is nothing to compare, so it passes. */
+const withScore = (run: (s: MatchSummary, score: Score) => string | null) => (s: MatchSummary) => (s.score ? run(s, s.score) : null);
+
+const teamSum = (s: MatchSummary, team: TeamNum, stat: "goals" | "assists") =>
   s.roster.filter((r) => r.teamNum === team).reduce((sum, r) => sum + r.stats[stat], 0);
 
-/** Per team, where `actual` differs from the score; null when every team matches. */
-function perTeam(s: MatchSummary, stat: "goals" | "assists", fails: (sum: number, score: number) => boolean): string | null {
-  const score = s.score ?? [];
-  const bad = teams(score).filter((t) => fails(teamSum(s, t, stat), score[t] ?? 0));
-  return bad.length ? bad.map((t) => `team ${String(t)}: ${stat} ${String(teamSum(s, t, stat))}, score ${String(score[t])}`).join("; ") : null;
+/** The teams whose players' summed `stat` `fails` against the team's goals; null when none do. */
+function perTeam(s: MatchSummary, score: Score, stat: "goals" | "assists", fails: (sum: number, goals: number) => boolean): string | null {
+  const bad = TEAMS.map((t) => [t, teamSum(s, t, stat)] as const).filter(([t, sum]) => fails(sum, score[t]));
+  return bad.length ? bad.map(([t, sum]) => `team ${String(t)}: ${stat} ${String(sum)}, score ${String(score[t])}`).join("; ") : null;
+}
+
+/** Each scoreboard stat and the statfeed events that count it, for the players' tallies. */
+const STATFEED_FOR: readonly [keyof PlayerStats, readonly string[]][] = [
+  ["goals", ["Goal"]],
+  ["assists", ["Assist"]],
+  ["shots", ["Shot"]],
+  ["demos", ["Demolish"]],
+  ["saves", ["Save", "EpicSave"]],
+];
+
+function statfeedMismatches(s: MatchSummary): string | null {
+  const bad: string[] = [];
+  for (const r of s.roster) {
+    const counts = s.statfeed[r.key] ?? {};
+    for (const [stat, events] of STATFEED_FOR) {
+      const fed = events.reduce((sum, e) => sum + (counts[e] ?? 0), 0);
+      if (fed !== r.stats[stat]) bad.push(`${r.key} ${stat}: statfeed ${String(fed)}, scoreboard ${String(r.stats[stat])}`);
+    }
+  }
+  return bad.length ? bad.join("; ") : null;
 }
 
 const CHECKS: readonly Check[] = [
   {
+    // MatchEnded's winner is kept only when it names a real team; a no contest names none.
     id: "winner_valid",
-    appliesTo: (s) => s.facts.sawMatchEnded && hasScore(s),
-    run: (s) => (s.winnerTeamNum !== null && s.score?.[s.winnerTeamNum] !== undefined ? null : `winner ${String(s.winnerTeamNum)} is not a team`),
+    appliesTo: (s) => s.facts.sawMatchEnded && s.facts.endedWinnerTeamNum !== NO_CONTEST,
+    run: (s) => (s.winner !== null ? null : `MatchEnded winner ${String(s.facts.endedWinnerTeamNum)} is not a team`),
   },
   {
     // The MVP is awarded on the podium, and a match can end without one.
@@ -40,21 +64,38 @@ const CHECKS: readonly Check[] = [
       mvpCount > 1 || (sawPodium && mvpCount !== 1) ? `${String(mvpCount)} MVPs${sawPodium ? " with a podium" : ""}` : null,
   },
   { id: "mvp_on_roster", appliesTo: (s) => s.mvp !== null, run: (s) => (s.mvp?.key ? null : `MVP ${String(s.mvp?.name)} not on the roster`) },
+  { id: "statfeed_resolved", run: (s) => (s.facts.unresolvedStatfeed === 0 ? null : `${String(s.facts.unresolvedStatfeed)} statfeed target(s) not on the roster`) },
+  {
+    // A rejected scoreboard leaves the score at the last good one, or none: this keeps it visible.
+    id: "scoreboards_complete",
+    run: (s) => (s.facts.rejectedScoreboards === 0 ? null : `${String(s.facts.rejectedScoreboards)} scoreboard(s) without both teams' goals`),
+  },
+  {
+    // Joined in progress, the statfeeds before the recording began were never seen.
+    id: "statfeed_matches_scoreboard",
+    appliesTo: (s) => !s.joinedInProgress,
+    run: statfeedMismatches,
+  },
+  {
+    // Also fails when no single player held the camera, as when spectating: the match has no "you".
+    id: "camera_on_roster",
+    appliesTo: (s) => s.facts.cameraTargets > 0,
+    run: (s) => (s.cameraKey === null ? `the camera followed no single roster player over ${String(s.facts.cameraTargets)} target(s)` : null),
+  },
   {
     // Validates dedup itself: each goal should be counted once.
     id: "goal_events_equal_score",
-    appliesTo: (s) => hasScore(s) && !s.joinedInProgress,
-    run: (s) => (s.facts.liveGoals === total(s.score ?? []) ? null : `${String(s.facts.liveGoals)} goal events, score total ${String(total(s.score ?? []))}`),
+    appliesTo: (s) => !s.joinedInProgress,
+    run: withScore((s, score) => (s.facts.liveGoals === total(score) ? null : `${String(s.facts.liveGoals)} goal events, score total ${String(total(score))}`)),
   },
   {
     // An own goal would fail this: it's in the score but credited to no one on the scoring team.
     // Joined in progress, a scorer who left before the recording began is on no roster, so the
     // roster can only fall short.
     id: "player_goals_equal_score",
-    appliesTo: hasScore,
-    run: (s) => perTeam(s, "goals", (sum, score) => (s.joinedInProgress ? sum > score : sum !== score)),
+    run: withScore((s, score) => perTeam(s, score, "goals", (sum, goals) => (s.joinedInProgress ? sum > goals : sum !== goals))),
   },
-  { id: "assists_within_goals", appliesTo: hasScore, run: (s) => perTeam(s, "assists", (sum, score) => sum > score) },
+  { id: "assists_within_goals", run: withScore((s, score) => perTeam(s, score, "assists", (sum, goals) => sum > goals)) },
   {
     id: "player_stats_non_negative",
     run: (s) => {

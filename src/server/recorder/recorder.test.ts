@@ -1,16 +1,15 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { Param } from "../db/sqlite";
 import { openStorage, type Storage } from "../storage";
-import { memoryLogger } from "../testing";
+import { memoryLogger, readFixture as fixture } from "../testing";
 import type { CheckFailure } from "./checks";
-import { feed, readCapture, type CaptureLine } from "./feed";
+import { feed, type CaptureLine } from "./feed";
 import { createRecorder, ORPHAN_TIMEOUT_MS, type RecorderOptions } from "./recorder";
 import type { MatchSummary } from "./summary";
 
-const fixture = (name: string) => readCapture(readFileSync(join(import.meta.dirname, "../../../test/fixtures", `${name}.ndjson`), "utf8"));
 
 let dir: string;
 let storage: Storage;
@@ -88,7 +87,7 @@ describe("recorder on the fixtures", () => {
       closedVia: "destroyed",
       joinedInProgress: false,
       score: [1, 2],
-      winnerTeamNum: 1,
+      winner: { teamNum: 1, source: "match_ended" },
       dedupDropped: { replay_goal: 3 },
       flags: [],
       facts: { sawMatchEnded: true, sawPodium: true, mvpCount: 1, liveGoals: 3 },
@@ -105,7 +104,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("0116");
-    expect(summary).toMatchObject({ endKind: "early_end", playlistId: 2, arena: "Stadium_P", score: [2, 3], winnerTeamNum: 0, facts: { sawPodium: true, liveGoals: 5 } });
+    expect(summary).toMatchObject({ endKind: "early_end", playlistId: 2, arena: "Stadium_P", score: [2, 3], winner: { teamNum: 0, source: "match_ended" }, facts: { sawPodium: true, liveGoals: 5 } });
   });
 
   test("overtime-leavers: overtime, no podium, and leavers kept on the roster", () => {
@@ -114,7 +113,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("1567");
-    expect(summary).toMatchObject({ endKind: "completed", playlistId: 13, overtime: true, score: [5, 4], winnerTeamNum: 0, facts: { sawPodium: false, liveGoals: 9 } });
+    expect(summary).toMatchObject({ endKind: "completed", playlistId: 13, overtime: true, score: [5, 4], winner: { teamNum: 0, source: "match_ended" }, facts: { sawPodium: false, liveGoals: 9 } });
     expect(summary.roster).toHaveLength(6);
     expect(summary.roster.filter((r) => r.presentAtEnd)).toHaveLength(2);
   });
@@ -125,7 +124,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("C8B8");
-    expect(summary).toMatchObject({ endKind: "completed", joinedInProgress: true, arena: "TrainStation_P", score: [2, 4], winnerTeamNum: 1, dedupDropped: { replay_goal: 5 }, facts: { liveGoals: 4 } });
+    expect(summary).toMatchObject({ endKind: "completed", joinedInProgress: true, arena: "TrainStation_P", score: [2, 4], winner: { teamNum: 1, source: "match_ended" }, dedupDropped: { replay_goal: 5 }, facts: { liveGoals: 4 } });
   });
 
   test("left-early: MatchDestroyed with no MatchEnded is a leave, with no winner", () => {
@@ -134,7 +133,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("5ABA");
-    expect(summary).toMatchObject({ endKind: "left", playlistId: 10, arena: "street_p", score: [0, 4], winnerTeamNum: null, mvp: null, facts: { liveGoals: 4 } });
+    expect(summary).toMatchObject({ endKind: "left", playlistId: 10, arena: "street_p", score: [0, 4], winner: null, mvp: null, facts: { liveGoals: 4 } });
   });
 
   test("left-countdown: the menu's PlaylistId 0 states are skipped, and the bot is flagged", () => {
@@ -143,7 +142,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("C6C0");
-    expect(summary).toMatchObject({ endKind: "left", playlistId: 4, score: [0, 0], winnerTeamNum: null });
+    expect(summary).toMatchObject({ endKind: "left", playlistId: 4, score: [0, 0], winner: null });
     expect(summary.roster).toHaveLength(8);
     expect(summary.roster.filter((r) => r.isBot).map((r) => r.name)).toEqual(["Slider"]);
     const zeroStates = storage.raw.get<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE name = 'UpdateState' AND json_extract(data, '$.Game.PlaylistId') = 0");
@@ -156,7 +155,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("AB08");
-    expect(summary).toMatchObject({ endKind: "completed", arena: "cs_p", score: [3, 7], winnerTeamNum: 1, joinedInProgress: true });
+    expect(summary).toMatchObject({ endKind: "completed", arena: "cs_p", score: [3, 7], winner: { teamNum: 1, source: "match_ended" }, joinedInProgress: true });
     expect(fields("teardown_retagged").map((f) => [short(f.guid), short(f.wireGuid)])).toEqual([["AB08", "D900"]]);
     expect(fields("lobby_discarded").map((f) => [short(f.guid), f.via])).toEqual([["D900", "destroyed"]]);
     expect(fields("match_closed").map((f) => short(f.guid))).toEqual(["AB08", "D900"]);
@@ -187,7 +186,7 @@ describe("orphaned matches", () => {
     recorder.recoverAtStartup();
     const { summary } = only(calls);
     expect(short(summary.guid)).toBe("E5DD");
-    expect(summary).toMatchObject({ endKind: "orphaned", closedVia: "restart", score: [1, 0], winnerTeamNum: null });
+    expect(summary).toMatchObject({ endKind: "orphaned", closedVia: "restart", score: [1, 0], winner: null });
     expect(fields("recovered").map((f) => [short(f.guid), f.phase])).toEqual([["E5DD", "live"]]);
     // The marker isn't the match's end time.
     expect(summary.endedAt).toBeLessThan(9e12);

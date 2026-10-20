@@ -1,17 +1,15 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { startReplayServer } from "../../../scripts/replay";
 import { openStorage, type Storage } from "../storage";
-import { memoryLogger } from "../testing";
+import { memoryLogger, readFixture as fixture } from "../testing";
 import { nextDelay, startStatsClient, statsApiUrl, type ConnectionStatus } from "./client";
 import { parseFrame } from "./envelope";
-import { feed, readCapture } from "./feed";
+import { feed } from "./feed";
 import { createRecorder } from "./recorder";
 import type { MatchSummary } from "./summary";
-
-const fixture = (name: string) => readCapture(readFileSync(join(import.meta.dirname, "../../../test/fixtures", `${name}.ndjson`), "utf8"));
 
 const until = async (cond: () => boolean, ms = 5000) => {
   const start = Date.now();
@@ -88,7 +86,7 @@ describe("startStatsClient against a replayed stream", () => {
     } finally {
       other.close();
     }
-    const brief = (s: MatchSummary) => ({ guid: s.guid, endKind: s.endKind, score: s.score, winner: s.winnerTeamNum, mvp: s.mvp?.key, flags: s.flags });
+    const brief = (s: MatchSummary) => ({ guid: s.guid, endKind: s.endKind, score: s.score, winner: s.winner?.teamNum, mvp: s.mvp?.key, flags: s.flags });
     expect(calls.map(brief)).toEqual(imported.map(brief));
     // Fast replay squeezes the gaps, so the sampler keeps fewer states; everything else arrives.
     const stored = storage.raw.get<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE name != 'UpdateState'")?.n;
