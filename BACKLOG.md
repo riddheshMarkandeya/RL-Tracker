@@ -4,9 +4,8 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  the milestone after WP4a (install autostart and play normally), then WP5a Query logic and API
-  (start in plan mode). Run `bun run deploy` to put WP4b into the background tracker and backfill
-  the extras.
+  WP4c Rule registry and recomputable raw data (start in plan mode), then WP5a Query logic and
+  API. WP4b is deployed; its one open flag (`mvp_count` on a real match) is unexamined.
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.
