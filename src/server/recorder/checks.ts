@@ -163,6 +163,8 @@ const CHECKS: readonly Check[] = [
   { id: "extras_in_range", run: withExtras(extrasOutOfRange) },
 ];
 
+export const CHECK_IDS: readonly string[] = CHECKS.map((c) => c.id);
+
 export function runChecks(s: MatchSummary): CheckFailure[] {
   const failures: CheckFailure[] = [];
   for (const check of CHECKS) {

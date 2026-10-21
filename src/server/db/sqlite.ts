@@ -31,13 +31,21 @@ export interface OpenDbOptions {
   autoVacuum?: "incremental";
   /** "normal": in WAL mode, no fsync per commit; a power loss can drop the last commits but never corrupts. */
   synchronous?: "normal";
+  /**
+   * Opens an existing file for reading only, and no pragma that writes is set (the WAL switch,
+   * auto_vacuum), so a dev tool can read the deployed DBs without changing them. A WAL DB's empty
+   * -shm and -wal files are still created when missing, and stay: the same files any open makes.
+   * Not `immutable`, which would read torn pages while the tracker writes.
+   */
+  readonly?: boolean;
 }
 
 export function openDb(path: string, opts: OpenDbOptions = {}): Db {
-  const { busyTimeoutMs = 5000, autoVacuum, synchronous } = opts;
-  const db = new Database(path, { create: true, strict: true });
+  const { busyTimeoutMs = 5000, autoVacuum, synchronous, readonly = false } = opts;
+  const db = new Database(path, readonly ? { readonly: true, strict: true } : { create: true, strict: true });
   try {
     db.run(`PRAGMA busy_timeout = ${String(busyTimeoutMs)}`);
+    if (readonly) return wrap(path, db);
     // Before WAL: switching to WAL writes page 1, and that fixes the vacuum mode for good.
     if (autoVacuum) db.run("PRAGMA auto_vacuum = INCREMENTAL");
     // SQLite answers with the mode it kept; staying in rollback mode would let readers and the
@@ -50,7 +58,10 @@ export function openDb(path: string, opts: OpenDbOptions = {}): Db {
     db.close();
     throw err;
   }
+  return wrap(path, db);
+}
 
+function wrap(path: string, db: Database): Db {
   return {
     path,
     // query() caches the prepared statement by its SQL, so a hot insert isn't re-prepared each call.

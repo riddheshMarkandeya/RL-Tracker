@@ -7,6 +7,7 @@ import { createRecorder } from "../recorder/recorder";
 import type { MatchSummary } from "../recorder/summary";
 import { openStorage } from "../storage";
 import { memoryLogger, readFixture } from "../testing";
+import { RECORDED_RULE_VERSIONS } from "../rules/registry";
 import { toRecord, type MatchRow } from "./record";
 
 const dirs: string[] = [];
@@ -185,6 +186,11 @@ describe("toRecord: camera id", () => {
     expect(toRecord(withCamera("bot:Slider", [bot])).match.cameraPrimaryId).toBeNull();
     const blank = { ...first, key: "", primaryId: "" };
     expect(toRecord(withCamera("", [blank])).match.cameraPrimaryId).toBeNull();
+  });
+
+  test("the record carries the versions of the rules it was computed under", () => {
+    expect(toRecord(completed).match.ruleVersions).toEqual(RECORDED_RULE_VERSIONS);
+    expect(Object.keys(RECORDED_RULE_VERSIONS)).toContain("aerial_touch");
   });
 
   test("check failures are carried as the flag ids", () => {

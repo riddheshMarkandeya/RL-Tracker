@@ -4,8 +4,9 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP4c Rule registry and recomputable raw data (start in plan mode), then WP5a Query logic and
-  API. WP4b is deployed; its one open flag (`mvp_count` on a real match) is unexamined.
+  WP4c-b Retention split (start in plan mode; must ship before mid-January 2027; its decisions
+  are in the roadmap's WP4c section), then WP5a Query logic and API. WP4c-a (rule registry,
+  `rules-diff`) is deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.
@@ -21,11 +22,16 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   4). It's one ~75 MB step at replay start, then flat, while private bytes barely moved: likely
   shared or file-backed pages, not heap. Next: measure private bytes vs shared WS in a real match.
   Record: "Footprint" in `docs/plans/2026-10-19-wp3b-background-process.md`.
-- [ ] **[test-coverage, Med, Standard]** `src/server/main.test.ts` is flaky: 1 of 4 `bun run check`
+- [ ] **[test-coverage, High, Standard]** `src/server/main.test.ts` and `src/server/host.test.ts` are flaky: 1 of 4 `bun run check`
   runs on 2026-10-20 failed one of its process tests. One run failed "a second instance exits 3…"
   with a `JSON Parse error: Unexpected EOF`; another failed "shutdown with the header answers 202
   first…". The file has been unchanged since WP3b, and the failures look like timing between spawn
-  and HTTP. Found while closing the WP4b review.
+  and HTTP. Found while closing the WP4b review. 2026-10-20 (WP4c-a deploy): the 202 test is in
+  `src/server/host.test.ts`, and its cause is found: the host calls `setTimeout(onShutdown, 0)`, which
+  under 40 parallel workers can fire before the client's `fetch` resolves, so `shutdowns()` is
+  already 1 at the first assert. Passes 6/6 alone. Fix: assert the order without racing a 0 ms timer.
+  By the end of WP4c-a it failed about half of full `bun run check` runs (4 of 7), so it blocks
+  `bun run deploy`: fix it before the next deploy.
 - [ ] **[refactor, Low, Standard]** `scripts/capture.ts` keeps its own envelope parse
   (`eventNameOf`/`matchGuidOf`), hardcoded URL and reconnect loop; reuse `parseFrame`,
   `statsApiUrl` and maybe `startStatsClient`, or retire it now the recorder stores raw events.
@@ -57,3 +63,8 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   resolve gets no goal-map point; none seen in 214 goals). Look at that match's real event order,
   then give such goals a team fitted to it. Record: Review log round 4 in
   `docs/plans/2026-10-20-wp4b-match-extras.md`.
+- [ ] **[bug (latent), Low, Standard]** Trigger: a rule change that drops one goal and adds
+  another in the same match (`rules-diff` shows goal values moved where the goal count didn't
+  change). Goal rows are keyed by order, so equal counts look aligned. Then
+  key goals by something stable (e.g. the GoalScored seq). Record: Review log round 3 in
+  `docs/plans/2026-10-20-wp4c-a-rule-registry.md`.

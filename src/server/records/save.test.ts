@@ -72,6 +72,7 @@ const record = (guid = "G", over: Partial<MatchRecord["match"]> = {}): MatchReco
     mvpSource: "statfeed",
     cameraPrimaryId: "Epic|me|0",
     checkFlags: [],
+    ruleVersions: { winner: 1, aerial_touch: 2 },
     ...over,
   },
   players: [player("Epic|me|0", 0), player("Epic|them|0", 1)],
@@ -114,6 +115,7 @@ describe("record writer", () => {
       mvp_source: "statfeed",
       camera_primary_id: "Epic|me|0",
       check_flags: '["camera_on_roster"]',
+      rule_versions: '{"winner":1,"aerial_touch":2}',
     });
     expect(storage.tracker.get("SELECT * FROM match_players WHERE player_key = 'Epic|them|0'")).toEqual({
       match_guid: "G",
@@ -148,6 +150,13 @@ describe("record writer", () => {
       { match_guid: "G", player_key: "Epic|them|0", event_name: "Goal", count: 1 },
     ]);
     expect(fields("written")).toEqual([expect.objectContaining({ guid: "G", players: 2, winnerSource: "match_ended", mvpSource: "statfeed", checkFlags: ["camera_on_roster"], goals: 2, ownGoals: 1, ms: expect.any(Number) as unknown })]);
+  });
+
+  test("saving a guid again stores the new rule versions", () => {
+    const { writer } = setup();
+    writer.save(record("G"));
+    writer.save(record("G", { ruleVersions: { winner: 2 } }));
+    expect(storage.tracker.all("SELECT rule_versions FROM matches")).toEqual([{ rule_versions: '{"winner":2}' }]);
   });
 
   test("saving a guid again (a Reconnect) replaces its rows rather than adding to them", () => {

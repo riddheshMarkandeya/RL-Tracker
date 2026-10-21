@@ -5,9 +5,9 @@ import { GOAL_LINE_Y } from "./constants";
 export type GoalRange = "close" | "mid" | "long";
 
 /** A quarter of the pitch length. */
-const CLOSE_UNDER = GOAL_LINE_Y / 2;
+export const CLOSE_UNDER = GOAL_LINE_Y / 2;
 /** Half the pitch: from the centre line or further back. */
-const LONG_FROM = GOAL_LINE_Y;
+export const LONG_FROM = GOAL_LINE_Y;
 
 export function goalRange(distance: number): GoalRange {
   if (distance < CLOSE_UNDER) return "close";

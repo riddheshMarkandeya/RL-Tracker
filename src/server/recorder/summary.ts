@@ -308,7 +308,7 @@ function mvp(acc: Acc, win: MatchSummary["winner"]): MatchSummary["mvp"] {
  * players, so one player must hold nearly all of it. Unresolved targets (not on the scoreboard
  * yet) say nothing either way, so they don't count.
  */
-const CAMERA_SHARE = 0.95;
+export const CAMERA_SHARE = 0.95;
 
 /** The player the camera followed through play, or null when it never settled on one. */
 function cameraKey(acc: Acc): string | null {

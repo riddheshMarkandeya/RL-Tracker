@@ -106,6 +106,10 @@ export const trackerMigrations: readonly string[] = [
     PRIMARY KEY (match_guid, idx)
   );
   `,
+  // Per-match rule versions, so records computed under older rules can be told apart.
+  `
+  ALTER TABLE matches ADD COLUMN rule_versions TEXT; -- JSON {ruleId: version} of the rules it was computed under; null before this
+  `,
 ];
 
 export const rawMigrations: readonly string[] = [

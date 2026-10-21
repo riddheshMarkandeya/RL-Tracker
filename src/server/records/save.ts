@@ -17,14 +17,15 @@ const C = "records";
 
 const UPSERT_MATCH = `
   INSERT INTO matches (guid, started_at, ended_at, playlist_id, arena, end_kind, closed_via, joined_in_progress, overtime,
-    score_team0, score_team1, winner_team_num, winner_source, mvp_key, mvp_source, camera_primary_id, check_flags)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    score_team0, score_team1, winner_team_num, winner_source, mvp_key, mvp_source, camera_primary_id, check_flags, rule_versions)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (guid) DO UPDATE SET
     started_at = excluded.started_at, ended_at = excluded.ended_at, playlist_id = excluded.playlist_id, arena = excluded.arena,
     end_kind = excluded.end_kind, closed_via = excluded.closed_via, joined_in_progress = excluded.joined_in_progress,
     overtime = excluded.overtime, score_team0 = excluded.score_team0, score_team1 = excluded.score_team1,
     winner_team_num = excluded.winner_team_num, winner_source = excluded.winner_source, mvp_key = excluded.mvp_key,
-    mvp_source = excluded.mvp_source, camera_primary_id = excluded.camera_primary_id, check_flags = excluded.check_flags`;
+    mvp_source = excluded.mvp_source, camera_primary_id = excluded.camera_primary_id, check_flags = excluded.check_flags,
+    rule_versions = excluded.rule_versions`;
 
 // The extras' columns come from the registry, so a new stat needs only its entry and a migration.
 const BASE_PLAYER_COLUMNS = ["match_guid", "player_key", "primary_id", "name", "is_bot", "team_num", "teams_seen", "present_at_end", "score", "goals", "shots", "assists", "saves", "touches", "demos"];
@@ -82,6 +83,7 @@ export function createRecordWriter({ tracker, logger, now = Date.now }: RecordWr
       m.mvpSource,
       m.cameraPrimaryId,
       JSON.stringify(m.checkFlags),
+      JSON.stringify(m.ruleVersions),
     );
     tracker.run("DELETE FROM match_players WHERE match_guid = ?", m.guid);
     tracker.run("DELETE FROM match_player_statfeed WHERE match_guid = ?", m.guid);

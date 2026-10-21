@@ -135,4 +135,16 @@ describe("tracker schema", () => {
     migrate(d, "tracker", trackerMigrations, { logger });
     expect(d.all("SELECT woodwork_hits, car_ms FROM match_players")).toEqual([{ woodwork_hits: null, car_ms: null }]);
   });
+
+  test("a match recorded before rule versions keeps its row, with no versions", () => {
+    const logger = memoryLogger();
+    const d = db();
+    migrate(d, "tracker", trackerMigrations.slice(0, 3), { logger });
+    d.run(
+      `INSERT INTO matches (guid, started_at, ended_at, end_kind, closed_via, joined_in_progress, overtime, check_flags)
+        VALUES ('G', 1, 2, 'completed', 'destroyed', 0, 0, '[]')`,
+    );
+    migrate(d, "tracker", trackerMigrations, { logger });
+    expect(d.all("SELECT guid, rule_versions FROM matches")).toEqual([{ guid: "G", rule_versions: null }]);
+  });
 });

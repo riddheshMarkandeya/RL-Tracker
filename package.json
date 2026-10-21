@@ -7,6 +7,8 @@
     "dev": "RLTRACKER_DATA_DIR=.dev-data RLTRACKER_PORT=49101 bun run src/server/main.ts",
     "stop": "bun run scripts/stop.ts",
     "recompute": "bun run scripts/recompute.ts",
+    "rules-diff": "bun run scripts/rules-diff.ts",
+    "definitions": "bun run scripts/definitions.ts",
     "deploy": "bun run check && bun run install-autostart && bun run recompute",
     "install-autostart": "bun run scripts/autostart.ts install",
     "uninstall-autostart": "bun run scripts/autostart.ts uninstall",

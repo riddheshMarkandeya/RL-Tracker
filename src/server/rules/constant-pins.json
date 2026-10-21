@@ -1,0 +1,67 @@
+{
+  "update_state_sampling": {
+    "version": 1,
+    "constants": {
+      "UPDATE_STATE_INTERVAL_MS": 500
+    }
+  },
+  "orphan_timeout": {
+    "version": 1,
+    "constants": {
+      "ORPHAN_TIMEOUT_MS": 600000
+    }
+  },
+  "camera_identity": {
+    "version": 1,
+    "constants": {
+      "CAMERA_SHARE": 0.95
+    }
+  },
+  "touch_merge": {
+    "version": 1,
+    "constants": {
+      "TOUCH_MERGE_MS": 1000
+    }
+  },
+  "hardest_shot": {
+    "version": 1,
+    "constants": {
+      "HARDEST_SHOT_MAX_KMH": 250
+    }
+  },
+  "aerial_touch": {
+    "version": 1,
+    "constants": {
+      "AERIAL_MIN_Z": 550,
+      "WALL_MARGIN": 300,
+      "SIDE_WALL_X": 4096,
+      "GOAL_LINE_Y": 5120,
+      "CORNER_MAX_XY_SUM": 7640
+    }
+  },
+  "woodwork": {
+    "version": 1,
+    "constants": {
+      "WOODWORK_WINDOW_MS": 1000
+    }
+  },
+  "car_sampling": {
+    "version": 1,
+    "constants": {
+      "CAR_SAMPLE_CAP_MS": 1000
+    }
+  },
+  "goal_distance": {
+    "version": 1,
+    "constants": {
+      "GOAL_LINE_Y": 5120
+    }
+  },
+  "goal_range": {
+    "version": 1,
+    "constants": {
+      "CLOSE_UNDER": 2560,
+      "LONG_FROM": 5120
+    }
+  }
+}

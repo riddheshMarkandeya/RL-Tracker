@@ -13,19 +13,18 @@ export interface PlayerExtra {
   inRange: ((n: number, r: RosterEntry, facts: Play["facts"]) => boolean) | null;
 }
 
-const HARDEST_SHOT_MAX_KMH = 250;
+export const HARDEST_SHOT_MAX_KMH = 250;
 
 /** Every AerialGoal statfeed's scoring touch was at 558 or higher; nearly every other goal's at 430 or lower. */
-const AERIAL_MIN_Z = 550;
+export const AERIAL_MIN_Z = 550;
 /** A touch this close to a wall is a wall ride or a wall touch, not an aerial. */
-const WALL_MARGIN = 300;
-const SIDE_WALL_X = 4096;
-const BACK_WALL_Y = GOAL_LINE_Y;
+export const WALL_MARGIN = 300;
+export const SIDE_WALL_X = 4096;
 /** The corners are cut at 45°, so they bound |x| + |y|; this limit keeps the same margin off them. */
-const CORNER_MAX_XY_SUM = 7640;
+export const CORNER_MAX_XY_SUM = 7640;
 
 const isAerial = ({ x, y, z }: Pos) =>
-  z >= AERIAL_MIN_Z && Math.abs(x) <= SIDE_WALL_X - WALL_MARGIN && Math.abs(y) <= BACK_WALL_Y - WALL_MARGIN && Math.abs(x) + Math.abs(y) <= CORNER_MAX_XY_SUM;
+  z >= AERIAL_MIN_Z && Math.abs(x) <= SIDE_WALL_X - WALL_MARGIN && Math.abs(y) <= GOAL_LINE_Y - WALL_MARGIN && Math.abs(x) + Math.abs(y) <= CORNER_MAX_XY_SUM;
 
 /** The player's car samples, or null when they had none (opponents' car state isn't sent). */
 function carStat(play: Play, key: string, of: (samples: CarSample[], ms: number) => number | null): number | null {

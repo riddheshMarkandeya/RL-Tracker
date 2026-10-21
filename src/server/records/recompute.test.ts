@@ -7,6 +7,7 @@ import { createRecorder } from "../recorder/recorder";
 import type { MatchSummary } from "../recorder/summary";
 import { openStorage, type Storage } from "../storage";
 import { memoryLogger, readFixture } from "../testing";
+import { RECORDED_RULE_VERSIONS } from "../rules/registry";
 import { toRecord } from "./record";
 import { recomputeAll } from "./recompute";
 import { createRecordWriter } from "./save";
@@ -101,6 +102,14 @@ describe("recomputeAll", () => {
     expect(result.skipped).toMatchObject({ lobby_has_record: 1 });
     expect(storage.tracker.get("SELECT guid FROM matches WHERE guid = ?", lobby)).toEqual({ guid: lobby });
     expect(logger.lines.find((l) => l.fields.reason === "lobby_has_record")).toMatchObject({ level: "warn", fields: { guid: lobby } });
+  });
+
+  test("refreshes each match's rule versions, including one recorded before they were stored", () => {
+    recordLive(["completed"]);
+    storage.tracker.run("UPDATE matches SET rule_versions = NULL");
+    recomputeAll({ raw: storage.raw, tracker: storage.tracker, logger: memoryLogger(), now });
+    const row = storage.tracker.get<{ rule_versions: string }>("SELECT rule_versions FROM matches");
+    expect(JSON.parse(row?.rule_versions ?? "null")).toEqual(RECORDED_RULE_VERSIONS);
   });
 
   test("an orphaned match rebuilds with its close cause from the marker", () => {

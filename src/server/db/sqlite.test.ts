@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -77,6 +77,24 @@ describe("openDb", () => {
     // The type only catches PromiseLike; the runtime check catches any thenable.
     expect(() => db.transaction(() => ({ then: () => undefined }))).toThrow(TypeError);
     db.close();
+  });
+
+  test("readonly opens a closed WAL DB for reading only, leaving only empty WAL side files", () => {
+    const path = join(dir, "a.db");
+    const w = openDb(path);
+    w.exec("CREATE TABLE t (x); INSERT INTO t VALUES (1);");
+    w.close();
+    expect(existsSync(`${path}-shm`)).toBe(false);
+    const before = readFileSync(path);
+    const db = openDb(path, { readonly: true });
+    expect(db.get("SELECT x FROM t")).toEqual({ x: 1 });
+    expect(db.pragma("busy_timeout")).toBe(5000);
+    expect(() => db.run("INSERT INTO t VALUES (2)")).toThrow(/readonly/i);
+    db.close();
+    expect(readFileSync(path).equals(before)).toBe(true);
+    expect(statSync(`${path}-wal`).size).toBe(0);
+    expect(() => openDb(join(dir, "missing.db"), { readonly: true })).toThrow();
+    expect(existsSync(join(dir, "missing.db"))).toBe(false);
   });
 
   test("throws when the file can't use WAL", () => {

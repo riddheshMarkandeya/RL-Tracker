@@ -9,12 +9,19 @@ maybe later.
   `exit-codes.ts`, `log.ts` logger, `paths.ts` data dir and port, `storage.ts` opens both DBs, `maintenance.ts` schedules retention and backups; `db/`: `sqlite.ts` driver seam, `migrate.ts`, `migrations.ts`,
   `backup.ts`, `retention.ts`; `recorder/`: Stats API client, lifecycle, raw store, dedup,
   summary, checks, `play.ts` live-play view, `extras.ts` stat registry, `read-match.ts`); `records/`: `record.ts` summary → rows, `save.ts` writer,
-  `recompute.ts`), `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts` close/mid/long),
+  `recompute.ts`, `rules-diff.ts`); `rules/`: `registry.ts` every stat rule with its version,
+  `definitions.ts` renders the doc), `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts` close/mid/long),
   `scripts/` (standalone `capture.ts`; `stop.ts`, `autostart.ts`, `replay.ts` fake Stats API,
-  `import-capture.ts` (also writes records), `recompute.ts`, `make-fixture.ts`), `test/fixtures/`
+  `import-capture.ts` (also writes records), `recompute.ts`, `make-fixture.ts`, `definitions.ts`,
+  `rules-diff.ts`), `test/fixtures/`
   (anonymised capture excerpts).
 - `bun run recompute` rebuilds match records in `tracker.db` from `raw.db` (safe with the
   tracker running; never deletes records).
+- Rules: `docs/definitions.md` is generated from `src/server/rules/registry.ts` (`bun run
+  definitions`, which also writes `src/server/rules/constant-pins.json`; a test fails when out of
+  sync or when a constant changed without a version bump). To change a rule, one at a time: edit its entry and bump its
+  version, `bun run rules-diff` (recomputes into a scratch DB and reports what moved; read-only on
+  the data dir), ADR if past the gate, `bun run definitions`, `bun run deploy`.
 - `STATS_API_URL` points `bun run start` at a replay: `bun run scripts/replay.ts <file> --port P`.
 - `bun run check` = typecheck + lint (zero warnings) + tests (Vitest under Bun);
   `bun run start` runs the server from source on the real data dir and port 49100;
@@ -32,6 +39,9 @@ maybe later.
   IDs, match records; backed up to `backups/`, 7 kept), `raw.db` (raw events, 90-day retention).
 
 ## Decisions
+- `docs/decisions/2026-10-20-rule-registry-versions.md`: one rule registry generates the
+  definitions doc; each match stores the rule versions it was computed under; rules-diff warns per
+  match, reviews per column.
 - `docs/decisions/2026-10-20-match-extras-play-view.md`: match extras and goal points read one
   live-play view; shot, aerial, touch, woodwork and goal-origin rules; registry with ranges.
 - `docs/decisions/2026-10-20-match-records-per-player.md`: match records cover every player and
@@ -44,6 +54,9 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-20-wp4c-a-rule-registry.md`: WP4c-a plan (registry and backfill, generated
+  definitions, migration 4 `rule_versions`, read-only `openDb`, `rules-diff`), review log.
+- `docs/reviews/2026-10-20-wp4c-a-rule-registry.md`: WP4c-a review summary (9 rounds).
 - `docs/plans/2026-10-20-wp4b-match-extras.md`: WP4b plan (play view, extras registry, checks,
   migration 3, `match_goals`, goal range), real-data figures, review log.
 - `docs/reviews/2026-10-20-wp4b-match-extras.md`: WP4b review summary.
