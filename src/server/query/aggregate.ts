@@ -34,8 +34,12 @@ export interface MyMatch {
   endKind: ResultInput["endKind"];
   closedVia: ResultInput["closedVia"];
   overtime: boolean;
+  scoreTeam0: number | null;
+  scoreTeam1: number | null;
   winnerTeamNum: number | null;
   mvpKey: string | null;
+  /** A check failed on this match. */
+  flagged: boolean;
   me: MyRow | null;
   result: Result | null;
   /** Your goals. */

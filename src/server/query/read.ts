@@ -3,9 +3,9 @@
 import type { Db, Param } from "../db/sqlite";
 import type { Logger } from "../log";
 import type { Season } from "../../shared/periods";
-import { resultFor } from "../../shared/result";
+import { resultFor, type Result } from "../../shared/result";
+import type { Goal, MatchDetail } from "../../shared/schemas/responses";
 import type { MyMatch, MyRow } from "./aggregate";
-import type { SessionMatch } from "./sessions";
 
 const C = "query";
 
@@ -28,9 +28,12 @@ interface MatchRow {
   end_kind: MyMatch["endKind"];
   closed_via: MyMatch["closedVia"];
   overtime: number;
+  score_team0: number | null;
+  score_team1: number | null;
   winner_team_num: number | null;
   mvp_key: string | null;
   camera_primary_id: string | null;
+  flagged: number;
   // Your row's columns; null when no player of yours is in the match.
   player_key: string | null;
   primary_id: string | null;
@@ -50,6 +53,54 @@ interface MatchRow {
   supersonic_ms: number | null;
   empty_boost_ms: number | null;
 }
+
+/** A match in the index: when it was, its playlist, and your result in it. */
+export interface MatchResult {
+  guid: string;
+  startedAt: number;
+  endedAt: number;
+  playlistId: number | null;
+  /** A player of yours was in it; false when spectated. */
+  played: boolean;
+  result: Result | null;
+}
+
+type ResultRow = Pick<MatchRow, "guid" | "started_at" | "ended_at" | "playlist_id" | "end_kind" | "closed_via" | "winner_team_num" | "camera_primary_id" | "player_key" | "primary_id" | "team_num">;
+
+interface GoalRow {
+  match_guid: string;
+  idx: number;
+  team_num: number;
+  scorer_key: string;
+  assister_key: string | null;
+  toucher_key: string | null;
+  x: number | null;
+  y: number | null;
+  z: number | null;
+  distance: number | null;
+  speed_kmh: number | null;
+  deflected: number;
+  aerial: number;
+  own_goal: number;
+}
+
+type FullMatchRow = Omit<MatchRow, "flagged" | "player_key" | "primary_id" | "team_num" | keyof PlayerStats> & {
+  joined_in_progress: number;
+  check_flags: string;
+};
+
+type PlayerStats = Pick<MatchRow, "score" | "goals" | "shots" | "assists" | "saves" | "demos" | "touches" | "hardest_shot_kmh" | "woodwork_hits" | "aerial_touches" | "car_ms" | "boost_avg" | "supersonic_ms" | "empty_boost_ms">;
+
+type PlayerDbRow = PlayerStats & {
+  player_key: string;
+  primary_id: string;
+  name: string;
+  is_bot: number;
+  team_num: number | null;
+  present_at_end: number;
+  /** 1 when the id is one of yours. */
+  mine: number;
+};
 
 function where({ from, to, guids }: ReadRange): { sql: string; params: Param[] } {
   const conds: string[] = [];
@@ -72,6 +123,13 @@ function where({ from, to, guids }: ReadRange): { sql: string; params: Param[] }
 
 /** A row with a player of yours. */
 type Mine = MatchRow & { player_key: string };
+/** The match fields picking you needs: its guid for the log line, its camera to choose by. */
+type PickMatch = Pick<MatchRow, "guid" | "camera_primary_id">;
+/** A row that may be a player of yours; player_key is null where a join found none. */
+interface Candidate {
+  primary_id: string | null;
+  player_key: string | null;
+}
 const isNonEmpty = <T>(xs: T[]): xs is [T, ...T[]] => xs.length > 0;
 
 const toMyRow = (r: Mine): MyRow => ({
@@ -95,6 +153,10 @@ const toMyRow = (r: Mine): MyRow => ({
 
 const at = (guid: string, key: string) => `${guid}\n${key}`;
 
+/** Your result from the match row and your team; null for no team (spectated, or no team seen). */
+const myResult = (m: Pick<MatchRow, "winner_team_num" | "end_kind" | "closed_via">, teamNum: number | null): Result | null =>
+  resultFor({ winnerTeamNum: m.winner_team_num, endKind: m.end_kind, closedVia: m.closed_via }, teamNum);
+
 function toMyMatch(
   m: MatchRow,
   me: MyRow | null,
@@ -110,10 +172,13 @@ function toMyMatch(
     endKind: m.end_kind,
     closedVia: m.closed_via,
     overtime: m.overtime === 1,
+    scoreTeam0: m.score_team0,
+    scoreTeam1: m.score_team1,
     winnerTeamNum: m.winner_team_num,
     mvpKey: m.mvp_key,
+    flagged: m.flagged === 1,
     me,
-    result: me === null ? null : resultFor({ winnerTeamNum: m.winner_team_num, endKind: m.end_kind, closedVia: m.closed_via }, me.teamNum),
+    result: myResult(m, me?.teamNum ?? null),
     goals: goals.map((g) => ({ speedKmh: g.speed_kmh, ownGoal: g.own_goal === 1 })),
     statfeed: Object.fromEntries(statfeed.map((s) => [s.event_name, s.count])),
   };
@@ -131,16 +196,19 @@ export function createQueryReader({ tracker, logger }: { tracker: Db; logger: Lo
   }
 
   /**
-   * Two of your ids in one lobby has never been seen. The camera's player is the one you were
-   * watching as; without it, the lowest key, so the choice is at least stable.
+   * You among a match's rows; null when none is yours (spectated). Two of your ids in one lobby has
+   * never been seen: the camera's player is the one you were watching as; without it, the lowest
+   * key, so the choice is at least stable.
    */
-  function pickMe(mine: readonly [Mine, ...Mine[]]): Mine {
+  function pickMe<R extends Candidate>(match: PickMatch, rows: readonly R[]): (R & { player_key: string }) | null {
+    const mine = rows.filter((r): r is R & { player_key: string } => r.player_key !== null);
+    if (!isNonEmpty(mine)) return null;
     const [first] = mine;
     if (mine.length === 1) return first;
-    const chosen = mine.find((r) => r.primary_id === first.camera_primary_id) ?? first;
-    if (!twoYousReported.has(first.guid)) {
-      twoYousReported.add(first.guid);
-      logger.warn(C, "two_yous", { guid: first.guid, keys: mine.map((r) => r.player_key), chosen: chosen.player_key });
+    const chosen = mine.find((r) => r.primary_id === match.camera_primary_id) ?? first;
+    if (!twoYousReported.has(match.guid)) {
+      twoYousReported.add(match.guid);
+      logger.warn(C, "two_yous", { guid: match.guid, keys: mine.map((r) => r.player_key), chosen: chosen.player_key });
     }
     return chosen;
   }
@@ -149,8 +217,8 @@ export function createQueryReader({ tracker, logger }: { tracker: Db; logger: Lo
     return timed("readMyMatches", () => {
       const w = where(range);
       const rows = tracker.all<MatchRow>(
-        `SELECT m.guid, m.started_at, m.ended_at, m.playlist_id, m.arena, m.end_kind, m.closed_via, m.overtime, m.winner_team_num,
-           m.mvp_key, m.camera_primary_id, p.player_key, p.primary_id, p.team_num, p.score, p.goals, p.shots, p.assists, p.saves,
+        `SELECT m.guid, m.started_at, m.ended_at, m.playlist_id, m.arena, m.end_kind, m.closed_via, m.overtime, m.score_team0,
+           m.score_team1, m.winner_team_num, m.mvp_key, m.camera_primary_id, m.check_flags != '[]' AS flagged, p.player_key, p.primary_id, p.team_num, p.score, p.goals, p.shots, p.assists, p.saves,
            p.demos, p.touches, p.hardest_shot_kmh, p.woodwork_hits, p.aerial_touches, p.car_ms, p.boost_avg, p.supersonic_ms,
            p.empty_boost_ms
          FROM matches m
@@ -177,19 +245,135 @@ export function createQueryReader({ tracker, logger }: { tracker: Db; logger: Lo
       const feedOf = Map.groupBy(statfeed, (s) => at(s.match_guid, s.player_key));
       return [...Map.groupBy(rows, (r) => r.guid).values()].map((group) => {
         const [m] = group as [MatchRow, ...MatchRow[]];
-        const mineRows = group.filter((r): r is Mine => r.player_key !== null);
-        const me = isNonEmpty(mineRows) ? toMyRow(pickMe(mineRows)) : null;
+        const picked = pickMe(m, group);
+        const me = picked === null ? null : toMyRow(picked);
         const mine = me === null ? "" : at(m.guid, me.playerKey);
         return toMyMatch(m, me, goalsOf.get(mine) ?? [], feedOf.get(mine) ?? []);
       });
     });
   }
 
+  /** Per match, whether you played and your result: the light index pages cut and count sessions from. */
+  function readResults(): MatchResult[] {
+    return timed("readResults", () => {
+      const rows = tracker.all<ResultRow>(
+        `SELECT m.guid, m.started_at, m.ended_at, m.playlist_id, m.end_kind, m.closed_via, m.winner_team_num, m.camera_primary_id,
+           p.player_key, p.primary_id, p.team_num
+         FROM matches m
+         LEFT JOIN match_players p ON p.match_guid = m.guid AND p.primary_id IN (${MINE})
+         ORDER BY m.started_at, m.guid, p.player_key`,
+      );
+      return [...Map.groupBy(rows, (r) => r.guid).values()].map((group) => {
+        const [m] = group as [ResultRow, ...ResultRow[]];
+        const me = pickMe(m, group);
+        return {
+          guid: m.guid,
+          startedAt: m.started_at,
+          endedAt: m.ended_at,
+          playlistId: m.playlist_id,
+          played: me !== null,
+          result: myResult(m, me?.team_num ?? null),
+        };
+      });
+    });
+  }
+
+  /** Every goal of these matches, in match then goal order. */
+  function readGoals(guids: readonly string[]): Goal[] {
+    return timed("readGoals", () =>
+      tracker
+        .all<GoalRow>(
+          `SELECT match_guid, idx, team_num, scorer_key, assister_key, toucher_key, x, y, z, distance, speed_kmh, deflected, aerial, own_goal
+           FROM match_goals WHERE match_guid IN (SELECT value FROM json_each(?))
+           ORDER BY match_guid, idx`,
+          JSON.stringify(guids),
+        )
+        .map((g) => ({
+          matchGuid: g.match_guid,
+          idx: g.idx,
+          teamNum: g.team_num,
+          scorerKey: g.scorer_key,
+          assisterKey: g.assister_key,
+          toucherKey: g.toucher_key,
+          pos: g.x === null || g.y === null || g.z === null ? null : { x: g.x, y: g.y, z: g.z },
+          distance: g.distance,
+          speedKmh: g.speed_kmh,
+          deflected: g.deflected === 1,
+          aerial: g.aerial === 1,
+          ownGoal: g.own_goal === 1,
+        })),
+    );
+  }
+
+  /** One match with every player, you marked by the same rule as readMyMatches; null when there's no such match. */
+  function readMatch(guid: string): Omit<MatchDetail, "goals" | "sessionKey"> | null {
+    const [m] = timed("readMatch", () =>
+      tracker.all<FullMatchRow>(
+        `SELECT guid, started_at, ended_at, playlist_id, arena, end_kind, closed_via, joined_in_progress, overtime, score_team0,
+           score_team1, winner_team_num, mvp_key, camera_primary_id, check_flags
+         FROM matches WHERE guid = ?`,
+        guid,
+      ),
+    );
+    if (!m) return null;
+    const players = timed("readMatchPlayers", () =>
+      tracker.all<PlayerDbRow>(
+        `SELECT player_key, primary_id, name, is_bot, team_num, present_at_end, score, goals, shots, assists, saves, touches, demos,
+           hardest_shot_kmh, woodwork_hits, aerial_touches, car_ms, boost_avg, supersonic_ms, empty_boost_ms,
+           primary_id IN (${MINE}) AS mine
+         FROM match_players WHERE match_guid = ? ORDER BY player_key`,
+        guid,
+      ),
+    );
+    const me = pickMe(m, players.filter((p) => p.mine === 1));
+    return {
+      match: {
+        guid: m.guid,
+        startedAt: m.started_at,
+        endedAt: m.ended_at,
+        playlistId: m.playlist_id,
+        arena: m.arena,
+        endKind: m.end_kind,
+        closedVia: m.closed_via,
+        joinedInProgress: m.joined_in_progress === 1,
+        overtime: m.overtime === 1,
+        scoreTeam0: m.score_team0,
+        scoreTeam1: m.score_team1,
+        winnerTeamNum: m.winner_team_num,
+        mvpKey: m.mvp_key,
+        checkFlags: JSON.parse(m.check_flags) as string[],
+      },
+      players: players.map((p) => ({
+        playerKey: p.player_key,
+        name: p.name,
+        isBot: p.is_bot === 1,
+        teamNum: p.team_num,
+        presentAtEnd: p.present_at_end === 1,
+        score: p.score,
+        goals: p.goals,
+        shots: p.shots,
+        assists: p.assists,
+        saves: p.saves,
+        touches: p.touches,
+        demos: p.demos,
+        hardestShotKmh: p.hardest_shot_kmh,
+        woodworkHits: p.woodwork_hits,
+        aerialTouches: p.aerial_touches,
+        carMs: p.car_ms,
+        boostAvg: p.boost_avg,
+        supersonicMs: p.supersonic_ms,
+        emptyBoostMs: p.empty_boost_ms,
+        isMe: p.player_key === me?.player_key,
+      })),
+      result: myResult(m, me?.team_num ?? null),
+    };
+  }
+
   return {
     readMyMatches,
-    /** Every match's times, for cutting sessions. */
-    readMatchTimes: (): SessionMatch[] =>
-      timed("readMatchTimes", () => tracker.all<SessionMatch>("SELECT guid, started_at AS startedAt, ended_at AS endedAt FROM matches ORDER BY started_at, guid")),
+    readResults,
+    readGoals,
+    readMatch,
     readBreaks: (): number[] => timed("readBreaks", () => tracker.all<{ at: number }>("SELECT at FROM session_breaks ORDER BY at").map((b) => b.at)),
     readSeasons: (): Season[] => timed("readSeasons", () => tracker.all<Season>("SELECT id, name, start_date AS startDate FROM seasons ORDER BY start_date")),
   };

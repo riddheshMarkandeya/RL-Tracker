@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { SESSION_GAP_MS } from "../../shared/constants";
-import { currentSession, cutSessions, sessionsPlayed, type SessionMatch } from "./sessions";
+import { currentSession, cutSessions, type SessionMatch } from "./sessions";
 
 // Sessions work on instants only, so no time zone is involved.
 const MIN = 60_000;
@@ -54,18 +54,6 @@ describe("cutSessions", () => {
   test("several breaks between two matches cut once; breaks elsewhere cut too", () => {
     const ms = [m("a", 0), m("b", 10), m("c", 20), m("d", 30)];
     expect(keys(ms, [7 * MIN, 8 * MIN, 25 * MIN])).toEqual([["a"], ["b", "c"], ["d"]]);
-  });
-});
-
-describe("sessionsPlayed", () => {
-  const sessions = cutSessions([m("a", 0), m("b", 10), m("c", 100), m("d", 200)], []);
-  const row = (guid: string, playlistId: number, played = true) => ({ guid, playlistId, me: played ? {} : null });
-
-  test("keeps sessions with one of your matches under the filter", () => {
-    // a+b: ranked and spectated; c: private only; d: spectated only.
-    const rows = [row("a", 13), row("b", 13, false), row("c", 6), row("d", 13, false)];
-    expect(sessionsPlayed(sessions, rows, "everything").map((s) => s.key)).toEqual(["a"]);
-    expect(sessionsPlayed(sessions, rows, "private").map((s) => s.key)).toEqual(["c"]);
   });
 });
 

@@ -3,12 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { openStorage, type Storage } from "../storage";
-import { memoryLogger } from "../testing";
-import type { GoalPoint } from "../recorder/play";
-import type { TeamNum } from "../recorder/summary";
-import type { MatchRecord, PlayerRow } from "../records/record";
+import { ALT, goal, ME, memoryLogger, player, record, THEM } from "../testing";
 import { createRecordWriter } from "../records/save";
-import { cutSessions, sessionsPlayed } from "./sessions";
 import { createQueryReader } from "./read";
 
 let dir: string;
@@ -20,74 +16,6 @@ beforeEach(() => {
 afterEach(() => {
   storage.close();
   rmSync(dir, { recursive: true, force: true });
-});
-
-const ME = "Epic|me|0";
-const ALT = "Steam|alt|0";
-const THEM = "Epic|them|0";
-
-const player = (key: string, teamNum: TeamNum, over: Partial<PlayerRow> = {}): PlayerRow => ({
-  playerKey: key,
-  primaryId: key,
-  name: key,
-  isBot: false,
-  teamNum,
-  teamsSeen: 1 << teamNum,
-  presentAtEnd: true,
-  score: 100,
-  goals: 1,
-  shots: 2,
-  assists: 0,
-  saves: 0,
-  touches: 5,
-  demos: 0,
-  extras: { hardest_shot_kmh: 101.5, woodwork_hits: 1, aerial_touches: 2, car_ms: 1000, boost_avg: 33, supersonic_ms: 100, empty_boost_ms: 50 },
-  ...over,
-});
-
-const goal = (teamNum: TeamNum, scorerKey: string, over: Partial<GoalPoint> = {}): GoalPoint => ({
-  teamNum,
-  scorerKey,
-  assisterKey: null,
-  toucherKey: scorerKey,
-  pos: { x: 10, y: -20, z: 93 },
-  distance: 5000,
-  speedKmh: 88,
-  deflected: false,
-  aerial: false,
-  ownGoal: false,
-  ...over,
-});
-
-const record = (guid: string, startedAt: number, over: Partial<MatchRecord> = {}, match: Partial<MatchRecord["match"]> = {}): MatchRecord => ({
-  match: {
-    guid,
-    startedAt,
-    endedAt: startedAt + 300,
-    playlistId: 13,
-    arena: "cs_p",
-    endKind: "completed",
-    closedVia: "destroyed",
-    joinedInProgress: false,
-    overtime: false,
-    scoreTeam0: 1,
-    scoreTeam1: 1,
-    winnerTeamNum: 0,
-    winnerSource: "match_ended",
-    mvpKey: ME,
-    mvpSource: "statfeed",
-    cameraPrimaryId: null,
-    checkFlags: [],
-    ruleVersions: {},
-    ...match,
-  },
-  players: [player(ME, 0), player(THEM, 1)],
-  statfeed: [
-    { playerKey: ME, eventName: "Goal", count: 1 },
-    { playerKey: THEM, eventName: "Goal", count: 1 },
-  ],
-  goals: [goal(0, ME, { speedKmh: 120 }), goal(1, THEM)],
-  ...over,
 });
 
 function setup() {
@@ -217,16 +145,10 @@ describe("readMyMatches", () => {
   });
 });
 
-describe("times, breaks and seasons", () => {
-  test("match times for cutting, breaks, and seasons from the table", () => {
-    const { writer, reader } = setup();
-    writer.save(record("B", 2000));
-    writer.save(record("A", 1000));
+describe("breaks and seasons", () => {
+  test("from their tables", () => {
+    const { reader } = setup();
     storage.tracker.run("INSERT INTO session_breaks (at) VALUES (1500)");
-    expect(reader.readMatchTimes()).toEqual([
-      { guid: "A", startedAt: 1000, endedAt: 1300 },
-      { guid: "B", startedAt: 2000, endedAt: 2300 },
-    ]);
     expect(reader.readBreaks()).toEqual([1500]);
     expect(reader.readSeasons()).toEqual([
       { id: 1, name: "S22", startDate: "2026-03-11" },
@@ -234,15 +156,113 @@ describe("times, breaks and seasons", () => {
       { id: 3, name: "S24", startDate: "2026-09-23" },
     ]);
   });
+});
 
-  test("a spectated-only session drops out of a filtered list", () => {
+describe("match fields for cards", () => {
+  test("the score and whether a check flagged the match", () => {
     const { writer, reader, addId } = setup();
     addId(ME, "confirmed");
+    writer.save(record("G", 1000, {}, { scoreTeam0: 3, scoreTeam1: 2 }));
+    writer.save(record("H", 2000, {}, { checkFlags: ["goals_match_score"], scoreTeam0: null, scoreTeam1: null }));
+    expect(reader.readMyMatches().map((m) => [m.guid, m.scoreTeam0, m.scoreTeam1, m.flagged])).toEqual([
+      ["G", 3, 2, false],
+      ["H", null, null, true],
+    ]);
+  });
+});
+
+describe("readResults", () => {
+  test("one row per match: played or not, and your result", () => {
+    const { writer, reader, addId, lines } = setup();
+    addId(ME, "confirmed");
+    addId(ALT, "confirmed");
     writer.save(record("A", 1000));
-    // Over an hour later, a lobby you only watched.
-    writer.save(record("B", 5_000_000, { players: [player(THEM, 0), player("Epic|x|0", 1)], goals: [], statfeed: [] }));
-    const sessions = cutSessions(reader.readMatchTimes(), reader.readBreaks());
-    expect(sessions.map((s) => s.key)).toEqual(["A", "B"]);
-    expect(sessionsPlayed(sessions, reader.readMyMatches(), "everything").map((s) => s.key)).toEqual(["A"]);
+    writer.save(record("B", 2000, { players: [player(THEM, 0), player("Epic|x|0", 1)], goals: [], statfeed: [] }, { playlistId: 6 }));
+    // Two of your ids: the camera's is you, as readMyMatches picks.
+    writer.save(record("C", 3000, { players: [player(ME, 0), player(ALT, 1)] }, { cameraPrimaryId: ALT, playlistId: null }));
+    expect(reader.readResults()).toEqual([
+      { guid: "A", startedAt: 1000, endedAt: 1300, playlistId: 13, played: true, result: "win" },
+      { guid: "B", startedAt: 2000, endedAt: 2300, playlistId: 6, played: false, result: null },
+      { guid: "C", startedAt: 3000, endedAt: 3300, playlistId: null, played: true, result: "loss" },
+    ]);
+    expect(lines("read").at(-1)?.fields).toMatchObject({ fn: "readResults", rows: 3 });
+  });
+});
+
+describe("readGoals", () => {
+  test("every goal of the matches asked for, in order, with its position", () => {
+    const { writer, reader } = setup();
+    writer.save(record("G", 1000, { goals: [goal(0, ME, { assisterKey: THEM, deflected: true }), goal(1, THEM, { ownGoal: true, toucherKey: null, pos: null, distance: null, aerial: true })] }));
+    writer.save(record("H", 2000));
+    writer.save(record("I", 3000));
+    const goals = reader.readGoals(["G", "I"]);
+    expect(goals.map((g) => [g.matchGuid, g.idx])).toEqual([
+      ["G", 0],
+      ["G", 1],
+      ["I", 0],
+      ["I", 1],
+    ]);
+    expect(goals[0]).toEqual({
+      matchGuid: "G",
+      idx: 0,
+      teamNum: 0,
+      scorerKey: ME,
+      assisterKey: THEM,
+      toucherKey: ME,
+      pos: { x: 10, y: -20, z: 93 },
+      distance: 5000,
+      speedKmh: 88,
+      deflected: true,
+      aerial: false,
+      ownGoal: false,
+    });
+    expect(goals[1]).toMatchObject({ toucherKey: null, pos: null, distance: null, aerial: true, ownGoal: true });
+    expect(reader.readGoals([])).toEqual([]);
+  });
+});
+
+describe("readMatch", () => {
+  test("the match and every player, you marked", () => {
+    const { writer, reader, addId } = setup();
+    addId(ME, "confirmed");
+    writer.save(record("G", 1000, { players: [player(ME, 0), player(THEM, 1, { isBot: true, presentAtEnd: false, extras: {} })] }, { checkFlags: ["x"], joinedInProgress: true }));
+    const m = reader.readMatch("G");
+    expect(m?.match).toEqual({
+      guid: "G",
+      startedAt: 1000,
+      endedAt: 1300,
+      playlistId: 13,
+      arena: "cs_p",
+      endKind: "completed",
+      closedVia: "destroyed",
+      joinedInProgress: true,
+      overtime: false,
+      scoreTeam0: 1,
+      scoreTeam1: 1,
+      winnerTeamNum: 0,
+      mvpKey: ME,
+      checkFlags: ["x"],
+    });
+    expect(m?.players.map((p) => [p.playerKey, p.isMe, p.isBot, p.presentAtEnd, p.hardestShotKmh])).toEqual([
+      [ME, true, false, true, 101.5],
+      [THEM, false, true, false, null],
+    ]);
+    expect(m?.result).toBe("win");
+    expect(reader.readMatch("nope")).toBeNull();
+  });
+
+  test("two of your ids: only the picked one is you; spectated: nobody is", () => {
+    const { writer, reader, addId } = setup();
+    addId(ME, "confirmed");
+    addId(ALT, "confirmed");
+    writer.save(record("G", 1000, { players: [player(ME, 0), player(ALT, 1)] }, { cameraPrimaryId: ALT }));
+    writer.save(record("H", 2000, { players: [player(THEM, 0), player("Epic|x|0", 1)] }));
+    expect(reader.readMatch("G")?.players.map((p) => [p.playerKey, p.isMe])).toEqual([
+      [ME, false],
+      [ALT, true],
+    ]);
+    expect(reader.readMatch("G")?.result).toBe("loss");
+    expect(reader.readMatch("H")?.players.some((p) => p.isMe)).toBe(false);
+    expect(reader.readMatch("H")?.result).toBeNull();
   });
 });

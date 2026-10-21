@@ -23,3 +23,9 @@ export function dashboardPort(env: Record<string, string | undefined> = process.
   if (!(port >= 1 && port <= 65535)) throw new Error(`RLTRACKER_PORT must be a port number (1-65535), got "${raw}"`);
   return port;
 }
+
+/** The built dashboard to serve, from RLTRACKER_STATIC_DIR; null when unset, as no installed build exists yet. */
+export function staticDir(env: Record<string, string | undefined> = process.env): string | null {
+  if (env.RLTRACKER_STATIC_DIR) return env.RLTRACKER_STATIC_DIR;
+  return null;
+}

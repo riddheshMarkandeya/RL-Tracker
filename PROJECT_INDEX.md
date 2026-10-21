@@ -12,9 +12,12 @@ maybe later.
   which old UpdateStates retention deletes); `records/`: `record.ts` summary → rows, `save.ts` writer,
   `recompute.ts`, `rules-diff.ts`); `rules/`: `registry.ts` every stat rule with its version,
   `definitions.ts` renders the doc; `query/`: `read.ts` match records for pages with "you"
-  joined, `sessions.ts` session cutting, `aggregate.ts` stats and the 30-day baseline),
+  joined, `sessions.ts` session cutting, `aggregate.ts` stats and the 30-day baseline; `api/`: the
+  dashboard API mounted on the host: `index.ts` routes and writes, `pages.ts` composes each page,
+  `events.ts` SSE, `router.ts`, `static.ts` built web app),
   `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts`
-  close/mid/long, `periods.ts` local days and periods, `playlist-filter.ts` filter groups),
+  close/mid/long, `periods.ts` local days and periods, `playlist-filter.ts` filter groups, `schemas/` API params
+  and response shapes),
   `scripts/` (standalone `capture.ts`; `stop.ts`, `autostart.ts`, `replay.ts` fake Stats API,
   `import-capture.ts` (also writes records), `recompute.ts`, `make-fixture.ts`, `definitions.ts`,
   `rules-diff.ts`), `test/fixtures/`
@@ -66,6 +69,9 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-21-wp5a-b-api.md`: WP5a-b plan (host `mount`, router, static, SSE, page
+  composition, endpoints, schemas), live replay check, review log.
+- `docs/reviews/2026-10-21-wp5a-b-api.md`: WP5a-b review summary (3 rounds).
 - `docs/plans/2026-10-21-wp5a-a-query-logic.md`: WP5a-a plan (periods, playlist filters, sessions,
   aggregates, baseline, read layer, `queries` rules), real-DB figures, review log.
 - `docs/reviews/2026-10-21-wp5a-a-query-logic.md`: WP5a-a review summary (2 rounds).

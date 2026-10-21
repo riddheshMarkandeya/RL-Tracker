@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { dashboardPort, dataDir } from "./paths";
+import { dashboardPort, dataDir, staticDir } from "./paths";
 
 describe("dataDir", () => {
   test("RLTRACKER_DATA_DIR wins", () => {
@@ -31,5 +31,13 @@ describe("dashboardPort", () => {
     for (const bad of ["", "abc", "0", "65536", "49101.5", "-1", " 49101x"]) {
       expect(() => dashboardPort({ RLTRACKER_PORT: bad }), bad).toThrow(/RLTRACKER_PORT/);
     }
+  });
+});
+
+describe("staticDir", () => {
+  test("RLTRACKER_STATIC_DIR, or null when unset or empty", () => {
+    expect(staticDir({ RLTRACKER_STATIC_DIR: "D:/rl/dist" })).toBe("D:/rl/dist");
+    expect(staticDir({})).toBeNull();
+    expect(staticDir({ RLTRACKER_STATIC_DIR: "" })).toBeNull();
   });
 });

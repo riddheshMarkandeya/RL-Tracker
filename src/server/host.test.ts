@@ -53,10 +53,38 @@ describe("startHost", () => {
     expect(logger.lines.find((l) => l.event === "bad_host")?.fields).toMatchObject({ host: "evil.example:80" });
   });
 
-  test("localhost is accepted, and anything else is 404 for now", async () => {
+  test("before mount, anything else is 503 starting, localhost included", async () => {
     const { host, url } = start();
-    expect((await fetch(url("/"))).status).toBe(404);
-    expect((await fetch(url("/api/shutdown"))).status).toBe(404);
-    expect((await fetch(`http://localhost:${String(host.port)}/`)).status).toBe(404);
+    for (const path of ["/", "/api/status"]) {
+      const res = await fetch(url(path));
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({ error: "starting" });
+    }
+    expect((await fetch(`http://localhost:${String(host.port)}/`)).status).toBe(503);
+  });
+
+  test("a mounted handler gets the rest; the Host check and shutdown stay ahead of it", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const { host, url, shutdowns } = start();
+    const seen: string[] = [];
+    host.mount((req, server) => {
+      seen.push(new URL(req.url).pathname);
+      expect(typeof server.timeout).toBe("function");
+      return new Response("mounted");
+    });
+    expect(await (await fetch(url("/api/status"))).text()).toBe("mounted");
+    expect((await fetch(url("/api/status"), { headers: { Host: "evil.example:80" } })).status).toBe(403);
+    expect((await fetch(url("/api/shutdown"), { method: "POST", headers: { "X-RLTracker-Shutdown": "1" } })).status).toBe(202);
+    vi.runAllTimers();
+    expect(shutdowns()).toBe(1);
+    expect(seen).toEqual(["/api/status"]);
+  });
+
+  test("a second mount throws", () => {
+    const { host } = start();
+    host.mount(() => new Response());
+    expect(() => {
+      host.mount(() => new Response());
+    }).toThrow(/already mounted/);
   });
 });

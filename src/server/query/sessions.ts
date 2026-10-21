@@ -2,7 +2,6 @@
 // They are cut over every recorded match (any playlist, spectated too): a session is time at the
 // PC, and filters apply inside it.
 import { SESSION_GAP_MS } from "../../shared/constants";
-import { inFilter, type PlaylistFilter } from "../../shared/playlist-filter";
 
 export interface SessionMatch {
   guid: string;
@@ -42,16 +41,6 @@ export function cutSessions(matches: readonly SessionMatch[], breaks: readonly n
     }
   }
   return sessions;
-}
-
-/** The sessions with at least one match you played under the filter; the rest (spectating only, say) aren't listed. */
-export function sessionsPlayed(
-  sessions: readonly Session[],
-  rows: readonly { guid: string; playlistId: number | null; me: object | null }[],
-  filter: PlaylistFilter,
-): Session[] {
-  const played = new Set(rows.filter((r) => r.me !== null && inFilter(r.playlistId, filter)).map((r) => r.guid));
-  return sessions.filter((s) => s.guids.some((g) => played.has(g)));
 }
 
 /**

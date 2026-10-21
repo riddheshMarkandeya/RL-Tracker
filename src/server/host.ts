@@ -1,5 +1,6 @@
-// The tracker's HTTP server on loopback. Binding its port first is the single-instance guard; for
-// now it only serves the shutdown endpoint, and the dashboard (WP5a) adds its routes here.
+// The tracker's HTTP server on loopback. Binding its port first is the single-instance guard. It
+// serves the shutdown endpoint itself; the dashboard is mounted once storage is open.
+import type { Server } from "bun";
 import { DASHBOARD_HOST } from "../shared/constants";
 import type { Logger } from "./log";
 
@@ -19,8 +20,13 @@ export interface HostOptions {
   logger: Logger;
 }
 
+/** Gets the server too, so a long-lived response (SSE) can lift its idle timeout. */
+export type Handler = (req: Request, server: Server<undefined>) => Response | Promise<Response>;
+
 export interface Host {
   port: number;
+  /** Serves every request past the Host check and the shutdown route; once only. */
+  mount(handler: Handler): void;
   stop(): void;
 }
 
@@ -28,8 +34,9 @@ export interface Host {
 export function startHost({ port, onShutdown, logger }: HostOptions): Host {
   // Filled once bound: port 0 (tests) only knows its real port then.
   const allowedHosts = new Set<string>();
+  let mounted: Handler | undefined;
 
-  function handle(req: Request): Response {
+  function handle(req: Request, server: Server<undefined>): Response | Promise<Response> {
     // A page on another site can resolve its own name to 127.0.0.1 (DNS rebinding) and then talk
     // to us as same-origin, custom headers included; its Host header still names its own site.
     const host = req.headers.get("host") ?? "";
@@ -48,7 +55,8 @@ export function startHost({ port, onShutdown, logger }: HostOptions): Host {
       setTimeout(onShutdown, 0);
       return new Response("Stopping", { status: 202 });
     }
-    return new Response("Not found", { status: 404 });
+    if (mounted) return mounted(req, server);
+    return Response.json({ error: "starting" }, { status: 503 });
   }
 
   let server: ReturnType<typeof Bun.serve>;
@@ -64,6 +72,10 @@ export function startHost({ port, onShutdown, logger }: HostOptions): Host {
   logger.info("host", "listening", { port: bound });
   return {
     port: bound,
+    mount: (handler) => {
+      if (mounted) throw new Error("a handler is already mounted");
+      mounted = handler;
+    },
     stop: () => {
       void server.stop(true);
     },

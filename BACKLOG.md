@@ -4,9 +4,12 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP5a-b (API; handoff in the roadmap). WP5a-a (query logic,
-  `docs/plans/2026-10-21-wp5a-a-query-logic.md`) is done, not committed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
+  WP5b (handoff in the roadmap). WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are
+  deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
   `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
+  - **[feature, Med, Standard]** WP5b: share one `/api/events` stream across tabs (a SharedWorker or BroadcastChannel); one
+    per tab uses up the browser's 6 connections per host at 6 tabs, and further fetches hang.
+    Record: `docs/reviews/2026-10-21-wp5a-b-api.md`.
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.

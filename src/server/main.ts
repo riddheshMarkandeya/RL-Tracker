@@ -1,9 +1,11 @@
+import { createApi, type Api } from "./api";
 import { EXIT_CONFIG_INVALID, EXIT_OK, EXIT_PORT_TAKEN, EXIT_START_FAILED } from "./exit-codes";
 import { startGameWatch, type GameWatch } from "./game-watch";
 import { PortTakenError, startHost, type Host } from "./host";
 import { log } from "./log";
 import { scheduleMaintenance, type Maintenance } from "./maintenance";
-import { dashboardPort, dataDir } from "./paths";
+import { dashboardPort, dataDir, staticDir } from "./paths";
+import { createQueryReader } from "./query/read";
 import { startStatsClient, statsApiUrl, type StatsClient } from "./recorder/client";
 import { createRecorder, type Recorder } from "./recorder/recorder";
 import { toRecord } from "./records/record";
@@ -19,6 +21,7 @@ interface Parts {
   maintenance?: Maintenance;
   client?: StatsClient;
   gameWatch?: GameWatch;
+  api?: Api;
 }
 
 function main(): void {
@@ -31,6 +34,7 @@ function main(): void {
     if (stopping) return; // a signal and the endpoint can arrive together
     stopping = true;
     const steps: [string, () => unknown][] = [
+      ["api", () => parts.api?.stop()],
       ["client", () => parts.client?.stop()],
       ["game_watch", () => parts.gameWatch?.stop()],
       // The socket's own close comes too late to run before exit; the last scoreboard is written here.
@@ -88,7 +92,10 @@ function main(): void {
       logger: log,
       // A failed write is logged by the recorder as hook_failed; recompute can rebuild it.
       onMatchFinished: (s) => {
-        writer.save(toRecord(s));
+        const record = toRecord(s);
+        writer.save(record);
+        // Startup recovery finishes matches before the API exists; no page is open then.
+        parts.api?.matchEnded(record.match.guid);
       },
     });
     recorder.recoverAtStartup();
@@ -103,7 +110,15 @@ function main(): void {
 
   parts.maintenance = scheduleMaintenance({ storage, isRecording: recorder.isRecording });
   const client = (parts.client = startStatsClient({ url, recorder, logger: log }));
-  parts.gameWatch = startGameWatch({ client, logger: log, expectedWebPort: expectedPort(url) });
+  const gameWatch = (parts.gameWatch = startGameWatch({ client, logger: log, expectedWebPort: expectedPort(url) }));
+  const api = (parts.api = createApi({
+    tracker: storage.tracker,
+    reader: createQueryReader({ tracker: storage.tracker, logger: log }),
+    status: () => ({ connection: client.status(), statsApiOff: gameWatch.statsApiOff(), configProblems: gameWatch.statsConfig()?.problems ?? [] }),
+    staticDir: staticDir(),
+    logger: log,
+  }));
+  parts.host.mount(api.handle);
 }
 
 main();
