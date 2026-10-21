@@ -69,5 +69,36 @@
       "CLOSE_UNDER": 2560,
       "LONG_FROM": 5120
     }
+  },
+  "session_cut": {
+    "version": 1,
+    "constants": {
+      "SESSION_GAP_MS": 1800000
+    }
+  },
+  "local_day": {
+    "version": 1,
+    "constants": {
+      "DAY_CUTOFF_HOUR": 4
+    }
+  },
+  "week_start": {
+    "version": 1,
+    "constants": {
+      "WEEK_START_DAY": 1
+    }
+  },
+  "rolling_periods": {
+    "version": 1,
+    "constants": {
+      "ROLLING_SHORT_DAYS": 7,
+      "ROLLING_LONG_DAYS": 30
+    }
+  },
+  "baseline_30_day": {
+    "version": 1,
+    "constants": {
+      "BASELINE_DAYS": 30
+    }
   }
 }

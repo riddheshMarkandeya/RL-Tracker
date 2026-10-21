@@ -9,6 +9,7 @@ const AREA_TITLES: Readonly<Record<Area, string>> = {
   attribution: "Attribution",
   extras: "Extras",
   goals: "Goals",
+  queries: "Queries",
 };
 
 const HEADER = `# Stat rule definitions

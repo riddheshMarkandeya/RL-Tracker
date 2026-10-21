@@ -6,6 +6,11 @@ export const SESSION_GAP_MS = 30 * 60 * 1000;
 export const DAY_CUTOFF_HOUR = 4;
 /** First day of the week, as Date.getDay() numbers it (1 = Monday). */
 export const WEEK_START_DAY = 1;
+/** The short and long rolling periods, in local days counting today. */
+export const ROLLING_SHORT_DAYS = 7;
+export const ROLLING_LONG_DAYS = 30;
+/** A session's recap compares it with this many local days before it. */
+export const BASELINE_DAYS = 30;
 /** The goal lines are at Y ±5120 on the pitch, goal line to goal line 10240 uu. */
 export const GOAL_LINE_Y = 5120;
 /** How long raw match data is kept. */

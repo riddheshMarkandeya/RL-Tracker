@@ -1,7 +1,16 @@
 // The stat rules as data: our own reading of the game's events, one entry per rule, with what it
 // rests on. The definitions doc is generated from here, and a test keeps the two in sync. The
 // constants are the values the code runs on, not copies.
-import { GOAL_LINE_Y, RETENTION_DAYS } from "../../shared/constants";
+import {
+  BASELINE_DAYS,
+  DAY_CUTOFF_HOUR,
+  GOAL_LINE_Y,
+  RETENTION_DAYS,
+  ROLLING_LONG_DAYS,
+  ROLLING_SHORT_DAYS,
+  SESSION_GAP_MS,
+  WEEK_START_DAY,
+} from "../../shared/constants";
 import { CLOSE_UNDER, LONG_FROM } from "../../shared/goal-range";
 import { AERIAL_MIN_Z, CORNER_MAX_XY_SUM, HARDEST_SHOT_MAX_KMH, SIDE_WALL_X, WALL_MARGIN } from "../recorder/extras";
 import { CAR_SAMPLE_CAP_MS, TOUCH_MERGE_MS, WOODWORK_WINDOW_MS } from "../recorder/play";
@@ -17,7 +26,7 @@ import { CAMERA_SHARE } from "../recorder/summary";
 export type Applied = "stored" | "recorded" | "read";
 
 /** The order the generated doc lists the areas in. */
-export const AREAS = ["recording", "match", "identity", "attribution", "extras", "goals"] as const;
+export const AREAS = ["recording", "match", "identity", "attribution", "extras", "goals", "queries"] as const;
 
 export type Area = (typeof AREAS)[number];
 
@@ -61,6 +70,8 @@ const ADR_EXTRAS = "docs/decisions/2026-10-20-match-extras-play-view.md";
 const PLAN_WP4B = "docs/plans/2026-10-20-wp4b-match-extras.md";
 const ADR_THINNING = "docs/decisions/2026-10-20-raw-thinning.md";
 const PLAN_WP4CB = "docs/plans/2026-10-20-wp4c-b-retention-split.md";
+const MAP = "docs/plans/2026-10-15-rl-tracker-features-map.md";
+const PLAN_WP5AA = "docs/plans/2026-10-21-wp5a-a-query-logic.md";
 
 const p = (column: string) => `match_players.${column}`;
 const m = (column: string) => `matches.${column}`;
@@ -407,6 +418,16 @@ export const RULES: readonly Rule[] = [
     applied: "recorded",
     refs: [ADR_RECORDS, PLAN_WP4A],
   },
+  {
+    id: "your_row",
+    area: "identity",
+    rule: "You, in a match, are the player whose PrimaryId is in my_ids and not rejected (a pending guess counts); none is a spectated match, with no result and not in your stats. Two of your ids in one match: the camera's is you, else the lowest key, logged once per match.",
+    checks: [],
+    evidence: "Found at read time, so confirming or rejecting an id re-labels every match. Two ids in one lobby has never been seen; it is logged (query/two_yous) to fit the rule when it happens.",
+    version: 1,
+    applied: "read",
+    refs: [PLAN_WP4A, PLAN_WP5AA],
+  },
   // attribution
   {
     id: "live_play_window",
@@ -525,6 +546,16 @@ export const RULES: readonly Rule[] = [
     dense: true,
     refs: [ADR_EXTRAS, PLAN_WP4B],
   },
+  {
+    id: "car_share_aggregate",
+    area: "extras",
+    rule: "Across matches, average boost is weighted by car_ms, and the supersonic and empty-boost shares are summed ms over summed car_ms, over matches with car_ms; the extras count only matches that have them computed (woodwork_hits not null).",
+    checks: [],
+    evidence: "A plain mean of per-match boost would weigh a forfeit like a full match.",
+    version: 1,
+    applied: "read",
+    refs: [PLAN_WP4B, PLAN_WP5AA],
+  },
   // goals
   {
     id: "goal_origin",
@@ -614,6 +645,102 @@ export const RULES: readonly Rule[] = [
     version: 1,
     applied: "read",
     refs: [ADR_EXTRAS, PLAN_WP4B],
+  },
+  // queries
+  {
+    id: "session_cut",
+    area: "queries",
+    rule: "A match starts a new session when it begins more than SESSION_GAP_MS after the latest end so far, or after a manual break placed since the previous match began. Sessions are cut over every match, any playlist and spectated too; one with none of your matches under the filter isn't listed.",
+    constants: { SESSION_GAP_MS },
+    checks: [],
+    evidence: "A session is time at the PC; a break during a match cuts before the next one.",
+    version: 1,
+    applied: "read",
+    refs: [MAP, PLAN_WP5AA],
+  },
+  {
+    id: "session_key",
+    area: "queries",
+    rule: "A session's key is its first match's GUID.",
+    checks: [],
+    evidence: "Stable across recomputes; a re-cut that moves the first match gives a new key and fresh remark picks (user's choice).",
+    version: 1,
+    applied: "read",
+    refs: [PLAN_WP5AA],
+  },
+  {
+    id: "local_day",
+    area: "queries",
+    rule: "A local day starts at DAY_CUTOFF_HOUR, so late-night play counts toward the day before; days are counted on calendar fields, so edges stay at the cutoff across DST.",
+    constants: { DAY_CUTOFF_HOUR },
+    checks: [],
+    evidence: "The map's display rule: local time with a 4am cutoff, so a session past midnight stays on its evening's day.",
+    version: 1,
+    applied: "read",
+    refs: [MAP, PLAN_WP5AA],
+  },
+  {
+    id: "week_start",
+    area: "queries",
+    rule: "A week starts on WEEK_START_DAY (Date.getDay numbering) at the day cutoff; months and years start on the 1st at the cutoff.",
+    constants: { WEEK_START_DAY },
+    checks: [],
+    evidence: "The map: weeks start Monday, calendar months. With the cutoff, Monday 03:30 is still the week before.",
+    version: 1,
+    applied: "read",
+    refs: [MAP, PLAN_WP5AA],
+  },
+  {
+    id: "season_range",
+    area: "queries",
+    rule: "A season runs from its start date's day start to the next season's, ordered by start date; the last one is open-ended.",
+    checks: [],
+    evidence: "Season dates come from the editable seasons table, so order is by date, not id.",
+    version: 1,
+    applied: "read",
+    refs: [PLAN_WP5AA],
+  },
+  {
+    id: "rolling_periods",
+    area: "queries",
+    rule: "The rolling periods are today and the days before it, ROLLING_SHORT_DAYS and ROLLING_LONG_DAYS local days in all, from the first day's start to now.",
+    constants: { ROLLING_SHORT_DAYS, ROLLING_LONG_DAYS },
+    checks: [],
+    evidence: "Counted in local days, not 24 h steps, so a window across DST still starts at the cutoff.",
+    version: 1,
+    applied: "read",
+    refs: [MAP, PLAN_WP5AA],
+  },
+  {
+    id: "playlist_filters",
+    area: "queries",
+    rule: "Everything leaves out private (6, 26) and offline playlists; ranked is the ranked group without Official Tournament; casual is ids 1–4; extra modes include the LTMs; any single playlist can be picked.",
+    checks: [],
+    evidence: "Friends' lobbies and bot games would skew overall stats and the baseline, and extra modes per-game stats (map; user's choices); Official Tournament has its own rank.",
+    version: 1,
+    applied: "read",
+    refs: [MAP, PLAN_WP5AA],
+  },
+  {
+    id: "baseline_30_day",
+    area: "queries",
+    rule: "A session's baseline is your matches under the same filters from the same local time BASELINE_DAYS days before the session's start, up to that start.",
+    constants: { BASELINE_DAYS },
+    checks: [],
+    evidence: "The session isn't compared with itself, and an old session is compared with its own era (user's choice).",
+    version: 1,
+    applied: "read",
+    refs: [MAP, PLAN_WP5AA],
+  },
+  {
+    id: "streaks",
+    area: "queries",
+    rule: "Win and loss streaks run in start order; a match with no result neither extends nor breaks one.",
+    checks: [],
+    evidence: "A restart leaves the result unknown, which says nothing about the run.",
+    version: 1,
+    applied: "read",
+    refs: [PLAN_WP5AA],
   },
 ];
 

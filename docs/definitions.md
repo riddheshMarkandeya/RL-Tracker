@@ -281,6 +281,13 @@ The camera's PrimaryId becomes a pending my_ids guess unless it is already in my
 
 - **Evidence**: 46 real matches gave exactly one pending guess, the user's.
 - **Decided in**: `docs/decisions/2026-10-20-match-records-per-player.md`, `docs/plans/2026-10-20-wp4a-match-records.md`
+
+### `your_row` · v1 · read
+
+You, in a match, are the player whose PrimaryId is in my_ids and not rejected (a pending guess counts); none is a spectated match, with no result and not in your stats. Two of your ids in one match: the camera's is you, else the lowest key, logged once per match.
+
+- **Evidence**: Found at read time, so confirming or rejecting an id re-labels every match. Two ids in one lobby has never been seen; it is logged (query/two_yous) to fit the rule when it happens.
+- **Decided in**: `docs/plans/2026-10-20-wp4a-match-records.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
 ## Attribution
 
 ### `live_play_window` · v1 · recorded
@@ -376,6 +383,13 @@ car_ms is the samples' total weight, boost_avg the weighted mean Boost (0–100)
 - **Writes**: `match_players.car_ms`, `match_players.boost_avg`, `match_players.supersonic_ms`, `match_players.empty_boost_ms`
 - **Evidence**: Stored as ms beside car_ms, so a share across matches is a ratio of sums.
 - **Decided in**: `docs/decisions/2026-10-20-match-extras-play-view.md`, `docs/plans/2026-10-20-wp4b-match-extras.md`
+
+### `car_share_aggregate` · v1 · read
+
+Across matches, average boost is weighted by car_ms, and the supersonic and empty-boost shares are summed ms over summed car_ms, over matches with car_ms; the extras count only matches that have them computed (woodwork_hits not null).
+
+- **Evidence**: A plain mean of per-match boost would weigh a forfeit like a full match.
+- **Decided in**: `docs/plans/2026-10-20-wp4b-match-extras.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
 ## Goals
 
 ### `goal_origin` · v1 · recorded
@@ -445,3 +459,72 @@ A goal is close under CLOSE_UNDER (a quarter of the pitch), long from LONG_FROM 
 - **Constants**: `CLOSE_UNDER` = 2560, `LONG_FROM` = 5120
 - **Evidence**: The game's LongGoal follows no simple distance rule, so the classes are ours.
 - **Decided in**: `docs/decisions/2026-10-20-match-extras-play-view.md`, `docs/plans/2026-10-20-wp4b-match-extras.md`
+## Queries
+
+### `session_cut` · v1 · read
+
+A match starts a new session when it begins more than SESSION_GAP_MS after the latest end so far, or after a manual break placed since the previous match began. Sessions are cut over every match, any playlist and spectated too; one with none of your matches under the filter isn't listed.
+
+- **Constants**: `SESSION_GAP_MS` = 1800000
+- **Evidence**: A session is time at the PC; a break during a match cuts before the next one.
+- **Decided in**: `docs/plans/2026-10-15-rl-tracker-features-map.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `session_key` · v1 · read
+
+A session's key is its first match's GUID.
+
+- **Evidence**: Stable across recomputes; a re-cut that moves the first match gives a new key and fresh remark picks (user's choice).
+- **Decided in**: `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `local_day` · v1 · read
+
+A local day starts at DAY_CUTOFF_HOUR, so late-night play counts toward the day before; days are counted on calendar fields, so edges stay at the cutoff across DST.
+
+- **Constants**: `DAY_CUTOFF_HOUR` = 4
+- **Evidence**: The map's display rule: local time with a 4am cutoff, so a session past midnight stays on its evening's day.
+- **Decided in**: `docs/plans/2026-10-15-rl-tracker-features-map.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `week_start` · v1 · read
+
+A week starts on WEEK_START_DAY (Date.getDay numbering) at the day cutoff; months and years start on the 1st at the cutoff.
+
+- **Constants**: `WEEK_START_DAY` = 1
+- **Evidence**: The map: weeks start Monday, calendar months. With the cutoff, Monday 03:30 is still the week before.
+- **Decided in**: `docs/plans/2026-10-15-rl-tracker-features-map.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `season_range` · v1 · read
+
+A season runs from its start date's day start to the next season's, ordered by start date; the last one is open-ended.
+
+- **Evidence**: Season dates come from the editable seasons table, so order is by date, not id.
+- **Decided in**: `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `rolling_periods` · v1 · read
+
+The rolling periods are today and the days before it, ROLLING_SHORT_DAYS and ROLLING_LONG_DAYS local days in all, from the first day's start to now.
+
+- **Constants**: `ROLLING_SHORT_DAYS` = 7, `ROLLING_LONG_DAYS` = 30
+- **Evidence**: Counted in local days, not 24 h steps, so a window across DST still starts at the cutoff.
+- **Decided in**: `docs/plans/2026-10-15-rl-tracker-features-map.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `playlist_filters` · v1 · read
+
+Everything leaves out private (6, 26) and offline playlists; ranked is the ranked group without Official Tournament; casual is ids 1–4; extra modes include the LTMs; any single playlist can be picked.
+
+- **Evidence**: Friends' lobbies and bot games would skew overall stats and the baseline, and extra modes per-game stats (map; user's choices); Official Tournament has its own rank.
+- **Decided in**: `docs/plans/2026-10-15-rl-tracker-features-map.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `baseline_30_day` · v1 · read
+
+A session's baseline is your matches under the same filters from the same local time BASELINE_DAYS days before the session's start, up to that start.
+
+- **Constants**: `BASELINE_DAYS` = 30
+- **Evidence**: The session isn't compared with itself, and an old session is compared with its own era (user's choice).
+- **Decided in**: `docs/plans/2026-10-15-rl-tracker-features-map.md`, `docs/plans/2026-10-21-wp5a-a-query-logic.md`
+
+### `streaks` · v1 · read
+
+Win and loss streaks run in start order; a match with no result neither extends nor breaks one.
+
+- **Evidence**: A restart leaves the result unknown, which says nothing about the run.
+- **Decided in**: `docs/plans/2026-10-21-wp5a-a-query-logic.md`

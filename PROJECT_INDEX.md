@@ -11,7 +11,10 @@ maybe later.
   summary, checks, `play.ts` live-play view, `extras.ts` stat registry, `read-match.ts`, `thin.ts`
   which old UpdateStates retention deletes); `records/`: `record.ts` summary → rows, `save.ts` writer,
   `recompute.ts`, `rules-diff.ts`); `rules/`: `registry.ts` every stat rule with its version,
-  `definitions.ts` renders the doc), `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts` close/mid/long),
+  `definitions.ts` renders the doc; `query/`: `read.ts` match records for pages with "you"
+  joined, `sessions.ts` session cutting, `aggregate.ts` stats and the 30-day baseline),
+  `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts`
+  close/mid/long, `periods.ts` local days and periods, `playlist-filter.ts` filter groups),
   `scripts/` (standalone `capture.ts`; `stop.ts`, `autostart.ts`, `replay.ts` fake Stats API,
   `import-capture.ts` (also writes records), `recompute.ts`, `make-fixture.ts`, `definitions.ts`,
   `rules-diff.ts`), `test/fixtures/`
@@ -43,6 +46,9 @@ maybe later.
   kept).
 
 ## Decisions
+- `docs/decisions/2026-10-21-query-sessions-baseline.md`: sessions cut at read time over every
+  match, key = first match's GUID; baseline = 30 days before the session; "everything" leaves out
+  private and offline.
 - `docs/decisions/2026-10-20-raw-thinning.md`: retention thins old UpdateStates and keeps every
   other event; dense outputs snapshotted; flagged matches kept whole; dense rules in the registry.
 - `docs/decisions/2026-10-20-rule-registry-versions.md`: one rule registry generates the
@@ -60,6 +66,9 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-21-wp5a-a-query-logic.md`: WP5a-a plan (periods, playlist filters, sessions,
+  aggregates, baseline, read layer, `queries` rules), real-DB figures, review log.
+- `docs/reviews/2026-10-21-wp5a-a-query-logic.md`: WP5a-a review summary (2 rounds).
 - `docs/plans/2026-10-20-wp4c-b-retention-split.md`: WP4c-b plan (thinning rule, raw migration 2,
   snapshot substitution in `readMatch`, dense rules, retention rewrite), 46-match figures, review log.
 - `docs/plans/2026-10-20-wp4c-a-rule-registry.md`: WP4c-a plan (registry and backfill, generated

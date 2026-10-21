@@ -4,7 +4,8 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP5a Query logic and API. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
+  WP5a-b (API; handoff in the roadmap). WP5a-a (query logic,
+  `docs/plans/2026-10-21-wp5a-a-query-logic.md`) is done, not committed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
   `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
@@ -35,6 +36,9 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: a `query/two_yous` warn in `tracker.log` (two of your
+  ids in one match, never seen). Pages take the camera's player, else the lowest key; check that
+  match and fit the rule to it. Record: `docs/plans/2026-10-21-wp5a-a-query-logic.md`.
 - [ ] **[design, Low, Standard]** Trigger: a `retention/kept_whole` with reason `trimmed` (a match
   that lost its start; only the old time-based retention could cut one, and it never reached a
   match) or a `retention/thin_failed` that repeats daily. Look at that match, then thin it or
