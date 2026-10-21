@@ -22,16 +22,6 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   4). It's one ~75 MB step at replay start, then flat, while private bytes barely moved: likely
   shared or file-backed pages, not heap. Next: measure private bytes vs shared WS in a real match.
   Record: "Footprint" in `docs/plans/2026-10-19-wp3b-background-process.md`.
-- [ ] **[test-coverage, High, Standard]** `src/server/main.test.ts` and `src/server/host.test.ts` are flaky: 1 of 4 `bun run check`
-  runs on 2026-10-20 failed one of its process tests. One run failed "a second instance exits 3…"
-  with a `JSON Parse error: Unexpected EOF`; another failed "shutdown with the header answers 202
-  first…". The file has been unchanged since WP3b, and the failures look like timing between spawn
-  and HTTP. Found while closing the WP4b review. 2026-10-20 (WP4c-a deploy): the 202 test is in
-  `src/server/host.test.ts`, and its cause is found: the host calls `setTimeout(onShutdown, 0)`, which
-  under 40 parallel workers can fire before the client's `fetch` resolves, so `shutdowns()` is
-  already 1 at the first assert. Passes 6/6 alone. Fix: assert the order without racing a 0 ms timer.
-  By the end of WP4c-a it failed about half of full `bun run check` runs (4 of 7), so it blocks
-  `bun run deploy`: fix it before the next deploy.
 - [ ] **[refactor, Low, Standard]** `scripts/capture.ts` keeps its own envelope parse
   (`eventNameOf`/`matchGuidOf`), hardcoded URL and reconnect loop; reuse `parseFrame`,
   `statsApiUrl` and maybe `startStatsClient`, or retire it now the recorder stores raw events.

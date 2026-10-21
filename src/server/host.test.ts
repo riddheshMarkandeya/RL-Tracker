@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { PortTakenError, startHost, type Host } from "./host";
 import { memoryLogger } from "./testing";
 
@@ -6,6 +6,7 @@ describe("startHost", () => {
   const hosts: Host[] = [];
   afterEach(() => {
     for (const h of hosts.splice(0)) h.stop();
+    vi.useRealTimers();
   });
 
   const start = (port = 0) => {
@@ -32,11 +33,13 @@ describe("startHost", () => {
   });
 
   test("shutdown with the header answers 202 first, then calls onShutdown", async () => {
+    // Only setTimeout is faked, so fetch and serve still run for real; the deferred onShutdown can't race the response.
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
     const { url, logger, shutdowns } = start();
     const res = await fetch(url("/api/shutdown"), { method: "POST", headers: { "X-RLTracker-Shutdown": "1" } });
     expect(res.status).toBe(202);
     expect(shutdowns()).toBe(0);
-    await Bun.sleep(10);
+    vi.runAllTimers();
     expect(shutdowns()).toBe(1);
     expect(logger.events()).toContain("host/shutdown_requested");
   });

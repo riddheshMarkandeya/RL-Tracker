@@ -53,9 +53,10 @@ describe("main as a process", () => {
   const events = (dataDir: string) => {
     const file = join(dataDir, "tracker.log");
     if (!existsSync(file)) return [];
+    // The child may be mid-append: only text before the last "\n" is whole lines.
     return readFileSync(file, "utf8")
-      .trim()
       .split("\n")
+      .slice(0, -1)
       .map((l) => JSON.parse(l) as { cat: string; event: string; reason?: string; pid?: number });
   };
   const has = (dataDir: string, event: string) => events(dataDir).some((e) => `${e.cat}/${e.event}` === event);
