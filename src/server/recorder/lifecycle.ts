@@ -6,8 +6,11 @@
 export type Phase = "pending" | "live" | "ended";
 /** How a match closed: the stream's MatchDestroyed, or one of the recorder's orphan causes. */
 export type CloseVia = "destroyed" | OrphanCause;
+
 export const ORPHAN_CAUSES = ["timeout", "restart", "superseded"] as const;
 export type OrphanCause = (typeof ORPHAN_CAUSES)[number];
+/** No events for the open match this long means the game went away without a MatchDestroyed. */
+export const ORPHAN_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface OpenMatch {
   guid: string;

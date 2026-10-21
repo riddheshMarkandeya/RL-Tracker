@@ -21,14 +21,14 @@ afterEach(() => {
 });
 
 describe("openStorage", () => {
-  test("a fresh start creates both DBs at v1 with their tables and the season seed", () => {
+  test("a fresh start creates both DBs at their latest versions with their tables and the season seed", () => {
     const logger = memoryLogger();
     storage = openStorage({ dir, logger, now });
     const { tracker, raw } = storage;
     expect(existsSync(join(dir, "tracker.db"))).toBe(true);
     expect(existsSync(join(dir, "raw.db"))).toBe(true);
     expect(tracker.pragma("user_version")).toBe(trackerMigrations.length);
-    expect(raw.pragma("user_version")).toBe(1);
+    expect(raw.pragma("user_version")).toBe(rawMigrations.length);
     expect(raw.pragma("auto_vacuum")).toBe(2);
     // raw.db holds re-recordable event data; tracker.db keeps full durability.
     expect(raw.pragma("synchronous")).toBe(1);
@@ -40,14 +40,14 @@ describe("openStorage", () => {
     ]);
     const names = (d: typeof tracker) => d.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").map((r) => r.name);
     expect(names(tracker)).toEqual(["match_goals", "match_player_statfeed", "match_players", "matches", "my_ids", "seasons", "session_breaks", "settings"]);
-    expect(names(raw)).toEqual(["events"]);
+    expect(names(raw)).toEqual(["events", "retention_matches"]);
     expect(logger.lines.filter((l) => l.event === "migrated").map((l) => l.fields)).toMatchObject([
       { db: "tracker", from: 0, to: trackerMigrations.length },
-      { db: "raw", from: 0, to: 1 },
+      { db: "raw", from: 0, to: rawMigrations.length },
     ]);
     expect(logger.lines.filter((l) => l.event === "opened").map((l) => l.fields)).toMatchObject([
       { db: "tracker", version: trackerMigrations.length },
-      { db: "raw", version: 1 },
+      { db: "raw", version: rawMigrations.length },
     ]);
   });
 

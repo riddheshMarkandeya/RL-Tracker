@@ -83,6 +83,12 @@ export interface MatchSummary {
   extras: MatchExtras | null;
   /** Why computing the extras threw, if it did. */
   extrasError: string | null;
+  /**
+   * Set when retention thinned the match: the dense rules' versions its snapshot was taken under,
+   * the snapshot's keys missing from the roster (their values are lost), and the dense rules it
+   * predates (their outputs are null).
+   */
+  thinned: { ruleVersions: Record<string, number>; offRoster: string[]; unsnapshotted: string[] } | null;
   /** Ids of failed checks. */
   flags: string[];
 }
@@ -107,7 +113,7 @@ function uniqueTop<T>(items: readonly T[], value: (item: T) => number): T | null
 export const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 export const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 /** The objects in an array field, skipping any other entry. */
-const objects = (v: unknown): Data[] => (Array.isArray(v) ? v.filter(isObject) : []);
+export const objects = (v: unknown): Data[] => (Array.isArray(v) ? v.filter(isObject) : []);
 export const players = (data: Data): Data[] => objects(data.Players);
 
 /** Both teams' goals from a state's `Game`, or null unless both are whole and non-negative. */
@@ -385,6 +391,7 @@ export function summarise(guid: string, events: readonly StoredEvent[], close: {
     dedupDropped: close.dedupDropped,
     extras: null,
     extrasError: null,
+    thinned: null,
     flags: [],
   };
 }

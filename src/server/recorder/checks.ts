@@ -161,6 +161,18 @@ const CHECKS: readonly Check[] = [
   // The origin rule leans on BallHit; this keeps a disagreement with the game's own last touch visible.
   { id: "goal_last_touch_agrees", run: withExtras((_, x) => fails(x.facts.lastTouchDisagrees, "goal(s) whose last touch isn't the last hit")) },
   { id: "extras_in_range", run: withExtras(extrasOutOfRange) },
+  {
+    // A key change since thinning would otherwise drop the frozen car stats and camera silently.
+    id: "thinned_snapshot_on_roster",
+    appliesTo: (s) => s.thinned !== null,
+    run: (s) => (s.thinned?.offRoster.length ? `snapshot key(s) not on the roster: ${s.thinned.offRoster.join(", ")}` : null),
+  },
+  {
+    // A rule marked dense after thinning has no snapshot, and its outputs read null.
+    id: "thinned_snapshot_covers_dense",
+    appliesTo: (s) => s.thinned !== null,
+    run: (s) => (s.thinned?.unsnapshotted.length ? `dense rule(s) newer than the snapshot: ${s.thinned.unsnapshotted.join(", ")}` : null),
+  },
 ];
 
 export const CHECK_IDS: readonly string[] = CHECKS.map((c) => c.id);

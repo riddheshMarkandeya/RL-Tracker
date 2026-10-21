@@ -6,14 +6,11 @@ import type { Logger } from "../log";
 import type { CheckFailure } from "./checks";
 import { parseFrame, type Data, type StatsEvent } from "./envelope";
 import { unknownFields } from "./known-fields";
-import { initialLife, isCloseMarker, orphan, rebuild, RECORDER_CLOSED, recorderClosedData, step, type CloseVia, type Effect, type Life, type OrphanCause } from "./lifecycle";
+import { initialLife, isCloseMarker, orphan, ORPHAN_TIMEOUT_MS, rebuild, RECORDER_CLOSED, recorderClosedData, step, type CloseVia, type Effect, type Life, type OrphanCause } from "./lifecycle";
 import { readMatch } from "./read-match";
 import { createUpdateStateSampler, UPDATE_STATE_INTERVAL_MS } from "./sampler";
 import { createRawStore, newTrimState, trimForStorage, type TrimState } from "./store";
 import type { MatchSummary } from "./summary";
-
-/** No events for the open match this long means the game went away without a MatchDestroyed. */
-export const ORPHAN_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface RecorderOptions {
   raw: Db;

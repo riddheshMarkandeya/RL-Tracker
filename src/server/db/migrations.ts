@@ -125,4 +125,20 @@ export const rawMigrations: readonly string[] = [
   );
   CREATE INDEX events_ts ON events (ts);
   `,
+  // What retention decided for each match past the window: thinned (with the dense outputs its
+  // thinned events can't give back) or kept whole as exempt.
+  `
+  CREATE TABLE retention_matches (
+    match_guid    TEXT PRIMARY KEY,
+    status        TEXT NOT NULL CHECK (status IN ('thinned', 'exempt')),
+    decided_at    INTEGER NOT NULL,
+    rule_versions TEXT NOT NULL, -- JSON RECORDED_RULE_VERSIONS when decided
+    flags         TEXT,          -- exempt: JSON check ids that kept it whole
+    outputs       TEXT,          -- thinned: JSON {cameraKey, players: {key: {column: value}}, denseRules}
+    states_before INTEGER,
+    states_after  INTEGER
+  );
+  -- No query filters on ts; the index only slows inserts.
+  DROP INDEX events_ts;
+  `,
 ];

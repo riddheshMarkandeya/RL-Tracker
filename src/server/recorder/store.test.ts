@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { rawMigrations } from "../db/migrations";
+import { openDb } from "../db/sqlite";
 import { openStorage, type Storage } from "../storage";
 import { memoryLogger } from "../testing";
 import { createRawStore, newTrimState, trimForStorage, type RawStore } from "./store";
@@ -33,6 +35,29 @@ describe("createRawStore", () => {
     store.insert({ guid: "A", seq: 0, ts: 10, name: "MatchDestroyed", data: {} });
     store.insert({ guid: "B", seq: 0, ts: 11, name: "UpdateState", data: {} });
     expect(store.lastEvent()).toEqual({ guid: "B", name: "UpdateState" });
+  });
+
+  test("thinnedOutputs returns a thinned match's snapshot, and nothing for an exempt or unknown match", () => {
+    const outputs = { cameraKey: "Epic|A|0", players: { "Epic|A|0": { car_ms: 10 } } };
+    storage.raw.run(
+      "INSERT INTO retention_matches (match_guid, status, decided_at, rule_versions, outputs) VALUES ('T', 'thinned', 1, ?, ?)",
+      JSON.stringify({ car_sampling: 1 }),
+      JSON.stringify(outputs),
+    );
+    storage.raw.run("INSERT INTO retention_matches (match_guid, status, decided_at, rule_versions, flags) VALUES ('E', 'exempt', 1, '{}', '[\"x\"]')");
+    expect(store.thinnedOutputs("T")).toEqual({ outputs, ruleVersions: { car_sampling: 1 } });
+    expect(store.thinnedOutputs("E")).toBeUndefined();
+    expect(store.thinnedOutputs("nope")).toBeUndefined();
+  });
+
+  test("thinnedOutputs is undefined on a read-only raw.db from before the retention table", () => {
+    const path = join(dir, "old-raw.db");
+    const old = openDb(path);
+    old.exec(rawMigrations[0] ?? "");
+    old.close();
+    const ro = openDb(path, { readonly: true });
+    expect(createRawStore(ro).thinnedOutputs("T")).toBeUndefined();
+    ro.close();
   });
 
   test("matchEvents returns one guid's events in seq order with parsed data; names lists just the names", () => {

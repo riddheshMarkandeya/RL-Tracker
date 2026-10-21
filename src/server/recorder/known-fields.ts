@@ -26,8 +26,8 @@ const EVENTS: Readonly<Record<string, readonly string[]>> = {
   UpdateState: ["Players", "Game"],
 };
 
-const GAME = new Set(["Teams", "PlaylistId", "TimeSeconds", "bOvertime", "Ball", "bReplay", "bHasWinner", "Winner", "Arena", "bHasTarget", "Target"]);
-const PLAYER = new Set([
+export const GAME: ReadonlySet<string> = new Set(["Teams", "PlaylistId", "TimeSeconds", "bOvertime", "Ball", "bReplay", "bHasWinner", "Winner", "Arena", "bHasTarget", "Target"]);
+export const PLAYER: ReadonlySet<string> = new Set([
   "Name", "PrimaryId", "Shortcut", "TeamNum", "Score", "Goals", "Shots", "Assists", "Saves", "Touches", "CarTouches", "Demos", "Loadout",
   "bOnGround", "bHasCar", "Speed", "Boost", "bBoosting", "bPowersliding", "bSupersonic", "bOnWall", "PickupClass", "bDemolished", "Attacker",
 ]);

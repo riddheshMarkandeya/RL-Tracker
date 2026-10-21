@@ -62,6 +62,7 @@ const clean = (): MatchSummary => ({
     facts: { ...emptyFacts(), playMs: 60_000 },
   },
   extrasError: null,
+  thinned: null,
   flags: [],
 });
 function x(s: MatchSummary) {

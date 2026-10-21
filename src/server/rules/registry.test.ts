@@ -9,7 +9,7 @@ import { CHECK_IDS } from "../recorder/checks";
 import { PLAYER_EXTRAS } from "../recorder/extras";
 import { memoryLogger } from "../testing";
 import { pinsOf, renderDefinitions, unbumpedConstants, type Pins } from "./definitions";
-import { RECORDED_RULE_VERSIONS, RULES } from "./registry";
+import { DENSE_PLAYER_COLUMNS, DENSE_RULE_IDS, MIXED_WITH_DENSE, RECORDED_RULE_VERSIONS, RULES } from "./registry";
 
 const ROOT = join(import.meta.dirname, "..", "..", "..");
 
@@ -76,6 +76,26 @@ describe("the rule registry", () => {
 
   test("the recorded versions are exactly the recorded rules", () => {
     expect(RECORDED_RULE_VERSIONS).toEqual(Object.fromEntries(RULES.filter((r) => r.applied === "recorded").map((r) => [r.id, r.version])));
+  });
+
+  describe("dense rules", () => {
+    // What a thinned match's snapshot holds: its car stats per player, and the camera's key.
+    const snapshot = ["match_players.car_ms", "match_players.boost_avg", "match_players.supersonic_ms", "match_players.empty_boost_ms", "matches.camera_primary_id"];
+
+    test("are the car and camera rules, recorded, and write only what the snapshot holds", () => {
+      expect([...DENSE_RULE_IDS].sort()).toEqual(["camera_identity", "car_sampling", "car_stats"]);
+      expect([...DENSE_PLAYER_COLUMNS].sort()).toEqual(["boost_avg", "car_ms", "empty_boost_ms", "supersonic_ms"]);
+      for (const r of RULES.filter((x) => x.dense)) {
+        expect(r.applied, r.id).toBe("recorded");
+        expect((r.outputs ?? []).filter((o) => !snapshot.includes(o)), r.id).toEqual([]);
+        expect(r.checks, r.id).toContain("thinned_snapshot_on_roster");
+      }
+    });
+
+    test("every other rule feeding the snapshot is listed as mixed, and only those and player_key are", () => {
+      const feeding = RULES.filter((r) => !r.dense && (r.outputs ?? []).some((o) => snapshot.includes(o))).map((r) => r.id);
+      expect([...MIXED_WITH_DENSE].sort()).toEqual([...feeding, "player_key"].sort());
+    });
   });
 
   test("docs/definitions.md is generated from it", () => {

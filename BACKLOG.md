@@ -4,9 +4,8 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP4c-b Retention split (start in plan mode; must ship before mid-January 2027; its decisions
-  are in the roadmap's WP4c section), then WP5a Query logic and API. WP4c-a (rule registry,
-  `rules-diff`) is deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
+  WP5a Query logic and API. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
+  `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.
@@ -22,20 +21,39 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   4). It's one ~75 MB step at replay start, then flat, while private bytes barely moved: likely
   shared or file-backed pages, not heap. Next: measure private bytes vs shared WS in a real match.
   Record: "Footprint" in `docs/plans/2026-10-19-wp3b-background-process.md`.
+- [ ] **[design, Med, Standard]** Retention: verify before deleting. Before the thinning
+  transaction, rebuild the match from the kept events plus the snapshot and compare its record
+  with the full one. On any difference, keep it whole and log `retention/thin_mismatch`. Today a
+  future rule that reads a field thinning drops is caught only by the field-list test and the
+  coarse fixtures; this checks every real match before an irreversible delete. About 15 lines
+  and a test, one extra rebuild per match, no schema change. Do it before mid-January 2027, when
+  the first matches reach 90 days. Record: Review log (`/simplify` altitude #1) in
+  `docs/plans/2026-10-20-wp4c-b-retention-split.md`.
 - [ ] **[refactor, Low, Standard]** `scripts/capture.ts` keeps its own envelope parse
   (`eventNameOf`/`matchGuidOf`), hardcoded URL and reconnect loop; reuse `parseFrame`,
   `statsApiUrl` and maybe `startStatsClient`, or retire it now the recorder stores raw events.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: a `retention/kept_whole` with reason `trimmed` (a match
+  that lost its start; only the old time-based retention could cut one, and it never reached a
+  match) or a `retention/thin_failed` that repeats daily. Look at that match, then thin it or
+  drop the row. Record: `docs/plans/2026-10-20-wp4c-b-retention-split.md`.
+- [ ] **[design, Low, Standard]** Flagged matches are kept whole for good, including expected
+  cases such as `camera_on_roster` on a spectated match (1 of 46 so far, about 2 MB each).
+  Trigger: `exempt` rows hold more raw.db than the thinned ones, or one check accounts for most of
+  them. Then decide whether that check's matches should thin. Record: Review log in
+  `docs/plans/2026-10-20-wp4c-b-retention-split.md`.
 - [ ] **[design, Low, Standard]** Match records treat only team 0 and 1 as real teams (user's
   choice). Knockout (playlist 54, an 8-player free-for-all) may number teams per player, and then
   its players would get no team and no result. Trigger: a captured Knockout match → check its
   `TeamNum`s and decide. Record: Review log round 6 in
   `docs/plans/2026-10-20-wp4a-match-records.md`.
 - [ ] **[bug (latent), Low, Standard]** A match whose close marker failed to store is never closed,
-  so recompute skips it on every run. Trigger: a real `records/recompute_skipped` with reason
-  `open` at warn → let recompute close it (as `restart`) or add a manual close. Record: Review log
+  so recompute skips it on every run, and retention keeps it whole and logs it daily once it is
+  90 days old. Trigger: a real `records/recompute_skipped` with reason `open` at warn, or a
+  `retention/kept_whole` with reason `open` → let recompute close it (as `restart`) or add a
+  manual close. Record: Review log
   round 2 in `docs/plans/2026-10-20-wp4a-match-records.md`.
 - [ ] **[bug (latent), Low, Standard]** A supervisor killed on its own (Task Scheduler's End)
   leaves the tracker running unsupervised; a later supervisor exits on the taken port, so a crash

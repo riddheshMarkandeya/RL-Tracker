@@ -35,11 +35,19 @@ describe("renderDefinitions", () => {
     expect(doc).toContain("`docs/a.md`, `docs/b.md`");
   });
 
+  test("marks a dense rule in its heading, and explains the mark", () => {
+    const doc = renderDefinitions([rule({ id: "car_sampling", dense: true }), rule({ id: "plain" })]);
+    expect(doc).toContain("### `car_sampling` · v1 · recorded · dense");
+    expect(doc).toContain("### `plain` · v1 · recorded\n");
+    expect(doc).toContain("A *dense* rule reads every UpdateState");
+  });
+
   test("leaves out empty fields", () => {
     const doc = renderDefinitions([rule({})]);
     expect(doc).not.toContain("**Constants**");
     expect(doc).not.toContain("**Checks**");
     expect(doc).not.toContain("**Writes**");
+    expect(doc).not.toContain("· dense");
   });
 
   test("groups by area in a fixed order and skips empty areas", () => {

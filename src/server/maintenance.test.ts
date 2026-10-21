@@ -62,11 +62,11 @@ describe("scheduleMaintenance", () => {
   test("a failing run doesn't stop the next one", async () => {
     const logger = memoryLogger();
     let fail = true;
-    const raw = {
+    const raw: Storage["raw"] = {
       ...storage.raw,
-      run: (sql: string, ...params: Parameters<Storage["raw"]["run"]>[1][]) => {
+      all: (sql, ...params) => {
         if (fail) throw new Error("disk I/O error");
-        return storage.raw.run(sql, ...params);
+        return storage.raw.all(sql, ...params);
       },
     };
     const m = scheduleMaintenance({ storage: { ...storage, raw }, logger, now: clockNow, yieldFn });
@@ -111,11 +111,11 @@ describe("scheduleMaintenance", () => {
     expect(logger.events()).toEqual([]);
   });
 
-  test("stop() waits for a run in progress, which stops at the next batch", async () => {
-    // More than one 5000-row batch, so the run pauses between batches.
-    storage.raw.transaction(() => {
-      for (let i = 0; i < 6000; i++) storage.raw.run("INSERT INTO events(match_guid, seq, ts, name, data) VALUES ('old', ?, ?, 'UpdateState', '{}')", i, NOW.getTime() - (RETENTION_DAYS + 1) * DAY);
-    });
+  test("stop() waits for a run in progress, which stops at the next match", async () => {
+    // Two old matches, so the run pauses between them.
+    for (const guid of ["old1", "old2"]) {
+      storage.raw.run("INSERT INTO events(match_guid, seq, ts, name, data) VALUES (?, 0, ?, 'UpdateState', '{}')", guid, NOW.getTime() - (RETENTION_DAYS + 1) * DAY);
+    }
     let release: () => void = () => undefined;
     const heldYield = () =>
       new Promise<void>((resolve) => {
@@ -123,11 +123,12 @@ describe("scheduleMaintenance", () => {
       });
     const logger = memoryLogger();
     const m = scheduleMaintenance({ storage, logger, now: clockNow, yieldFn: heldYield });
-    await vi.advanceTimersByTimeAsync(5 * MIN); // first batch done, paused
+    await vi.advanceTimersByTimeAsync(5 * MIN); // first match done, paused
     const stopping = m.stop();
     release();
     await stopping;
-    expect(logger.lines).toMatchObject([{ event: "stopped", fields: { reason: "shutdown", events: 5000 } }]);
+    expect(logger.events()).toEqual(["retention/kept_whole", "retention/stopped"]);
+    expect(logger.lines.at(-1)).toMatchObject({ fields: { reason: "shutdown", keptWhole: 1 } });
     expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -5,6 +5,12 @@
       "UPDATE_STATE_INTERVAL_MS": 500
     }
   },
+  "update_state_thinning": {
+    "version": 1,
+    "constants": {
+      "RETENTION_DAYS": 90
+    }
+  },
   "orphan_timeout": {
     "version": 1,
     "constants": {

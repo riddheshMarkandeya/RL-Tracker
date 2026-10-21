@@ -25,7 +25,7 @@ export interface MatchRow {
   /** The camera's PrimaryId: the guess at whose game this is. Null for a bot or no target. */
   cameraPrimaryId: string | null;
   checkFlags: string[];
-  /** The recorded rules' versions it was computed under, by rule id. */
+  /** The recorded rules' versions it was computed under, by rule id; a thinned match's dense rules keep theirs from when it was thinned. */
   ruleVersions: Readonly<Record<string, number>>;
 }
 
@@ -89,7 +89,7 @@ export function toRecord(s: MatchSummary): MatchRecord {
       mvpSource: s.mvp?.source ?? null,
       cameraPrimaryId: cameraPrimaryId(s),
       checkFlags: [...s.flags],
-      ruleVersions: RECORDED_RULE_VERSIONS,
+      ruleVersions: { ...RECORDED_RULE_VERSIONS, ...s.thinned?.ruleVersions },
     },
     players: s.roster.map((r) => ({
       playerKey: r.key,

@@ -1,11 +1,11 @@
 // The stat rules as data: our own reading of the game's events, one entry per rule, with what it
 // rests on. The definitions doc is generated from here, and a test keeps the two in sync. The
 // constants are the values the code runs on, not copies.
-import { GOAL_LINE_Y } from "../../shared/constants";
+import { GOAL_LINE_Y, RETENTION_DAYS } from "../../shared/constants";
 import { CLOSE_UNDER, LONG_FROM } from "../../shared/goal-range";
 import { AERIAL_MIN_Z, CORNER_MAX_XY_SUM, HARDEST_SHOT_MAX_KMH, SIDE_WALL_X, WALL_MARGIN } from "../recorder/extras";
 import { CAR_SAMPLE_CAP_MS, TOUCH_MERGE_MS, WOODWORK_WINDOW_MS } from "../recorder/play";
-import { ORPHAN_TIMEOUT_MS } from "../recorder/recorder";
+import { ORPHAN_TIMEOUT_MS } from "../recorder/lifecycle";
 import { UPDATE_STATE_INTERVAL_MS } from "../recorder/sampler";
 import { CAMERA_SHARE } from "../recorder/summary";
 
@@ -43,6 +43,13 @@ export interface Rule {
   outputs?: readonly string[];
   /** Where it was decided, repo-relative: the dated history behind the current entry. */
   refs: readonly string[];
+  /**
+   * Reads every UpdateState. A thinned match keeps the outputs snapshotted when it was thinned, and
+   * this rule's version with it. Its outputs must be inside the snapshot. A rule that feeds those
+   * outputs but also others that recompute is not dense: it is on MIXED_WITH_DENSE, and a thinned
+   * match records its current version though the frozen columns came from the snapshot.
+   */
+  dense?: true;
 }
 
 const ADR_RECORDER = "docs/decisions/2026-10-19-recorder-websocket-raw-store.md";
@@ -52,6 +59,8 @@ const ADR_RECORDS = "docs/decisions/2026-10-20-match-records-per-player.md";
 const PLAN_WP4A = "docs/plans/2026-10-20-wp4a-match-records.md";
 const ADR_EXTRAS = "docs/decisions/2026-10-20-match-extras-play-view.md";
 const PLAN_WP4B = "docs/plans/2026-10-20-wp4b-match-extras.md";
+const ADR_THINNING = "docs/decisions/2026-10-20-raw-thinning.md";
+const PLAN_WP4CB = "docs/plans/2026-10-20-wp4c-b-retention-split.md";
 
 const p = (column: string) => `match_players.${column}`;
 const m = (column: string) => `matches.${column}`;
@@ -94,6 +103,27 @@ export const RULES: readonly Rule[] = [
     version: 1,
     applied: "stored",
     refs: [ADR_RECORDER, PLAN_WP3A],
+  },
+  {
+    id: "update_state_thinning",
+    area: "recording",
+    rule: "Once a match's last event is older than this many days, its UpdateStates are thinned to the first, the last, and each that changes a player's Name, PrimaryId, Shortcut, TeamNum or scoreboard stats, the teams' scores (or whether there is a scoreboard), PlaylistId, Arena or bOvertime, or reads a clock other than the running one; every other event is kept. The dense rules' outputs are snapshotted first.",
+    constants: { RETENTION_DAYS },
+    checks: ["thinned_snapshot_covers_dense"],
+    evidence: "UpdateState is 94% of raw.db. On the 46 captured matches it kept 6,572 of 42,974 states in the 45 it thinned, raw.db went from 98.1 MB to 27.3 MB, and rules-diff showed no change: the car stats and camera came from the snapshot.",
+    version: 1,
+    applied: "stored",
+    refs: [ADR_THINNING, PLAN_WP4CB],
+  },
+  {
+    id: "retention_flag_exempt",
+    area: "recording",
+    rule: "A match past retention that any check flags under the current rules is kept whole, as the corpus for fixing a rule; the decision is re-checked when the recorded rule versions change, and a match no longer flagged is thinned.",
+    checks: [],
+    evidence: "Flagged matches are the ones a rule fix needs whole: the unseen-shape rule fits a rule to the real match when one first appears.",
+    version: 1,
+    applied: "stored",
+    refs: [ADR_THINNING, PLAN_WP4CB],
   },
   {
     id: "open_match_owns_events",
@@ -359,11 +389,12 @@ export const RULES: readonly Rule[] = [
     area: "identity",
     rule: "The camera's player is the roster player holding at least this share of the resolved camera targets in play (replays and the podium don't count, unresolved targets say nothing); a bot or no such player gives none.",
     constants: { CAMERA_SHARE },
-    checks: ["camera_on_roster"],
+    checks: ["camera_on_roster", "thinned_snapshot_on_roster"],
     evidence: "The user's own matches had 100% of targets on one player and a spectated private 1v1 71%; counting unresolved targets put a real match at 94.6%.",
     version: 1,
     applied: "recorded",
     outputs: [m("camera_primary_id")],
+    dense: true,
     refs: [ADR_RECORDS, PLAN_WP4A],
   },
   {
@@ -474,22 +505,24 @@ export const RULES: readonly Rule[] = [
     area: "extras",
     rule: "Car samples come from the in-play, non-replay UpdateStates of players with bHasCar, each weighted by the gap to the next state, capped; a player with no samples (the other team) has null car stats.",
     constants: { CAR_SAMPLE_CAP_MS },
-    checks: ["extras_in_range"],
+    checks: ["extras_in_range", "thinned_snapshot_on_roster"],
     evidence: "Car state comes only for your own team; car time covers 0.98–0.997 of live play on the 46 captured matches.",
     version: 1,
     applied: "recorded",
     outputs: CAR_STATS,
+    dense: true,
     refs: [ADR_EXTRAS, PLAN_WP4B],
   },
   {
     id: "car_stats",
     area: "extras",
     rule: "car_ms is the samples' total weight, boost_avg the weighted mean Boost (0–100), supersonic_ms and empty_boost_ms the weight with bSupersonic and with Boost 0.",
-    checks: ["extras_in_range"],
+    checks: ["extras_in_range", "thinned_snapshot_on_roster"],
     evidence: "Stored as ms beside car_ms, so a share across matches is a ratio of sums.",
     version: 1,
     applied: "recorded",
     outputs: CAR_STATS,
+    dense: true,
     refs: [ADR_EXTRAS, PLAN_WP4B],
   },
   // goals
@@ -583,6 +616,20 @@ export const RULES: readonly Rule[] = [
     refs: [ADR_EXTRAS, PLAN_WP4B],
   },
 ];
+
+/** The dense rules' ids: a thinned match keeps their versions from when it was thinned. */
+export const DENSE_RULE_IDS: readonly string[] = RULES.filter((r) => r.dense).map((r) => r.id);
+
+/** The match_players columns a thinned match's snapshot holds: the dense rules' player outputs. */
+export const DENSE_PLAYER_COLUMNS: readonly string[] = [
+  ...new Set(RULES.filter((r) => r.dense).flatMap((r) => (r.outputs ?? []).filter((o) => o.startsWith(p(""))).map((o) => o.slice(p("").length)))),
+];
+
+/**
+ * Not dense, but they feed the snapshotted outputs as well as columns that recompute; player_key
+ * shapes the snapshot's keys. A thinned match records their current versions.
+ */
+export const MIXED_WITH_DENSE: readonly string[] = ["live_play_window", "target_resolution", "player_key"];
 
 /** The versions stored with each match's record: the rules recompute can change. */
 export const RECORDED_RULE_VERSIONS: Readonly<Record<string, number>> = Object.fromEntries(

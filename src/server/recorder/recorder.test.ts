@@ -7,7 +7,8 @@ import { openStorage, type Storage } from "../storage";
 import { memoryLogger, readFixture as fixture } from "../testing";
 import type { CheckFailure } from "./checks";
 import { feed, type CaptureLine } from "./feed";
-import { createRecorder, ORPHAN_TIMEOUT_MS, type RecorderOptions } from "./recorder";
+import { ORPHAN_TIMEOUT_MS } from "./lifecycle";
+import { createRecorder, type RecorderOptions } from "./recorder";
 import type { MatchSummary } from "./summary";
 
 

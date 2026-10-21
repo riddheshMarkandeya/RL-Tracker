@@ -224,6 +224,8 @@ export interface RulesDiffReport {
   recompute: RecomputeResult;
   /** Kept matches that still have raw events (recompute skipped them, or they failed), and those with none. */
   kept: { skipped: number; noRaw: number };
+  /** Matches retention thinned: a dense rule's change can't move their frozen columns. */
+  thinned: number;
   /** The scratch dir, kept only when a match failed to recompute: its tracker.log says why. */
   scratchDir: string | null;
 }
@@ -245,7 +247,8 @@ export function runRulesDiff({ dir, logger }: { dir: string; logger: Logger }): 
   try {
     raw = openDb(join(dir, "raw.db"), { readonly: true });
     base = openDb(join(dir, "tracker.db"), { readonly: true });
-    const rawGuids = new Set(createRawStore(raw).matches().map((m) => m.guid));
+    const store = createRawStore(raw);
+    const rawGuids = new Set(store.matches().map((m) => m.guid));
     logger.info(C, "diff_started", { dir, matches: rawGuids.size });
     scratchDir = mkdtempSync(join(tmpdir(), "rltracker-rules-diff-"));
     // Recompute, the writer and the migration log here, so the data dir's log gets no line about the scratch DB.
@@ -258,11 +261,13 @@ export function runRulesDiff({ dir, logger }: { dir: string; logger: Logger }): 
     const skipped = diff.kept.filter((g) => rawGuids.has(g)).length;
     // Kept for a failed match, whose recompute_failed line is in the scratch log; the report prints its path.
     const failed = recompute.failed > 0;
-    const report: RulesDiffReport = { diff, recompute, kept: { skipped, noRaw: diff.kept.length - skipped }, scratchDir: failed ? scratchDir : null };
+    const thinned = [...rawGuids].filter((g) => store.thinnedOutputs(g) !== undefined).length;
+    const report: RulesDiffReport = { diff, recompute, kept: { skipped, noRaw: diff.kept.length - skipped }, thinned, scratchDir: failed ? scratchDir : null };
     logger.info(C, "diff_done", {
       recomputed: recompute.written,
       skipped: recompute.skipped,
       failed: recompute.failed,
+      thinned,
       moved: Object.fromEntries(diff.moved.map((m) => [m.column, m.moved])),
       unbumped: diff.unbumped,
       toReview: diff.toReview,
@@ -292,11 +297,12 @@ export function runRulesDiff({ dir, logger }: { dir: string; logger: Logger }): 
 const fmt = (n: number | null) => (n === null ? "" : String(Math.round(n * 100) / 100));
 
 /** The report as plain text for the terminal. */
-export function formatReport({ diff, recompute, kept, scratchDir }: RulesDiffReport): string {
+export function formatReport({ diff, recompute, kept, thinned, scratchDir }: RulesDiffReport): string {
   const out: string[] = [];
   const skipped = Object.entries(recompute.skipped).map(([k, v]) => `${k} ${String(v)}`);
   out.push(`recomputed ${String(recompute.written)}, failed ${String(recompute.failed)}${skipped.length ? `, skipped: ${skipped.join(", ")}` : ""}`);
   if (kept.skipped + kept.noRaw) out.push(`kept as stored: ${String(kept.skipped)} not recomputed (skipped or failed), ${String(kept.noRaw)} with no raw events`);
+  if (thinned) out.push(`thinned: ${String(thinned)} matches (car stats and camera frozen at thinning)`);
   if (scratchDir) out.push(`a match failed to recompute: see recompute_failed in ${join(scratchDir, "tracker.log")}`);
   if (!hasChanges(diff)) out.push("no change");
   const owned = diff.moved.filter((m) => m.owners.length);

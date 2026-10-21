@@ -10,6 +10,19 @@ export interface StoredEvent {
   data: Data;
 }
 
+/** What a thinned match's raw events can no longer give, snapshotted from its full events. */
+export interface ThinnedOutputs {
+  outputs: {
+    cameraKey: string | null;
+    /** By roster key, then dense match_players column; only keys that had a value. */
+    players: Record<string, Record<string, number | null>>;
+    /** The dense rules when it was thinned: a rule marked dense since has nothing here. */
+    denseRules: string[];
+  };
+  /** RECORDED_RULE_VERSIONS when it was thinned. */
+  ruleVersions: Record<string, number>;
+}
+
 export interface RawStore {
   /** The next seq for `guid`: 0, or one past its last row (a reopened match continues). */
   nextSeq(guid: string): number;
@@ -22,9 +35,13 @@ export interface RawStore {
   lastOf(guid: string): { name: string; data: string } | undefined;
   names(guid: string): string[];
   matchEvents(guid: string): StoredEvent[];
+  /** The snapshot of a match retention thinned, else undefined (also before the table exists). */
+  thinnedOutputs(guid: string): ThinnedOutputs | undefined;
 }
 
 export function createRawStore(db: Db): RawStore {
+  // rules-diff opens raw.db read-only, so a file the table's migration hasn't reached yet can't get it.
+  let hasRetention: boolean | undefined;
   return {
     nextSeq: (guid) => db.get<{ next: number }>("SELECT COALESCE(MAX(seq) + 1, 0) AS next FROM events WHERE match_guid = ?", guid)?.next ?? 0,
     insert: ({ guid, seq, ts, name, data }) => {
@@ -38,6 +55,12 @@ export function createRawStore(db: Db): RawStore {
       db
         .all<{ seq: number; ts: number; name: string; data: string }>("SELECT seq, ts, name, data FROM events WHERE match_guid = ? ORDER BY seq", guid)
         .map((r) => ({ ...r, data: JSON.parse(r.data) as Data })),
+    thinnedOutputs: (guid) => {
+      hasRetention ??= db.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'retention_matches'") !== undefined;
+      if (!hasRetention) return undefined;
+      const row = db.get<{ outputs: string; rule_versions: string }>("SELECT outputs, rule_versions FROM retention_matches WHERE match_guid = ? AND status = 'thinned'", guid);
+      return row && { outputs: JSON.parse(row.outputs) as ThinnedOutputs["outputs"], ruleVersions: JSON.parse(row.rule_versions) as Record<string, number> };
+    },
   };
 }
 

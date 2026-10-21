@@ -36,12 +36,16 @@ ADRs and review logs are dated history that say why a rule was decided.
 - *recorded*: when a match's record is computed, live or by recompute; each record stores these
   rules' versions.
 - *read*: when a page reads the record, so it always applies at its current version.
+
+A *dense* rule reads every UpdateState. Once retention has thinned a match, the match keeps the
+outputs snapshotted when it was thinned, and the rule's version from then, so a change to a dense
+rule reaches only matches still whole (recent or flagged ones).
 `;
 
 const code = (items: readonly string[]) => items.map((i) => `\`${i}\``).join(", ");
 
 function renderRule(r: Rule): string {
-  const lines = [`### \`${r.id}\` · v${String(r.version)} · ${r.applied}`, "", r.rule, ""];
+  const lines = [`### \`${r.id}\` · v${String(r.version)} · ${r.applied}${r.dense ? " · dense" : ""}`, "", r.rule, ""];
   const constants = Object.entries(r.constants ?? {});
   if (constants.length) lines.push(`- **Constants**: ${constants.map(([k, v]) => `\`${k}\` = ${String(v)}`).join(", ")}`);
   if (r.checks.length) lines.push(`- **Checks**: ${code(r.checks)}`);

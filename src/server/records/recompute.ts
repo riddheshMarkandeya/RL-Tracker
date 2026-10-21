@@ -1,11 +1,11 @@
 // Rebuilds match records from raw.db, through the same read the live recorder uses, so a fixed
-// rule or a new stat reaches every match still within raw retention. It never deletes a record:
-// matches past retention, and anything it skips, keep theirs. Safe to run beside the background
-// tracker: each match is its own transaction, and the live match is skipped as still open.
+// rule or a new stat reaches every match in raw.db. A match retention thinned recomputes from its
+// kept events, with its dense outputs (car stats, camera) from the snapshot taken when it was
+// thinned. It never deletes a record: anything it skips keeps its record. Safe to run beside the
+// background tracker: each match is its own transaction, and the live match is skipped as still open.
 import type { Db } from "../db/sqlite";
 import type { Logger } from "../log";
-import { closeViaOf, rebuild } from "../recorder/lifecycle";
-import { readMatch } from "../recorder/read-match";
+import { readableAs, readMatch } from "../recorder/read-match";
 import { createRawStore } from "../recorder/store";
 import { toRecord } from "./record";
 import { createRecordWriter } from "./save";
@@ -43,26 +43,24 @@ export function recomputeAll({ raw, tracker, logger, now }: RecomputeOptions): R
   logger.info(C, "recompute_started", { matches: matches.length });
   for (const { guid, minSeq } of matches) {
     try {
-      const via = closeViaOf(store.lastOf(guid));
-      if (via === null) {
-        // Only the match with the latest event can still be live; another one lost its close
-        // marker (a failed write), and unless a Reconnect resumes it, nothing closes it later.
-        skip(guid, "open", guid === newest ? "info" : "warn");
+      const r = readableAs(store, guid, minSeq);
+      if ("unreadable" in r) {
+        if (r.unreadable === "open") {
+          // Only the match with the latest event can still be live; another one lost its close
+          // marker (a failed write), and unless a Reconnect resumes it, nothing closes it later.
+          skip(guid, "open", guid === newest ? "info" : "warn");
+        } else if (r.unreadable === "trimmed") {
+          // A match that lost its start (the old time-based retention could cut one) must not
+          // overwrite the record made when it was whole.
+          skip(guid, "trimmed");
+        } else {
+          // A lobby with a record means the lobby rule or an old write changed; the record is kept.
+          const hasRecord = tracker.get("SELECT 1 FROM matches WHERE guid = ?", guid) !== undefined;
+          skip(guid, hasRecord ? "lobby_has_record" : "lobby", hasRecord ? "warn" : "info");
+        }
         continue;
       }
-      // Retention deletes by time: a match straddling the cutoff lost its start, and must not
-      // overwrite the record made when it was whole.
-      if (minSeq > 0) {
-        skip(guid, "trimmed");
-        continue;
-      }
-      if (rebuild(guid, store.names(guid)).phase === "pending") {
-        // A lobby with a record means the lobby rule or an old write changed; the record is kept.
-        const hasRecord = tracker.get("SELECT 1 FROM matches WHERE guid = ?", guid) !== undefined;
-        skip(guid, hasRecord ? "lobby_has_record" : "lobby", hasRecord ? "warn" : "info");
-        continue;
-      }
-      writer.save(toRecord(readMatch(store, guid, via).summary));
+      writer.save(toRecord(readMatch(store, guid, r.via).summary));
       result.written++;
     } catch (err) {
       // Broad on purpose: one match's bad data or failed write must not stop the rest.

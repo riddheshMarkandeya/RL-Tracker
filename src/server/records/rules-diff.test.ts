@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { migrate } from "../db/migrate";
+import { runRetention } from "../db/retention";
 import { trackerMigrations } from "../db/migrations";
 import { openDb, type Db, type Param } from "../db/sqlite";
 import { feed } from "../recorder/feed";
@@ -232,7 +233,7 @@ describe("diffRecords", () => {
       }
       const diff = diffRecords(base, next, RULES);
       expect(diff.unbumped).toEqual(guids);
-      const text = formatReport({ diff, recompute: { written: 6, skipped: {}, failed: 0, ms: 0 }, kept: { skipped: 0, noRaw: 0 }, scratchDir: null });
+      const text = formatReport({ diff, recompute: { written: 6, skipped: {}, failed: 0, ms: 0 }, kept: { skipped: 0, noRaw: 0 }, thinned: 0, scratchDir: null });
       expect(text).toContain("WARNING: 6 match(es) changed with no rule version bumped (all in rules/diff_done): A B C D E …");
     });
   });
@@ -257,7 +258,7 @@ describe("diffRecords", () => {
     const diff = diffRecords(base, next, RULES);
     expect(diff).toMatchObject({ onlyNext: { match_goals: 1 }, reshaped: { match_goals: 1 } });
     expect(diff.moved).toEqual([expect.objectContaining({ column: "match_goals.aerial", moved: 1 })]);
-    expect(formatReport({ diff, recompute: { written: 2, skipped: {}, failed: 0, ms: 0 }, kept: { skipped: 0, noRaw: 0 }, scratchDir: null })).toContain(
+    expect(formatReport({ diff, recompute: { written: 2, skipped: {}, failed: 0, ms: 0 }, kept: { skipped: 0, noRaw: 0 }, thinned: 0, scratchDir: null })).toContain(
       "rows added or dropped, values not compared: match_goals in 1 match(es)",
     );
   });
@@ -334,6 +335,23 @@ describe("runRulesDiff", () => {
   }
   const scratchDirs = () => readdirSync(tmpdir()).filter((d) => d.startsWith("rltracker-rules-diff-") && !dir.endsWith(d));
 
+  test("a thinned match recomputes to its stored record, and the report counts it", { timeout: 30_000 }, async () => {
+    recordInto(["completed"]);
+    const storage = openStorage({ dir, logger: memoryLogger() });
+    try {
+      const result = await runRetention(storage.raw, { now: () => new Date("2027-06-01T00:00:00Z"), isRecording: () => false, logger: memoryLogger(), yieldFn: () => Promise.resolve() });
+      expect(result).toMatchObject({ thinned: 1 });
+    } finally {
+      storage.close();
+    }
+    const report = runRulesDiff({ dir, logger: memoryLogger() });
+    expect(report.thinned).toBe(1);
+    expect(hasChanges(report.diff)).toBe(false);
+    const text = formatReport(report);
+    expect(text).toContain("no change");
+    expect(text).toContain("thinned: 1 matches (car stats and camera frozen at thinning)");
+  });
+
   test("the stored records against the same rules: no change, and only its own lines logged", { timeout: 30_000 }, () => {
     recordInto(["completed", "private-series"]);
     const before = scratchDirs();
@@ -344,6 +362,7 @@ describe("runRulesDiff", () => {
     expect(report.recompute).toMatchObject({ written: 2, failed: 0 });
     expect(report.scratchDir).toBeNull();
     expect(formatReport(report)).toContain("no change");
+    expect(formatReport(report)).not.toContain("thinned");
     expect(logger.events()).toEqual(["rules/diff_started", "rules/diff_done"]);
     expect(existsSync(join(dir, "tracker.log"))).toBe(false);
     expect(scratchDirs()).toEqual(before);

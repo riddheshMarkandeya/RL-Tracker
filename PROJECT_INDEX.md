@@ -8,7 +8,8 @@ maybe later.
   `supervisor.ts` restart loop (its own exe), `game-watch.ts` game detection and toast,
   `exit-codes.ts`, `log.ts` logger, `paths.ts` data dir and port, `storage.ts` opens both DBs, `maintenance.ts` schedules retention and backups; `db/`: `sqlite.ts` driver seam, `migrate.ts`, `migrations.ts`,
   `backup.ts`, `retention.ts`; `recorder/`: Stats API client, lifecycle, raw store, dedup,
-  summary, checks, `play.ts` live-play view, `extras.ts` stat registry, `read-match.ts`); `records/`: `record.ts` summary → rows, `save.ts` writer,
+  summary, checks, `play.ts` live-play view, `extras.ts` stat registry, `read-match.ts`, `thin.ts`
+  which old UpdateStates retention deletes); `records/`: `record.ts` summary → rows, `save.ts` writer,
   `recompute.ts`, `rules-diff.ts`); `rules/`: `registry.ts` every stat rule with its version,
   `definitions.ts` renders the doc), `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts` close/mid/long),
   `scripts/` (standalone `capture.ts`; `stop.ts`, `autostart.ts`, `replay.ts` fake Stats API,
@@ -36,9 +37,14 @@ maybe later.
 - Data and logs: `%LOCALAPPDATA%\RLTracker\` (`tracker.log` and `supervisor.log`, 5 × 5 MB, JSON
   lines);
   `RLTRACKER_DATA_DIR` overrides it for tests and dev runs. Also `tracker.db` (settings, seasons,
-  IDs, match records; backed up to `backups/`, 7 kept), `raw.db` (raw events, 90-day retention).
+  IDs, match records; backed up to `backups/`, 7 kept), `raw.db` (raw events; after 90 days a
+  match's UpdateStates are thinned to the scoreboard changes, with its car stats and camera
+  snapshotted in `retention_matches`; a flagged match is kept whole, and every other event is
+  kept).
 
 ## Decisions
+- `docs/decisions/2026-10-20-raw-thinning.md`: retention thins old UpdateStates and keeps every
+  other event; dense outputs snapshotted; flagged matches kept whole; dense rules in the registry.
 - `docs/decisions/2026-10-20-rule-registry-versions.md`: one rule registry generates the
   definitions doc; each match stores the rule versions it was computed under; rules-diff warns per
   match, reviews per column.
@@ -54,9 +60,12 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-20-wp4c-b-retention-split.md`: WP4c-b plan (thinning rule, raw migration 2,
+  snapshot substitution in `readMatch`, dense rules, retention rewrite), 46-match figures, review log.
 - `docs/plans/2026-10-20-wp4c-a-rule-registry.md`: WP4c-a plan (registry and backfill, generated
   definitions, migration 4 `rule_versions`, read-only `openDb`, `rules-diff`), review log.
 - `docs/reviews/2026-10-20-wp4c-a-rule-registry.md`: WP4c-a review summary (9 rounds).
+- `docs/reviews/2026-10-21-wp4c-b-retention-split.md`: WP4c-b review summary (2 rounds).
 - `docs/plans/2026-10-20-wp4b-match-extras.md`: WP4b plan (play view, extras registry, checks,
   migration 3, `match_goals`, goal range), real-data figures, review log.
 - `docs/reviews/2026-10-20-wp4b-match-extras.md`: WP4b review summary.

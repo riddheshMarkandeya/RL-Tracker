@@ -24,6 +24,10 @@ ADRs and review logs are dated history that say why a rule was decided.
   rules' versions.
 - *read*: when a page reads the record, so it always applies at its current version.
 
+A *dense* rule reads every UpdateState. Once retention has thinned a match, the match keeps the
+outputs snapshotted when it was thinned, and the rule's version from then, so a change to a dense
+rule reaches only matches still whole (recent or flagged ones).
+
 ## Recording
 
 ### `update_state_sampling` · v1 · stored
@@ -47,6 +51,22 @@ UpdateStates still showing the menu's PlaylistId 0, before the match's first non
 
 - **Evidence**: They carry the menu, not the match.
 - **Decided in**: `docs/decisions/2026-10-19-recorder-websocket-raw-store.md`, `docs/plans/2026-10-19-wp3a-recorder.md`
+
+### `update_state_thinning` · v1 · stored
+
+Once a match's last event is older than this many days, its UpdateStates are thinned to the first, the last, and each that changes a player's Name, PrimaryId, Shortcut, TeamNum or scoreboard stats, the teams' scores (or whether there is a scoreboard), PlaylistId, Arena or bOvertime, or reads a clock other than the running one; every other event is kept. The dense rules' outputs are snapshotted first.
+
+- **Constants**: `RETENTION_DAYS` = 90
+- **Checks**: `thinned_snapshot_covers_dense`
+- **Evidence**: UpdateState is 94% of raw.db. On the 46 captured matches it kept 6,572 of 42,974 states in the 45 it thinned, raw.db went from 98.1 MB to 27.3 MB, and rules-diff showed no change: the car stats and camera came from the snapshot.
+- **Decided in**: `docs/decisions/2026-10-20-raw-thinning.md`, `docs/plans/2026-10-20-wp4c-b-retention-split.md`
+
+### `retention_flag_exempt` · v1 · stored
+
+A match past retention that any check flags under the current rules is kept whole, as the corpus for fixing a rule; the decision is re-checked when the recorded rule versions change, and a match no longer flagged is thinned.
+
+- **Evidence**: Flagged matches are the ones a rule fix needs whole: the unseen-shape rule fits a rule to the real match when one first appears.
+- **Decided in**: `docs/decisions/2026-10-20-raw-thinning.md`, `docs/plans/2026-10-20-wp4c-b-retention-split.md`
 
 ### `open_match_owns_events` · v1 · stored
 
@@ -245,12 +265,12 @@ An event's player reference (Name, Shortcut, TeamNum, no id) is the player with 
 - **Evidence**: Statfeed targets, hitters, scorers and assisters carry no PrimaryId, only Name, Shortcut and TeamNum; the roster is keyed by PrimaryId.
 - **Decided in**: `docs/plans/2026-10-20-wp4a-match-records.md`, `docs/plans/2026-10-20-wp4b-match-extras.md`
 
-### `camera_identity` · v1 · recorded
+### `camera_identity` · v1 · recorded · dense
 
 The camera's player is the roster player holding at least this share of the resolved camera targets in play (replays and the podium don't count, unresolved targets say nothing); a bot or no such player gives none.
 
 - **Constants**: `CAMERA_SHARE` = 0.95
-- **Checks**: `camera_on_roster`
+- **Checks**: `camera_on_roster`, `thinned_snapshot_on_roster`
 - **Writes**: `matches.camera_primary_id`
 - **Evidence**: The user's own matches had 100% of targets on one player and a spectated private 1v1 71%; counting unresolved targets put a real match at 94.6%.
 - **Decided in**: `docs/decisions/2026-10-20-match-records-per-player.md`, `docs/plans/2026-10-20-wp4a-match-records.md`
@@ -338,21 +358,21 @@ A CrossbarHit in live play counts one woodwork hit for its BallLastTouch player,
 - **Evidence**: CrossbarHit fires for the posts too, and repeatedly while the ball rolls along the bar.
 - **Decided in**: `docs/decisions/2026-10-20-match-extras-play-view.md`, `docs/plans/2026-10-20-wp4b-match-extras.md`
 
-### `car_sampling` · v1 · recorded
+### `car_sampling` · v1 · recorded · dense
 
 Car samples come from the in-play, non-replay UpdateStates of players with bHasCar, each weighted by the gap to the next state, capped; a player with no samples (the other team) has null car stats.
 
 - **Constants**: `CAR_SAMPLE_CAP_MS` = 1000
-- **Checks**: `extras_in_range`
+- **Checks**: `extras_in_range`, `thinned_snapshot_on_roster`
 - **Writes**: `match_players.car_ms`, `match_players.boost_avg`, `match_players.supersonic_ms`, `match_players.empty_boost_ms`
 - **Evidence**: Car state comes only for your own team; car time covers 0.98–0.997 of live play on the 46 captured matches.
 - **Decided in**: `docs/decisions/2026-10-20-match-extras-play-view.md`, `docs/plans/2026-10-20-wp4b-match-extras.md`
 
-### `car_stats` · v1 · recorded
+### `car_stats` · v1 · recorded · dense
 
 car_ms is the samples' total weight, boost_avg the weighted mean Boost (0–100), supersonic_ms and empty_boost_ms the weight with bSupersonic and with Boost 0.
 
-- **Checks**: `extras_in_range`
+- **Checks**: `extras_in_range`, `thinned_snapshot_on_roster`
 - **Writes**: `match_players.car_ms`, `match_players.boost_avg`, `match_players.supersonic_ms`, `match_players.empty_boost_ms`
 - **Evidence**: Stored as ms beside car_ms, so a share across matches is a ratio of sums.
 - **Decided in**: `docs/decisions/2026-10-20-match-extras-play-view.md`, `docs/plans/2026-10-20-wp4b-match-extras.md`

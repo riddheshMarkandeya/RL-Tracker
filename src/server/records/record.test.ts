@@ -193,6 +193,11 @@ describe("toRecord: camera id", () => {
     expect(Object.keys(RECORDED_RULE_VERSIONS)).toContain("aerial_touch");
   });
 
+  test("a thinned match records its dense rules' versions from when it was thinned", () => {
+    const thinned = { ...completed, thinned: { ruleVersions: { car_sampling: 0 }, offRoster: [], unsnapshotted: [] } };
+    expect(toRecord(thinned).match.ruleVersions).toEqual({ ...RECORDED_RULE_VERSIONS, car_sampling: 0 });
+  });
+
   test("check failures are carried as the flag ids", () => {
     expect(toRecord({ ...completed, flags: ["camera_on_roster"] }).match.checkFlags).toEqual(["camera_on_roster"]);
   });
