@@ -2,6 +2,7 @@
 // events, and the built web app for every other path. No CORS headers: only same-origin pages read it.
 import type { Server } from "bun";
 import type { z } from "zod";
+import { REQUEST_HEADER } from "../../shared/constants";
 import { filterOnly, monthsParams, periodParams, sessionsParams } from "../../shared/schemas/params";
 import {
   breakResponse,
@@ -24,12 +25,6 @@ import { matchRoute, type Route } from "./router";
 import { serveStatic } from "./static";
 
 const C = "api";
-
-/**
- * Required on every write. The Host check stops DNS rebinding but not a cross-site form POST to
- * 127.0.0.1; a cross-site request can't add a custom header without a preflight, which is never answered.
- */
-export const REQUEST_HEADER = "X-RLTracker-Request";
 
 export interface ApiOptions {
   tracker: Db;

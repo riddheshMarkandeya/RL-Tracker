@@ -1,10 +1,8 @@
 // The tracker's HTTP server on loopback. Binding its port first is the single-instance guard. It
 // serves the shutdown endpoint itself; the dashboard is mounted once storage is open.
 import type { Server } from "bun";
-import { DASHBOARD_HOST } from "../shared/constants";
+import { DASHBOARD_HOST, SHUTDOWN_HEADER } from "../shared/constants";
 import type { Logger } from "./log";
-
-export const SHUTDOWN_HEADER = "X-RLTracker-Shutdown";
 
 export class PortTakenError extends Error {
   constructor(readonly port: number, options?: ErrorOptions) {

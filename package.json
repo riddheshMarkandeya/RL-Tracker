@@ -12,20 +12,32 @@
     "deploy": "bun run check && bun run install-autostart && bun run recompute",
     "install-autostart": "bun run scripts/autostart.ts install",
     "uninstall-autostart": "bun run scripts/autostart.ts uninstall",
-    "typecheck": "tsc --noEmit",
+    "web:dev": "vite",
+    "web:build": "vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/web",
     "lint": "eslint . --max-warnings 0",
     "test": "bun --bun vitest run",
-    "check": "tsc --noEmit && eslint . --max-warnings 0 && bun --bun vitest run"
+    "check": "bun run typecheck && bun run lint && bun run test"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.104.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router": "8.4.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/bun": "^1.4.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
     "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
     "typescript": "~6.0",
     "typescript-eslint": "^8.71.2",
+    "vite": "8.3.3",
     "vitest": "^5.0.5"
   }
 }

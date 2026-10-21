@@ -4,12 +4,17 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP5b (handoff in the roadmap). WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are
-  deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
+  WP5b-b (Playwright harness, `vite build` in deploy, installed `dist` path, Start menu shortcut).
+  WP5b-a (web shell, `docs/plans/2026-10-21-wp5b-a-web-shell.md`) is done; nothing serves it until
+  WP5b-b. WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
   `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
-  - **[feature, Med, Standard]** WP5b: share one `/api/events` stream across tabs (a SharedWorker or BroadcastChannel); one
-    per tab uses up the browser's 6 connections per host at 6 tabs, and further fetches hang.
-    Record: `docs/reviews/2026-10-21-wp5a-b-api.md`.
+  - **[design, Low, Trivial]** Add back the themes midnight, dusk, steel and daylight (values in the
+    `prototype/settings-layout` tokens; each needs a `tokens.css` block, and the token test covers
+    it). Daylight has the real cost: every chart gets checked in light mode. Record:
+    `docs/plans/2026-10-21-wp5b-a-web-shell.md`.
+  - **[performance, Low, Trivial]** When WP6a adds the heavy page queries: `match_ended` invalidates
+    every query (`src/web/events/useLiveEvents.ts`); narrow it to the keys a match can move.
+    Record: `docs/plans/2026-10-21-wp5b-a-web-shell.md` (Review log).
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.

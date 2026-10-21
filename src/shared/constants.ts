@@ -21,3 +21,10 @@ export const STATS_API_PORT = 49124;
 export const DASHBOARD_HOST = "127.0.0.1";
 /** Near the game's ports and below the Windows dynamic range (49152+). */
 export const DASHBOARD_PORT = 49100;
+/** Required on the shutdown POST, so a cross-site form can't stop the tracker. */
+export const SHUTDOWN_HEADER = "X-RLTracker-Shutdown";
+/**
+ * Required on every other write. The Host check stops DNS rebinding but not a cross-site form POST to
+ * 127.0.0.1; a cross-site request can't add a custom header without a preflight, which is never answered.
+ */
+export const REQUEST_HEADER = "X-RLTracker-Request";

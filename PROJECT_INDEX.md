@@ -15,6 +15,11 @@ maybe later.
   joined, `sessions.ts` session cutting, `aggregate.ts` stats and the 30-day baseline; `api/`: the
   dashboard API mounted on the host: `index.ts` routes and writes, `pages.ts` composes each page,
   `events.ts` SSE, `router.ts`, `static.ts` built web app),
+  `src/web/` (the dashboard: Vite + React + React Router + TanStack Query; `main.tsx`, `App.tsx`
+  routes, `api.ts` fetch + Zod parse; `events/`: `hub.ts` one `/api/events` stream fanned out to
+  tabs from a SharedWorker (`worker.ts`, in-page fallback in `client.ts`), `live.ts` header state,
+  `useLiveEvents.ts` refetch on events; `logic/` pure header logic; `components/` header and empty
+  state; `styles/tokens.css` themes carbon, slate, oled; `pages/` placeholders until WP6+),
   `src/shared/` (`constants.ts`, `result.ts` your W/L, `playlists.ts` ID map, `goal-range.ts`
   close/mid/long, `periods.ts` local days and periods, `playlist-filter.ts` filter groups, `schemas/` API params
   and response shapes),
@@ -33,7 +38,8 @@ maybe later.
 - `bun run check` = typecheck + lint (zero warnings) + tests (Vitest under Bun);
   `bun run start` runs the server from source on the real data dir and port 49100;
   `bun run dev` runs it beside the background one (`.dev-data/`, port 49101); `bun run stop`
-  stops it (`RLTRACKER_PORT=49101` for dev). Bun lives at `~/.bun/bin/bun` and may not be on
+  stops it (`RLTRACKER_PORT=49101` for dev). `bun run web:dev` serves `src/web` on
+  `127.0.0.1:5173` with `/api/` proxied to the dev tracker; `bun run web:build` builds `dist/`. Bun lives at `~/.bun/bin/bun` and may not be on
   PATH.
 - Background: `bun run install-autostart` compiles `rltracker-supervisor.exe` and `rltracker.exe`
   into `%LOCALAPPDATA%\RLTracker\bin\` and registers the `RLTracker` logon task. It runs that
@@ -69,6 +75,9 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-21-wp5b-a-web-shell.md`: WP5b-a plan (tooling, themes, header, shared SSE via
+  SharedWorker, TanStack Query), live Chrome check, review log.
+- `docs/reviews/2026-10-21-wp5b-a-web-shell.md`: WP5b-a review summary (3 rounds).
 - `docs/plans/2026-10-21-wp5a-b-api.md`: WP5a-b plan (host `mount`, router, static, SSE, page
   composition, endpoints, schemas), live replay check, review log.
 - `docs/reviews/2026-10-21-wp5a-b-api.md`: WP5a-b review summary (3 rounds).

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { z } from "zod";
+import { REQUEST_HEADER } from "../../shared/constants";
 import {
   breakResponse,
   currentResponse,
@@ -22,7 +23,7 @@ import { createQueryReader } from "../query/read";
 import { createRecordWriter } from "../records/save";
 import { openStorage, type Storage } from "../storage";
 import { ME, memoryLogger, record } from "../testing";
-import { createApi, REQUEST_HEADER, type Api } from "./index";
+import { createApi, type Api } from "./index";
 
 let dir: string;
 let storage: Storage;

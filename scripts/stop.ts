@@ -1,9 +1,8 @@
 // Stops the running tracker (background or dev) through its shutdown endpoint.
 // `bun run stop [--wait]`; RLTRACKER_PORT picks which instance (a dev run is on 49101).
 import { connect } from "node:net";
-import { SHUTDOWN_HEADER } from "../src/server/host";
 import { dashboardPort, SUPERVISOR_EXE } from "../src/server/paths";
-import { DASHBOARD_HOST, DASHBOARD_PORT } from "../src/shared/constants";
+import { DASHBOARD_HOST, DASHBOARD_PORT, SHUTDOWN_HEADER } from "../src/shared/constants";
 
 export type StopOutcome = { kind: "status"; status: number } | { kind: "refused" } | { kind: "reset" } | { kind: "error"; message: string };
 
