@@ -1,0 +1,141 @@
+// The e2e stack, run under Bun by the Playwright fixture (seeding needs bun:sqlite): a temp data dir
+// seeded with one won match, the repo's web build copied to the installed path, a gated replay of the
+// completed fixture, and the real tracker. Protocol: prints `ready {"url","dataDir"}` on stdout; the
+// stdin line `go` releases the replay; stdin EOF tears everything down.
+// RLT_E2E_KEEP=1 keeps the temp dir (and its tracker.log).
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createInterface } from "node:readline";
+import { startReplayServer } from "../../scripts/replay";
+import { describeStopResult, requestStop } from "../../scripts/stop";
+import { createLogger } from "../../src/server/log";
+import { createRecordWriter } from "../../src/server/records/save";
+import { openStorage } from "../../src/server/storage";
+import { freePort, ME, readFixture, record } from "../../src/server/testing";
+import { DASHBOARD_HOST } from "../../src/shared/constants";
+
+const REPO = join(import.meta.dirname, "..", "..");
+const MIN = 60_000;
+/** The completed fixture lasts ~392 s; at 64x the header shows "recording match" for several seconds. */
+const REPLAY_SPEED = 64;
+const READY_TIMEOUT_MS = 30_000;
+const STOP_TIMEOUT_MS = 10_000;
+
+const say = (msg: string, fields: Record<string, unknown> = {}) => {
+  console.log(`[e2e] ${msg}${Object.keys(fields).length ? " " + JSON.stringify(fields) : ""}`);
+};
+
+function logTail(dir: string, lines = 30): string {
+  try {
+    return readFileSync(join(dir, "tracker.log"), "utf8").trimEnd().split("\n").slice(-lines).join("\n");
+  } catch (err) {
+    return `(no tracker.log: ${(err as Error).message})`;
+  }
+}
+
+/** One won match for ME, ended 5 minutes ago: the header chip reads "This session: 1–0". */
+function seed(dir: string): void {
+  const logger = createLogger({ dir });
+  const storage = openStorage({ dir, logger });
+  try {
+    storage.tracker.run("INSERT INTO my_ids (primary_id, name, status, added_at) VALUES (?, 'me', 'confirmed', ?)", ME, Date.now());
+    const now = Date.now();
+    createRecordWriter({ tracker: storage.tracker, logger }).save(record("e2e-seed-won", now - 10 * MIN, {}, { endedAt: now - 5 * MIN }));
+  } finally {
+    storage.close();
+  }
+}
+
+/** Removes the temp data dir unless RLT_E2E_KEEP=1. Never throws: it runs on the failure paths too. */
+function removeDir(dir: string): void {
+  if (process.env.RLT_E2E_KEEP === "1") {
+    say("kept the data dir", { dataDir: dir });
+    return;
+  }
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+  } catch (err) {
+    say("could not remove the data dir", { dataDir: dir, err: (err as Error).message });
+  }
+}
+
+async function main(): Promise<void> {
+  const dist = join(REPO, "dist");
+  if (!existsSync(join(dist, "index.html"))) throw new Error(`${dist}\\index.html is missing; run vite build first (bun run e2e does)`);
+
+  const dir = mkdtempSync(join(tmpdir(), "rlt-e2e-"));
+  try {
+    // The installed path, so the tracker's default staticDir is what's served.
+    cpSync(dist, join(dir, "bin", "web"), { recursive: true });
+    seed(dir);
+  } catch (err) {
+    removeDir(dir);
+    throw err;
+  }
+
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const replay = startReplayServer({ lines: readFixture("completed"), speed: REPLAY_SPEED, gate });
+  const port = await freePort();
+  const url = `http://${DASHBOARD_HOST}:${String(port)}`;
+  say("starting", { dataDir: dir, trackerPort: port, replayPort: replay.port });
+
+  const env: Record<string, string | undefined> = { ...process.env, RLTRACKER_DATA_DIR: dir, RLTRACKER_PORT: String(port), STATS_API_URL: `ws://127.0.0.1:${String(replay.port)}` };
+  delete env.RLTRACKER_STATIC_DIR;
+  const started = Date.now();
+  const tracker = Bun.spawn([process.execPath, "run", join(REPO, "src", "server", "main.ts")], { cwd: REPO, env, stdout: "ignore", stderr: "inherit" });
+
+  let tearingDown = false;
+  // The log tail is printed before the dir goes; RLT_E2E_KEEP=1 keeps the whole log.
+  const fail = (msg: string, fields: Record<string, unknown>) => {
+    say(msg, fields);
+    console.log(logTail(dir));
+    removeDir(dir);
+    process.exit(1);
+  };
+  void tracker.exited.then((code) => {
+    if (!tearingDown) fail("tracker exited early", { code });
+  });
+
+  for (;;) {
+    try {
+      if ((await fetch(`${url}/api/status`, { signal: AbortSignal.timeout(2000) })).status === 200) break;
+    } catch {
+      // Not listening yet, or not answering within 2 s.
+    }
+    if (Date.now() - started > READY_TIMEOUT_MS) {
+      tearingDown = true;
+      tracker.kill();
+      await tracker.exited;
+      fail("tracker never became ready", { ms: READY_TIMEOUT_MS });
+    }
+    await Bun.sleep(100);
+  }
+  say("tracker ready", { ms: Date.now() - started });
+  console.log(`ready ${JSON.stringify({ url, dataDir: dir })}`);
+
+  const input = createInterface({ input: process.stdin });
+  input.on("line", (line) => {
+    if (line.trim() !== "go") return;
+    say("replay released", { speed: REPLAY_SPEED });
+    release();
+  });
+  await new Promise<void>((resolve) => input.once("close", resolve));
+
+  tearingDown = true;
+  const stop = await requestStop(port);
+  if (describeStopResult(stop).exitCode !== 0) say("shutdown request failed", { stop });
+  const code = await Promise.race([tracker.exited, Bun.sleep(STOP_TIMEOUT_MS).then(() => null)]);
+  if (code === null) {
+    say("tracker did not stop; killing it", { ms: STOP_TIMEOUT_MS });
+    tracker.kill();
+    await tracker.exited;
+  } else {
+    say("tracker stopped", { code });
+  }
+  await replay.stop();
+  removeDir(dir);
+}
+
+await main();

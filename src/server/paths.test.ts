@@ -35,9 +35,16 @@ describe("dashboardPort", () => {
 });
 
 describe("staticDir", () => {
-  test("RLTRACKER_STATIC_DIR, or null when unset or empty", () => {
-    expect(staticDir({ RLTRACKER_STATIC_DIR: "D:/rl/dist" })).toBe("D:/rl/dist");
-    expect(staticDir({})).toBeNull();
-    expect(staticDir({ RLTRACKER_STATIC_DIR: "" })).toBeNull();
+  test("RLTRACKER_STATIC_DIR wins", () => {
+    expect(staticDir({ RLTRACKER_STATIC_DIR: "D:/rl/dist", RLTRACKER_DATA_DIR: "D:\\x" })).toBe("D:/rl/dist");
+  });
+
+  test("defaults to the web build beside the installed exes, following the data dir", () => {
+    expect(staticDir({ RLTRACKER_DATA_DIR: "D:\\x" })).toBe(join("D:\\x", "bin", "web"));
+    expect(staticDir({ LOCALAPPDATA: "C:\\L" })).toBe(join("C:\\L", "RLTracker", "bin", "web"));
+  });
+
+  test("an empty RLTRACKER_STATIC_DIR counts as unset", () => {
+    expect(staticDir({ RLTRACKER_STATIC_DIR: "", LOCALAPPDATA: "C:\\L" })).toBe(join("C:\\L", "RLTracker", "bin", "web"));
   });
 });

@@ -4,16 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { SHUTDOWN_HEADER } from "../shared/constants";
 import { EXIT_CONFIG_INVALID, EXIT_OK, EXIT_PORT_TAKEN, EXIT_START_FAILED } from "./exit-codes";
+import { freePort } from "./testing";
 
 const MAIN = join(import.meta.dirname, "main.ts");
-
-/** A port nothing listens on right now. */
-function freePort(): number {
-  const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
-  const port = probe.port ?? 0;
-  void probe.stop(true);
-  return port;
-}
 
 const until = async (cond: () => boolean, ms = 10_000) => {
   const start = Date.now();
@@ -28,9 +21,9 @@ describe("main as a process", () => {
   let port: number;
   const children: ReturnType<typeof Bun.spawn>[] = [];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "rltracker-main-"));
-    port = freePort();
+    port = await freePort();
   });
   afterEach(async () => {
     for (const c of children.splice(0)) {

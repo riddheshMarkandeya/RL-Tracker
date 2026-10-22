@@ -68,8 +68,8 @@ describe("serveStatic", () => {
     expect(await body(serveStatic(dist, "/%E0%A4%A"))).toEqual(NOT_FOUND);
   });
 
-  test("no static dir, or one without index.html: 404 dashboard not built", async () => {
-    expect(await body(serveStatic(null, "/"))).toEqual([404, "dashboard not built"]);
+  test("a missing static dir, or one without index.html: 404 dashboard not built", async () => {
+    expect(await body(serveStatic(join(dist, "missing"), "/"))).toEqual([404, "dashboard not built"]);
     rmSync(join(dist, "index.html"));
     expect(await body(serveStatic(dist, "/sessions"))).toEqual([404, "dashboard not built"]);
     expect(await body(serveStatic(dist, "/assets/app.js"))).toEqual([200, "console.log(1)"]);

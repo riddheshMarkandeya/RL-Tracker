@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { taskXml } from "./autostart";
+import { shortcutFile, taskXml } from "./autostart";
 
 describe("taskXml", () => {
   const xml = taskXml({ userId: String.raw`PC\me`, exe: String.raw`C:\Users\A&B\bin\rltracker-supervisor.exe`, workDir: String.raw`C:\Users\A&B\bin` });
@@ -22,5 +22,11 @@ describe("taskXml", () => {
     expect(xml).toContain("<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>");
     expect(xml).toContain("<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>");
     expect(xml).toContain("<RestartOnFailure><Interval>PT1M</Interval><Count>3</Count></RestartOnFailure>");
+  });
+});
+
+describe("shortcutFile", () => {
+  test("an Internet Shortcut to the URL, with CRLF line ends", () => {
+    expect(shortcutFile("http://127.0.0.1:49100/")).toBe("[InternetShortcut]\r\nURL=http://127.0.0.1:49100/\r\n");
   });
 });

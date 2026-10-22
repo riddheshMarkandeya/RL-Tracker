@@ -1,15 +1,18 @@
-// Installs the background tracker: compiles the supervisor and tracker into <dataDir>\bin and
-// registers a logon task that runs the supervisor. Running it again is the update path.
+// Installs the background tracker: compiles the supervisor and tracker into <dataDir>\bin, builds
+// the dashboard into <dataDir>\bin\web, registers a logon task that runs the supervisor, and adds a
+// Start menu shortcut to the dashboard. Running it again is the update path.
 // `bun run install-autostart` / `bun run uninstall-autostart`.
 import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { dataDir, SUPERVISOR_EXE, TRACKER_EXE } from "../src/server/paths";
-import { DASHBOARD_PORT } from "../src/shared/constants";
+import { DASHBOARD_HOST, DASHBOARD_PORT } from "../src/shared/constants";
 import { killImage, stopTracker } from "./stop";
 
 const TASK_NAME = "RLTracker";
-const SERVER_DIR = join(import.meta.dirname, "..", "src", "server");
+const REPO = join(import.meta.dirname, "..");
+const SERVER_DIR = join(REPO, "src", "server");
+const DASHBOARD_URL = `http://${DASHBOARD_HOST}:${String(DASHBOARD_PORT)}/`;
 
 const xmlEscape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -32,10 +35,15 @@ export function taskXml({ userId, exe, workDir }: { userId: string; exe: string;
 `;
 }
 
+/** A Start menu Internet Shortcut: it opens the URL in the default browser and never runs the tracker. */
+export function shortcutFile(url: string): string {
+  return `[InternetShortcut]\r\nURL=${url}\r\n`;
+}
+
 class StepFailed extends Error {}
 
-function run(cmd: string[]): string {
-  const res = Bun.spawnSync(cmd, { stdout: "pipe", stderr: "pipe" });
+function run(cmd: string[], cwd?: string): string {
+  const res = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" });
   if (res.exitCode !== 0) throw new StepFailed(`${cmd.slice(0, 2).join(" ")} failed (exit ${String(res.exitCode)}):\n${res.stderr.toString().trim() || res.stdout.toString().trim()}`);
   return res.stdout.toString();
 }
@@ -90,6 +98,67 @@ async function replace(from: string, to: string): Promise<void> {
   }
 }
 
+/** Best-effort removal of an install leftover: a held file only costs disk until the next install. */
+function removeLeftover(path: string): void {
+  try {
+    rmSync(path, { recursive: true, force: true, maxRetries: 5 });
+  } catch (err) {
+    // Only rmSync above; a failure here must not hide the real outcome or skip the restart.
+    console.log(`Could not remove ${path} (${(err as Error).message}); the next install removes it.`);
+  }
+}
+
+/** Swaps the fresh web build in, putting the old one back if that fails. Runs with the tracker stopped. */
+async function swapWeb(fresh: string, web: string): Promise<void> {
+  const old = `${web}.old`;
+  let hadOld: boolean;
+  if (existsSync(web)) {
+    removeLeftover(old);
+    await replace(web, old);
+    hadOld = true;
+  } else {
+    // From an interrupted install whose rollback failed: the leftover is the only working dashboard,
+    // so it stays as the backup rather than being deleted.
+    hadOld = existsSync(old);
+  }
+  try {
+    await replace(fresh, web);
+  } catch (err) {
+    if (hadOld) {
+      try {
+        renameSync(old, web);
+      } catch (rollback) {
+        throw new StepFailed(`${(err as Error).message} Putting the previous dashboard back also failed (${(rollback as Error).message}); it is in ${old}.`);
+      }
+    }
+    throw err;
+  }
+  removeLeftover(old);
+}
+
+/** The Start menu shortcut, or null when APPDATA is unset. */
+function shortcutPath(): string | null {
+  const appData = process.env.APPDATA;
+  return appData ? join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "RL Tracker.url") : null;
+}
+
+/** Best-effort: by now the tracker is installed and running, so a missing shortcut only costs a lookup of the URL. */
+function writeShortcut(): void {
+  const path = shortcutPath();
+  if (path === null) {
+    console.log(`Could not create the Start menu shortcut (APPDATA is not set); the dashboard is at ${DASHBOARD_URL}`);
+    return;
+  }
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, shortcutFile(DASHBOARD_URL));
+    console.log(`Added the Start menu shortcut ${path}`);
+  } catch (err) {
+    // Only filesystem calls above; any failure degrades the same way.
+    console.log(`Could not create the Start menu shortcut (${(err as Error).message}); the dashboard is at ${DASHBOARD_URL}`);
+  }
+}
+
 async function install(): Promise<void> {
   const bin = join(dataDir(), "bin");
   mkdirSync(bin, { recursive: true });
@@ -99,16 +168,36 @@ async function install(): Promise<void> {
     { entry: join(SERVER_DIR, "supervisor.ts"), exe: join(bin, SUPERVISOR_EXE), fresh: join(bin, "rltracker-supervisor.new.exe") },
     { entry: join(SERVER_DIR, "main.ts"), exe: join(bin, TRACKER_EXE), fresh: join(bin, "rltracker.new.exe") },
   ];
+  const web = join(bin, "web");
+  const webFresh = join(bin, "web.new");
+  let swapFailed: StepFailed | null = null;
   try {
     for (const { entry, exe, fresh } of builds) {
       console.log(`Building ${exe}`);
       run([process.execPath, "build", "--compile", "--windows-hide-console", entry, "--outfile", fresh]);
     }
+    // Its own build, not the repo's dist/, which may be stale.
+    console.log(`Building the dashboard into ${web}`);
+    try {
+      run([process.execPath, "run", "web:build", "--outDir", webFresh, "--emptyOutDir"], REPO);
+    } catch (err) {
+      if (!(err instanceof StepFailed)) throw err;
+      throw new StepFailed(`Building the dashboard failed: ${err.message}`);
+    }
     await stopInstalled(bin);
     for (const { exe, fresh } of builds) await replace(fresh, exe);
+    console.log("Swapping in the new dashboard");
+    try {
+      await swapWeb(webFresh, web);
+    } catch (err) {
+      // Only filesystem calls in swapWeb, so any failure degrades the same way: the new exes are in
+      // place, the tracker still gets restarted below, and the install reports it once it's running.
+      swapFailed = err instanceof StepFailed ? err : new StepFailed(`Could not swap in the new dashboard: ${(err as Error).message}.`);
+    }
   } finally {
     // A swapped-in build is gone already; whatever failed leaves no ~92 MB leftovers.
-    for (const { fresh } of builds) rmSync(fresh, { force: true });
+    for (const { fresh } of builds) removeLeftover(fresh);
+    removeLeftover(webFresh);
   }
 
   const supervisor = join(bin, SUPERVISOR_EXE);
@@ -120,7 +209,9 @@ async function install(): Promise<void> {
     rmSync(xmlPath, { force: true });
   }
   run(["schtasks", "/Run", "/TN", TASK_NAME]);
-  console.log(`RL Tracker is installed in ${bin} and running; it starts at each logon.`);
+  writeShortcut();
+  if (swapFailed !== null) throw new StepFailed(`RL Tracker is running again, but the dashboard was not updated: ${swapFailed.message}`);
+  console.log(`RL Tracker is installed in ${bin} and running; it starts at each logon. The dashboard is at ${DASHBOARD_URL}`);
   console.log("Stop it: bun run stop. Remove it: bun run uninstall-autostart. After code changes, run bun run deploy.");
 }
 
@@ -135,6 +226,15 @@ async function uninstall(): Promise<void> {
     console.log((err as Error).message);
   }
   await stopInstalled(bin);
+  const shortcut = shortcutPath();
+  if (shortcut !== null && existsSync(shortcut)) {
+    try {
+      rmSync(shortcut, { force: true });
+      console.log("Removed the Start menu shortcut.");
+    } catch (err) {
+      console.log(`Could not remove the Start menu shortcut ${shortcut} (${(err as Error).message}); delete it by hand.`);
+    }
+  }
   try {
     rmSync(bin, { recursive: true, force: true });
     console.log(`Removed ${bin}. Your data in ${dataDir()} is kept.`);

@@ -4,9 +4,8 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP5b-b (Playwright harness, `vite build` in deploy, installed `dist` path, Start menu shortcut).
-  WP5b-a (web shell, `docs/plans/2026-10-21-wp5b-a-web-shell.md`) is done; nothing serves it until
-  WP5b-b. WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
+  WP6a (Recap pages). WP5b (web shell; WP5b-b harness and install,
+  `docs/plans/2026-10-21-wp5b-b-harness-install.md`) is deployed. WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
   `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
   - **[design, Low, Trivial]** Add back the themes midnight, dusk, steel and daylight (values in the
     `prototype/settings-layout` tokens; each needs a `tokens.css` block, and the token test covers
@@ -38,6 +37,11 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   and a test, one extra rebuild per match, no schema change. Do it before mid-January 2027, when
   the first matches reach 90 days. Record: Review log (`/simplify` altitude #1) in
   `docs/plans/2026-10-20-wp4c-b-retention-split.md`.
+- [ ] **[bug, Low, Trivial]** Install: if replacing an exe fails after the tracker is stopped
+  (antivirus holding the fresh `.new.exe` past `replace`'s 10 s), install throws before
+  `schtasks /Run`, so nothing records until the next logon. Restart the task anyway, as the
+  dashboard swap already does, then report. Record: Review log in
+  `docs/plans/2026-10-21-wp5b-b-harness-install.md`.
 - [ ] **[refactor, Low, Standard]** `scripts/capture.ts` keeps its own envelope parse
   (`eventNameOf`/`matchGuidOf`), hardcoded URL and reconnect loop; reuse `parseFrame`,
   `statsApiUrl` and maybe `startStatsClient`, or retire it now the recorder stores raw events.

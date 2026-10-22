@@ -12,10 +12,12 @@ export interface ReplayOptions {
   speed?: number;
   /** 0 picks a free port. */
   port?: number;
+  /** When given, a client is accepted at once (it sees the game as running) but gets no frames until this resolves. */
+  gate?: Promise<void>;
 }
 
 /** Streams `lines` to each client that connects, then leaves the socket open. */
-export function startReplayServer({ lines, speed = 1, port = 0 }: ReplayOptions) {
+export function startReplayServer({ lines, speed = 1, port = 0, gate }: ReplayOptions) {
   let finished: () => void = () => undefined;
   const done = new Promise<void>((resolve) => (finished = resolve));
   const server = Bun.serve({
@@ -25,7 +27,11 @@ export function startReplayServer({ lines, speed = 1, port = 0 }: ReplayOptions)
       return srv.upgrade(req) ? undefined : new Response("Stats API replay: connect with a WebSocket", { status: 426 });
     },
     websocket: {
+      // The socket is left open after the last frame, and a gated one is silent until released;
+      // Bun's default idle timeout would close either.
+      idleTimeout: 0,
       async open(ws) {
+        await gate;
         let owed = 0;
         let prevT: number | null = null;
         for (const line of lines) {

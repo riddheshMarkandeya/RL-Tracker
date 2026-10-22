@@ -30,8 +30,8 @@ export interface ApiOptions {
   tracker: Db;
   reader: QueryReader;
   status: () => Status;
-  /** The built web app; null when there is none. */
-  staticDir: string | null;
+  /** The built web app; a folder with no index.html answers "dashboard not built". */
+  staticDir: string;
   logger: Logger;
   now?: () => number;
   events?: Partial<Omit<EventHubOptions, "status" | "logger">>;

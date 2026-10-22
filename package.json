@@ -9,11 +9,12 @@
     "recompute": "bun run scripts/recompute.ts",
     "rules-diff": "bun run scripts/rules-diff.ts",
     "definitions": "bun run scripts/definitions.ts",
-    "deploy": "bun run check && bun run install-autostart && bun run recompute",
+    "deploy": "bun run check && bun run e2e && bun run install-autostart && bun run recompute",
     "install-autostart": "bun run scripts/autostart.ts install",
     "uninstall-autostart": "bun run scripts/autostart.ts uninstall",
     "web:dev": "vite",
     "web:build": "vite build",
+    "e2e": "vite build && playwright test",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/web",
     "lint": "eslint . --max-warnings 0",
     "test": "bun --bun vitest run",
@@ -27,7 +28,9 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.63.0",
     "@types/bun": "^1.4.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",

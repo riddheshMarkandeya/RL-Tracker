@@ -26,7 +26,9 @@ maybe later.
   `scripts/` (standalone `capture.ts`; `stop.ts`, `autostart.ts`, `replay.ts` fake Stats API,
   `import-capture.ts` (also writes records), `recompute.ts`, `make-fixture.ts`, `definitions.ts`,
   `rules-diff.ts`), `test/fixtures/`
-  (anonymised capture excerpts).
+  (anonymised capture excerpts), `test/e2e/` (Playwright on Node: `fixtures.ts` starts
+  `stack.ts` under Bun, which seeds a temp data dir and runs the real tracker against a gated
+  replay; `shell.spec.ts`).
 - `bun run recompute` rebuilds match records in `tracker.db` from `raw.db` (safe with the
   tracker running; never deletes records).
 - Rules: `docs/definitions.md` is generated from `src/server/rules/registry.ts` (`bun run
@@ -39,13 +41,15 @@ maybe later.
   `bun run start` runs the server from source on the real data dir and port 49100;
   `bun run dev` runs it beside the background one (`.dev-data/`, port 49101); `bun run stop`
   stops it (`RLTRACKER_PORT=49101` for dev). `bun run web:dev` serves `src/web` on
-  `127.0.0.1:5173` with `/api/` proxied to the dev tracker; `bun run web:build` builds `dist/`. Bun lives at `~/.bun/bin/bun` and may not be on
-  PATH.
+  `127.0.0.1:5173` with `/api/` proxied to the dev tracker; `bun run web:build` builds `dist/`.
+  `bun run e2e` builds `dist/` and runs Playwright in the installed Chrome (`RLT_E2E_KEEP=1` keeps
+  the temp data dir and its `tracker.log`). Bun lives at `~/.bun/bin/bun` and may not be on PATH.
 - Background: `bun run install-autostart` compiles `rltracker-supervisor.exe` and `rltracker.exe`
-  into `%LOCALAPPDATA%\RLTracker\bin\` and registers the `RLTracker` logon task. It runs that
-  snapshot, not the repo. `bun run deploy` ships code changes: check, then install-autostart
-  (builds while the old one records, then swaps and restarts), then recompute. `uninstall-autostart`
-  removes both.
+  and the dashboard (`bin\web`, which the tracker serves) into `%LOCALAPPDATA%\RLTracker\bin\`,
+  registers the `RLTracker` logon task and adds a Start menu shortcut to
+  `http://127.0.0.1:49100/`. It runs that snapshot, not the repo. `bun run deploy` ships code
+  changes: check, e2e, then install-autostart (builds while the old one records, then swaps and
+  restarts), then recompute. `uninstall-autostart` removes the task, shortcut and `bin`.
 - Data and logs: `%LOCALAPPDATA%\RLTracker\` (`tracker.log` and `supervisor.log`, 5 × 5 MB, JSON
   lines);
   `RLTRACKER_DATA_DIR` overrides it for tests and dev runs. Also `tracker.db` (settings, seasons,
@@ -75,6 +79,10 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-21-wp5b-b-harness-install.md`: WP5b-b plan (Playwright harness with a seeded
+  temp DB and gated replay, axe, web build at install, `bin\web`, Start menu shortcut), live install
+  checks, review log. Confirms Playwright on Node.
+- `docs/reviews/2026-10-21-wp5b-b-harness-install.md`: WP5b-b review summary (4 rounds).
 - `docs/plans/2026-10-21-wp5b-a-web-shell.md`: WP5b-a plan (tooling, themes, header, shared SSE via
   SharedWorker, TanStack Query), live Chrome check, review log.
 - `docs/reviews/2026-10-21-wp5b-a-web-shell.md`: WP5b-a review summary (3 rounds).

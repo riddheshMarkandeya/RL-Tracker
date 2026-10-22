@@ -35,8 +35,7 @@ function send(path: string): Response {
   return new Response(file, { headers: { "content-type": file.type } });
 }
 
-export function serveStatic(staticDir: string | null, pathname: string): Response {
-  if (staticDir === null) return notFound("dashboard not built");
+export function serveStatic(staticDir: string, pathname: string): Response {
   const file = inside(staticDir, pathname);
   if (file === null) return notFound();
   if (isFile(file)) return send(file);

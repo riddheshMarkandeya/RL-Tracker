@@ -13,6 +13,15 @@ export interface LogLine {
   fields: Record<string, unknown>;
 }
 
+/** A loopback port nothing listens on right now. */
+export async function freePort(): Promise<number> {
+  const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
+  const { port } = probe;
+  await probe.stop(true);
+  if (port === undefined) throw new Error("probe server has no port");
+  return port;
+}
+
 /** A Logger that keeps its lines in memory, for tests. */
 export function memoryLogger(): Logger & { lines: LogLine[]; events: () => string[] } {
   const lines: LogLine[] = [];

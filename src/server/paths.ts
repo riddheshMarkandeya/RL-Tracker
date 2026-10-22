@@ -24,8 +24,12 @@ export function dashboardPort(env: Record<string, string | undefined> = process.
   return port;
 }
 
-/** The built dashboard to serve, from RLTRACKER_STATIC_DIR; null when unset, as no installed build exists yet. */
-export function staticDir(env: Record<string, string | undefined> = process.env): string | null {
+/**
+ * The built dashboard to serve: RLTRACKER_STATIC_DIR, else the web build installed beside the exes in
+ * `<dataDir>\bin\web`, so it is replaced with them and removed by uninstall. In dev that folder
+ * doesn't exist and the tracker answers "dashboard not built"; dev serves the UI with `web:dev`.
+ */
+export function staticDir(env: Record<string, string | undefined> = process.env): string {
   if (env.RLTRACKER_STATIC_DIR) return env.RLTRACKER_STATIC_DIR;
-  return null;
+  return join(dataDir(env), "bin", "web");
 }
