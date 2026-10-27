@@ -50,6 +50,10 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   `schtasks /Run`, so nothing records until the next logon. Restart the task anyway, as the
   dashboard swap already does, then report. Record: Review log in
   `docs/plans/2026-10-21-wp5b-b-harness-install.md`.
+- [ ] **[refactor, Med, Standard]** Replace `staleAfter`'s narrowed `match_ended` refresh with
+  refetch-everything (roadmap "UI interaction defaults", Cache). Revisits WP6a-a's design: it took
+  four review rounds and is still disputed, to save a few ms on a local API. Record: Review log
+  rounds 1, 2, 6, 7 in `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`.
 - [ ] **[refactor, Low, Standard]** `scripts/capture.ts` keeps its own envelope parse
   (`eventNameOf`/`matchGuidOf`), hardcoded URL and reconnect loop; reuse `parseFrame`,
   `statsApiUrl` and maybe `startStatsClient`, or retire it now the recorder stores raw events.

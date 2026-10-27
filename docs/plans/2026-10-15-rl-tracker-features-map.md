@@ -372,7 +372,8 @@ mobile app are avoided, but that app is not designed here.
   - Saving: a "✓ Saved" tick appears next to the changed setting and fades after about 2 s. A
     failed save shows "Couldn't save · Retry" in the same spot.
   - Reset: a "Reset to defaults" link next to each section title. It reads "Defaults" when nothing
-    has changed. Resets and row removals show an Undo toast instead of a confirmation dialog.
+    has changed. Resets and row removals show an inline Undo in the tick's spot instead of a confirmation dialog
+    (revisited 2026-10-26 from an Undo toast: a toast's focus and timing are a review magnet).
   - Remarks: the master switch, then the mood line, then "Quips" with one row per tier. Each tier
     folds open to its trigger switches and shows "all on", "some off" or "all off" when closed.
     A tier switch with some triggers off shows a half-way state, and clicking it turns them all
