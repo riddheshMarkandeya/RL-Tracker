@@ -1,8 +1,8 @@
 // Every API query the pages share, with their cache keys. Lists live under "sessions"; a session's
-// detail, the heavy one, is "session".
+// detail, the heavy one, is "session"; one match with every player is "match".
 import { useQuery } from "@tanstack/react-query";
 import type { PlaylistFilter } from "../shared/playlist-filter";
-import { currentResponse, latestResponse, sessionDetailResponse, sessionsResponse } from "../shared/schemas/responses";
+import { currentResponse, latestResponse, matchDetailResponse, sessionDetailResponse, sessionsResponse } from "../shared/schemas/responses";
 import { getJson } from "./api";
 import { filterValue } from "./logic/filter-options";
 
@@ -40,5 +40,13 @@ export function useSessionDetail(key: string, filter: PlaylistFilter) {
   return useQuery({
     queryKey: ["session", key, f],
     queryFn: () => getJson(`/api/sessions/${encodeURIComponent(key)}?filter=${f}`, sessionDetailResponse),
+  });
+}
+
+/** One match with every player, for the match page's scoreboard. */
+export function useMatchDetail(guid: string) {
+  return useQuery({
+    queryKey: ["match", guid],
+    queryFn: () => getJson(`/api/matches/${encodeURIComponent(guid)}`, matchDetailResponse),
   });
 }

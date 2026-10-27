@@ -11,6 +11,7 @@ import { createInterface } from "node:readline";
 import { startReplayServer } from "../../scripts/replay";
 import { describeStopResult, requestStop } from "../../scripts/stop";
 import { createLogger } from "../../src/server/log";
+import type { MatchRecord } from "../../src/server/records/record";
 import { createRecordWriter } from "../../src/server/records/save";
 import { openStorage } from "../../src/server/storage";
 import { freePort, goal, ME, player, readFixture, record, THEM } from "../../src/server/testing";
@@ -40,7 +41,8 @@ function logTail(dir: string, lines = 30): string {
 const HOUR = 60 * MIN;
 
 /** A match of ME's, won or lost, `start` ms after the local day's 4am start. */
-const match = (guid: string, day: string, start: number, won: boolean, over: { playlistId?: number; checkFlags?: string[]; scoreTeam0?: number } = {}, rows: Parameters<typeof record>[2] = {}) => {
+type MatchOver = Partial<Pick<MatchRecord["match"], "playlistId" | "checkFlags" | "scoreTeam0" | "endKind" | "winnerTeamNum" | "winnerSource" | "mvpSource">>;
+const match = (guid: string, day: string, start: number, won: boolean, over: MatchOver = {}, rows: Parameters<typeof record>[2] = {}) => {
   const at = dayStart(day) + start;
   return record(guid, at, rows, { endedAt: at + 5 * MIN, scoreTeam0: won ? 2 : 1, scoreTeam1: won ? 1 : 2, winnerTeamNum: won ? 0 : 1, mvpKey: won ? ME : null, ...over });
 };
@@ -68,7 +70,8 @@ const HAT_TRICK: Parameters<typeof record>[2] = {
 /**
  * `rich`: the current session is exactly one won match, ended 5 minutes ago (the header chip reads
  * "This session: 1–0"). Last month, so none is current: a 26-match session, a private-only one,
- * and two sessions on one day (one with a flagged match). The month before: one session, the
+ * and two sessions on one day. The first of those has four matches on Ranked Doubles: a win, a
+ * loss that failed a check, a loss you left, and a win with an inferred MVP. The month before: one session, the
  * 26-match session's only baseline match. In the 26-match session, match 2 is HAT_TRICK and match 3
  * is on Ranked Doubles.
  * `empty`: no matches at all.
@@ -95,6 +98,8 @@ function seed(dir: string, mode: Seed): void {
     writer.save(match("e2e-private", day(1, 8), 14 * HOUR, true, { playlistId: 6 }));
     writer.save(match("e2e-first-a", day(1, 12), 8 * HOUR, true, { playlistId: 11 }));
     writer.save(match("e2e-first-b", day(1, 12), 8 * HOUR + 10 * MIN, false, { playlistId: 11, checkFlags: ["mvp_count"] }));
+    writer.save(match("e2e-first-c", day(1, 12), 8 * HOUR + 20 * MIN, false, { playlistId: 11, endKind: "left", winnerTeamNum: null, winnerSource: null }));
+    writer.save(match("e2e-first-d", day(1, 12), 8 * HOUR + 30 * MIN, true, { playlistId: 11, mvpSource: "inferred" }));
     writer.save(match("e2e-second", day(1, 12), 12 * HOUR, false, { playlistId: 2 }));
     writer.save(record("e2e-seed-won", now - 10 * MIN, {}, { endedAt: now - 5 * MIN }));
   } finally {

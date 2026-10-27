@@ -1,8 +1,9 @@
 // Aggregates over your matches. An empty set gives nulls rather than zeros, so a page never shows
 // a stat nothing was measured for.
-import { BASELINE_DAYS } from "../../shared/constants";
-import { daysBefore } from "../../shared/periods";
-import type { Result, ResultInput } from "../../shared/result";
+import { BASELINE_DAYS } from "./constants";
+import type { FlagReason } from "./flags";
+import { daysBefore } from "./periods";
+import type { Result, ResultInput } from "./result";
 
 /** Your player row in a match. The extras are null until computed; the car stats also for a match without car state. */
 export interface MyRow {
@@ -38,8 +39,8 @@ export interface MyMatch {
   scoreTeam1: number | null;
   winnerTeamNum: number | null;
   mvpKey: string | null;
-  /** A check failed on this match. */
-  flagged: boolean;
+  /** Why the match is flagged; [] when it isn't. */
+  flags: FlagReason[];
   me: MyRow | null;
   result: Result | null;
   /** Your goals. */

@@ -2,9 +2,10 @@
 // with nothing behind it is left out rather than shown as a zero.
 import type { PlaylistFilter } from "../../shared/playlist-filter";
 import { playlistInfo } from "../../shared/playlists";
-import type { AggregateWire, MyMatchWire, SessionDetail } from "../../shared/schemas/responses";
+import type { FlagReason } from "../../shared/flags";
+import type { AggregateWire, MatchDetail, MyMatchWire, SessionDetail } from "../../shared/schemas/responses";
 import { filterValue } from "./filter-options";
-import { decimal } from "./format";
+import { clock, decimal } from "./format";
 
 /** A share as whole percent. */
 export const pct = (share: number) => Math.round(share * 100);
@@ -172,8 +173,80 @@ export function scoreFor(m: Pick<MyMatchWire, "scoreTeam0" | "scoreTeam1" | "me"
 /** Long sessions get smaller match cards, about 13 to a row. */
 export const isDense = (matches: number): boolean => matches > 24;
 
+/** Which of a session's pages: the Overview, Matches & numbers, or one match. */
+export type RecapView = "overview" | "matches" | { match: string };
+
 /** A session's recap (or the latest one's, for a null key), with the filter unless it's the default. */
-export function recapPath(key: string | null, filter: PlaylistFilter): string {
-  const path = key === null ? "/recap" : `/recap/${encodeURIComponent(key)}`;
+export function recapPath(key: string | null, filter: PlaylistFilter, view: RecapView = "overview"): string {
+  const session = key === null ? "/recap" : `/recap/${encodeURIComponent(key)}`;
+  const path = key === null || view === "overview" ? session : view === "matches" ? `${session}/matches` : `${session}/match/${encodeURIComponent(view.match)}`;
   return filter === "everything" ? path : `${path}?filter=${filterValue(filter)}`;
+}
+
+const counted = (r: "win" | "loss") => `counted as a ${r}`;
+const DECIDED = ", which the score had already decided";
+
+/** The match page's flag note, a line per reason, worded by how the match was actually counted. */
+export function flagLines(flags: readonly FlagReason[], result: "win" | "loss" | null): string[] {
+  const decided = flags.includes("winner_decided") ? DECIDED : "";
+  // A decided winner is filled in when you left or the ending was lost, so those lines say it; with
+  // no result they can't, and the decided winner gets its own line.
+  const endLine = result !== null && (flags.includes("left") || flags.includes("lost_ending"));
+  return flags.flatMap((f): string[] => {
+    switch (f) {
+      case "left":
+        return [result === null ? "You left before the end." : `You left before the end — ${counted(result)}${decided}.`];
+      case "lost_ending":
+        return [result === null ? "The tracker lost this match's ending, so there's no result." : `The tracker lost this match's ending — ${counted(result)}${decided}.`];
+      case "joined":
+        return ["You joined in progress — counted as a full game."];
+      case "winner_decided":
+        return endLine ? [] : ["The game didn't report a winner — it was taken from the score, which had already decided it."];
+      case "mvp_inferred":
+        return ["MVP inferred: no MVP award fired, so it went to the top score on the winning team."];
+      case "check_failed":
+        return ["A data check failed on this match, so some numbers may be off."];
+    }
+  });
+}
+
+const SHORT: Record<FlagReason, string> = {
+  left: "you left early",
+  lost_ending: "ending not recorded",
+  joined: "joined in progress",
+  winner_decided: "winner taken from the score",
+  mvp_inferred: "MVP inferred",
+  check_failed: "a data check failed",
+};
+
+/** "flagged: …" for an aria-label or title; null when the match isn't flagged. */
+export const flagShort = (flags: readonly FlagReason[]): string | null => (flags.length ? `flagged: ${flags.map((f) => SHORT[f]).join(", ")}` : null);
+
+/** Whether this match's MVP is you. */
+export const isMyMvp = (m: MyMatchWire): boolean => m.me !== null && m.mvpKey === m.me.playerKey;
+
+/** How a match link is announced: "Match 2, 21:04, win, 3–1, Ranked Doubles, MVP, flagged: …". */
+export function matchLabel(m: MyMatchWire, n: number): string {
+  return [`Match ${String(n)}`, clock(m.startedAt), resultWord(m.result), scoreFor(m), playlistInfo(m.playlistId).name, isMyMvp(m) && "MVP", flagShort(m.flags)]
+    .filter(Boolean)
+    .join(", ");
+}
+
+type MatchPlayer = MatchDetail["players"][number];
+export interface ScoreTeam {
+  side: "yours" | "opponents" | "blue" | "orange" | "unknown";
+  teamNum: number | null;
+  players: MatchPlayer[];
+}
+
+/** The scoreboard's teams: yours first (blue first when yours is unknown), each by score; empty ones left out. */
+export function scoreboardTeams(players: readonly MatchPlayer[], myTeam: number | null): ScoreTeam[] {
+  const order: [ScoreTeam["side"], number | null][] =
+    myTeam === null ? [["blue", 0], ["orange", 1]] : [["yours", myTeam], ["opponents", 1 - myTeam]];
+  const teams: ScoreTeam[] = [...order, ["unknown", null] as const].map(([side, teamNum]) => ({
+    side,
+    teamNum,
+    players: players.filter((p) => p.teamNum === teamNum).sort((a, b) => b.score - a.score),
+  }));
+  return teams.filter((t) => t.players.length > 0);
 }

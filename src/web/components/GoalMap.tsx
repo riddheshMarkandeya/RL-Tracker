@@ -1,6 +1,7 @@
-// Where the goals came from: a passive SVG pitch with a mark per placed goal (its <title> holds the
-// details) and, beside it, the same counts as text.
+// Where the goals came from: an SVG pitch with a mark per placed goal (its <title> holds the
+// details; a click can open its match) and, beside it, the same counts as text.
 import { useEffect } from "react";
+import { useLinkClickHandler } from "react-router";
 import { GOAL_LINE_Y, SIDE_WALL_X } from "../../shared/constants";
 import type { Goal, MyMatchWire } from "../../shared/schemas/responses";
 import { goalMarks, goalSummary, MAP_H, MAP_W, markScale, type GoalMark, type SideSummary } from "../logic/goal-map";
@@ -15,7 +16,8 @@ const GOAL_WIDTH = (MAP_H * 1786) / (2 * SIDE_WALL_X);
 /** Room past the walls for a mark on the edge (a touch in a goal mouth is drawn on the line). */
 const PAD = 12;
 
-export function GoalMap({ matches, goals, viewKey }: { matches: MyMatchWire[]; goals: Goal[]; viewKey: string }) {
+/** With `hrefFor`, a mark is a link to its match: for the mouse only, as screen readers get the svg's label and the counts beside it. */
+export function GoalMap({ matches, goals, viewKey, hrefFor }: { matches: MyMatchWire[]; goals: Goal[]; viewKey: string; hrefFor?: (guid: string) => string }) {
   const { marks, skipped } = goalMarks(matches, goals);
   const summary = goalSummary(matches, goals);
   const k = markScale(goals.length);
@@ -34,11 +36,12 @@ export function GoalMap({ matches, goals, viewKey }: { matches: MyMatchWire[]; g
         <svg
           className={styles.pitch}
           viewBox={`${String(-PAD)} ${String(-PAD)} ${String(MAP_W + 2 * PAD)} ${String(MAP_H + 2 * PAD)}`}
-          role="img"
+          // A group, not an img: axe holds that an image has no links inside, even ones out of the tab order.
+          role="group"
           aria-label={`Where ${plural(summary.scored.total, "goal")} for and ${String(summary.conceded.total)} against came from`}
         >
           <Field />
-          {marks.map((m) => <Mark key={m.key} mark={m} k={k} />)}
+          {marks.map((m) => (hrefFor ? <LinkedMark key={m.key} mark={m} k={k} href={hrefFor(m.matchGuid)} /> : <Mark key={m.key} mark={m} k={k} />))}
         </svg>
         <ul className={styles.key}>
           <li><svg width="12" height="12" aria-hidden="true"><circle className={styles.yours} cx="6" cy="6" r="5" /></svg>your goal</li>
@@ -89,6 +92,18 @@ function Mark({ mark: m, k }: { mark: GoalMark; k: number }) {
       )}
       {m.deflected && <circle className={styles.defl} cx={m.x} cy={m.y} r={11 * k} />}
     </g>
+  );
+}
+
+// Out of the tab order and hidden from screen readers: the match cards reach the same matches. The
+// click handler keeps navigation in the app and leaves modified and middle clicks to the browser.
+function LinkedMark({ mark, k, href }: { mark: GoalMark; k: number; href: string }) {
+  // JSX types every <a> as HTML; react-router's handler only reads the event's button and keys.
+  const onClick = useLinkClickHandler(href);
+  return (
+    <a className={styles.link} href={href} tabIndex={-1} aria-hidden="true" onClick={onClick}>
+      <Mark mark={mark} k={k} />
+    </a>
   );
 }
 

@@ -49,10 +49,10 @@ describe("goalMarks", () => {
       goal("b", { teamNum: 0, scorerKey: "opp", pos: { x: 0, y: -2000, z: 700 }, distance: 7120, aerial: true, deflected: true }),
     ]);
     expect(skipped).toEqual([]);
-    expect(marks.map((m) => [m.side, m.yours, m.aerial, m.deflected])).toEqual([
-      ["scored", true, false, false],
-      ["scored", false, false, true],
-      ["conceded", false, true, true],
+    expect(marks.map((m) => [m.matchGuid, m.side, m.yours, m.aerial, m.deflected])).toEqual([
+      ["a", "scored", true, false, false],
+      ["a", "scored", false, false, true],
+      ["b", "conceded", false, true, true],
     ]);
     expect(marks.map((m) => m.title)).toEqual([
       "Match 1 · your goal · 112 km/h · 12 m out",

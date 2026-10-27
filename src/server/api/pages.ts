@@ -6,7 +6,7 @@ import { BASELINE_DAYS } from "../../shared/constants";
 import { daysBefore, dayOf, monthOf, periodRange, type PeriodSpec, type Season } from "../../shared/periods";
 import { inFilter, playlistsPresent, type PlaylistFilter } from "../../shared/playlist-filter";
 import type { LatestSession, MatchDetail, MonthFolds, PeriodView, SessionDetail, SessionList, SessionSummary } from "../../shared/schemas/responses";
-import { aggregate, baseline, byPlaylist, type MyMatch } from "../query/aggregate";
+import { aggregate, baseline, byPlaylist, type MyMatch } from "../../shared/aggregate";
 import type { MatchResult, QueryReader } from "../query/read";
 import { currentSession, cutSessions, type Session } from "../query/sessions";
 

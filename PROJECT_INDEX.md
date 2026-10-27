@@ -79,6 +79,16 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-27-wp6a-c-matches-and-match-page.md`: WP6a-c plan (Matches & numbers, the
+  match page with its side list, scoreboard and flag note, links from cards and goal dots, the
+  `match_flags` read rule), review log.
+- `docs/reviews/2026-10-27-wp6a-c-matches-and-match-page.md`: WP6a-c review summary (2 rounds).
+- `docs/plans/2026-10-27-wp6a-b-overview-sections.md`: WP6a-b plan (Overview sections 5–8, the SVG
+  goal map), review log.
+- `docs/reviews/2026-10-27-wp6a-b-overview-sections.md`: WP6a-b review summary (3 rounds).
+- `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`: WP6a-a plan (session picker, playlist
+  filter, Overview 1–4, narrowed refresh), review log.
+- `docs/reviews/2026-10-26-wp6a-a-recap-navigation.md`: WP6a-a review summary.
 - `docs/plans/2026-10-21-wp5b-b-harness-install.md`: WP5b-b plan (Playwright harness with a seeded
   temp DB and gated replay, axe, web build at install, `bin\web`, Start menu shortcut), live install
   checks, review log. Confirms Playwright on Node.

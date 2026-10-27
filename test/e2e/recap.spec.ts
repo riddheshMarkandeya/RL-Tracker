@@ -15,8 +15,11 @@ const at = async (page: Page, key: string) => {
   await expect(page.locator(`[data-session="${key}"]`)).toHaveCount(1);
 };
 
-// The browser logs any 404 response as a console error; the unknown session's is the expected one.
-const NOT_FOUND = /^Failed to load resource: .* 404 .*\/api\/sessions\/no-such-session\?/;
+// The browser logs any 404 response as a console error; the unknown session's and match's are the expected ones.
+const NOT_FOUND = /^Failed to load resource: .* 404 .*\/api\/(sessions\/no-such-session\?|matches\/no-such-match\))/;
+const rail = (page: Page) => page.getByRole("navigation", { name: "Matches" });
+const numbersTab = (page: Page) => page.getByRole("link", { name: "Matches & numbers" });
+const scoreboardLoaded = (page: Page) => expect(page.getByRole("rowheader", { name: /\(you\)/ })).toBeVisible();
 
 test.afterEach(({ consoleErrors }) => {
   expect(consoleErrors.filter((e) => !NOT_FOUND.test(e))).toEqual([]);
@@ -36,15 +39,15 @@ test("/recap opens the latest session; ‹ steps back through the days, with 2nd
   await prev(page).click();
   await expect(page).toHaveURL(/\/recap\/e2e-first-a$/);
   await expect(picker(page)).toContainText("1st of 2 that day");
-  await expect(bug(page, "1 win, 1 loss")).toBeVisible();
+  await expect(bug(page, "2 wins, 2 losses")).toBeVisible();
   // The second match failed a check: its card says so.
-  await expect(page.getByRole("listitem", { name: /^Match 2, .*flagged/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Match 2, .*flagged: a data check failed$/ })).toBeVisible();
 
   // Everything leaves the private-only session out, so the 26-match day comes next.
   await prev(page).click();
   await expect(page).toHaveURL(/\/recap\/e2e-long-00$/);
-  await expect(page.getByRole("listitem", { name: /^Match 26,/ })).toBeVisible();
-  await expect(page.locator("ol").filter({ has: page.getByRole("listitem", { name: /^Match 26,/ }) })).toHaveClass(/dense/);
+  await expect(page.getByRole("link", { name: /^Match 26,/ })).toBeVisible();
+  await expect(page.locator("ol").filter({ has: page.getByRole("link", { name: /^Match 26,/ }) })).toHaveClass(/dense/);
 });
 
 test("« » step by month to the nearest session there; the ends are disabled", async ({ page }) => {
@@ -91,7 +94,7 @@ test("the long session's Overview: per game, what stood out, by playlist, the go
   await expect(byPlaylist.getByRole("row", { name: /Ranked Doubles/ })).toContainText("1–0");
 
   const goals = section("Where the goals came from");
-  await expect(goals.getByRole("img", { name: "Where 29 goals for and 26 against came from" })).toBeVisible();
+  await expect(goals.getByRole("group", { name: "Where 29 goals for and 26 against came from" })).toBeVisible();
   await expect(goals).toContainText("Scored · 29");
   await expect(goals).toContainText("2 close · 26 mid · 1 long");
   await expect(goals).toContainText("Conceded · 26 · 1 aerial");
@@ -171,7 +174,7 @@ test("the playlist filter: in the URL, only what was played, and notes when noth
   const select = page.getByLabel("Playlist");
   await select.selectOption("11");
   await expect(page).toHaveURL(/\/recap\/e2e-first-a\?filter=11$/);
-  await expect(bug(page, "1 win, 1 loss")).toBeVisible();
+  await expect(bug(page, "2 wins, 2 losses")).toBeVisible();
   // A filter change hands focus back to the filter; Back to a cached entry leaves it there.
   await expect(select).toBeFocused();
   await page.goBack();
@@ -192,14 +195,139 @@ test("the playlist filter: in the URL, only what was played, and notes when noth
   await expect(page.getByText("This session isn't here any more.")).toBeVisible();
 });
 
+test("Matches & numbers: every match with totals in a capped box; a row opens its match", async ({ page }) => {
+  await page.goto("/recap/e2e-long-00");
+  await numbersTab(page).click();
+  await expect(page).toHaveURL(/\/recap\/e2e-long-00\/matches$/);
+  await expect(numbersTab(page)).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Every match · 26 matches · 17–9" })).toBeVisible();
+  const table = page.getByRole("table");
+  await expect(table.locator("tbody tr")).toHaveCount(26);
+  // # Time Playlist Result | Score G …: the totals row's goals are the Overview's 29.
+  await expect(table.locator("tfoot td").nth(1)).toHaveText("29");
+  await expect(table.locator("thead th").first()).toHaveCSS("position", "sticky");
+  await expect(table.locator("tfoot th")).toHaveCSS("position", "sticky");
+
+  // A row opens its match; focus goes to that match in the side list, which keeps it in view.
+  await page.getByRole("link", { name: /^Match 26,/ }).click();
+  await expect(page).toHaveURL(/\/recap\/e2e-long-00\/match\/e2e-long-25$/);
+  const open = rail(page).locator("[aria-current=page]");
+  await expect(open).toBeFocused();
+  await expect(numbersTab(page)).toHaveAttribute("aria-current", "true");
+  const box = await rail(page).boundingBox();
+  const row = await open.boundingBox();
+  expect(box && row && row.y >= box.y && row.y + row.height <= box.y + box.height).toBe(true);
+
+  // Another match from the list keeps focus on it; All matches goes back, focus to its tab.
+  await rail(page).getByRole("link", { name: /^Match 2,/ }).click();
+  await expect(page).toHaveURL(/\/match\/e2e-long-01$/);
+  await expect(rail(page).getByRole("link", { name: /^Match 2,/ })).toBeFocused();
+  await rail(page).getByRole("link", { name: /All matches/ }).click();
+  await expect(page).toHaveURL(/\/recap\/e2e-long-00\/matches$/);
+  await expect(numbersTab(page)).toBeFocused();
+
+  // A step to another session stays on Matches & numbers.
+  await prev(page).click();
+  await expect(page).toHaveURL(/\/recap\/e2e-old\/matches$/);
+});
+
+test("the match page: header, scoreboard, the match's goal map and extras", async ({ page }) => {
+  await page.goto("/recap/e2e-long-00/match/e2e-long-01");
+  await expect(page.getByRole("heading", { name: /^Match 2: win 4–1$/ })).toBeVisible();
+  await expect(page.getByText("MVP", { exact: true })).toBeVisible();
+  await expect(page.getByRole("note")).toHaveCount(0);
+  await scoreboardLoaded(page);
+  await expect(page.getByRole("heading", { name: "Your team · won" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Opponents · lost" })).toBeVisible();
+  await expect(page.getByRole("rowheader", { name: /\(you\)/ })).toHaveText("Epic|me|0 (you)");
+  await expect(page.getByRole("group", { name: "Where 4 goals for and 1 against came from" })).toBeVisible();
+  const mine = page.locator("section").filter({ has: page.getByRole("heading", { name: "Your match", exact: true }) });
+  await expect(mine.getByRole("listitem").filter({ hasText: "Hat tricks" })).toContainText("1");
+  await expect(mine.getByRole("listitem").filter({ hasText: "Fastest goal" })).toContainText("120 km/h");
+});
+
+test("flags: the note says why, worded by how the match counted", async ({ page }) => {
+  await page.goto("/recap/e2e-first-a/match/e2e-first-c");
+  await expect(page.getByRole("note")).toHaveText("You left before the end — counted as a loss.");
+  await expect(rail(page).getByRole("link", { name: /^Match 3, .*flagged: you left early$/ })).toBeVisible();
+
+  await rail(page).getByRole("link", { name: /^Match 4,/ }).click();
+  await expect(page.getByRole("note")).toHaveText("MVP inferred: no MVP award fired, so it went to the top score on the winning team.");
+  await expect(page.getByText("MVP (inferred)")).toBeVisible();
+
+  await rail(page).getByRole("link", { name: /^Match 2,/ }).click();
+  await expect(page.getByRole("note")).toHaveText("A data check failed on this match, so some numbers may be off.");
+
+  await rail(page).getByRole("link", { name: /^Match 1,/ }).click();
+  await expect(page.getByRole("note")).toHaveCount(0);
+
+  await numbersTab(page).click();
+  await expect(page.getByRole("table").getByText("⚑")).toHaveCount(3);
+});
+
+test("links: a match card and a goal dot open their match", async ({ page }) => {
+  await page.goto("/recap/e2e-long-00");
+  await page.getByRole("link", { name: /^Match 2,/ }).click();
+  await expect(page).toHaveURL(/\/recap\/e2e-long-00\/match\/e2e-long-01$/);
+  await scoreboardLoaded(page);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/recap\/e2e-long-00$/);
+  // The last mark is drawn on top: the seed's goals share a spot, and the first is covered.
+  const dot = page.locator("svg a").last();
+  await expect(dot).toHaveAttribute("tabindex", "-1");
+  await dot.click();
+  await expect(page).toHaveURL(/\/recap\/e2e-long-00\/match\/e2e-long-\d\d$/);
+  await expect(rail(page)).toBeVisible();
+});
+
+test("a match outside the view: under another filter, in another session, or gone", async ({ page }) => {
+  // Only match 3 is on Ranked Doubles.
+  await page.goto("/recap/e2e-long-00/match/e2e-long-05?filter=11");
+  await expect(page.getByRole("heading", { name: "This match isn't in this view." })).toBeVisible();
+  await page.getByRole("link", { name: "Show it under every playlist" }).click();
+  await expect(page).toHaveURL(/\/recap\/e2e-long-00\/match\/e2e-long-05$/);
+  await expect(page.getByRole("heading", { name: /^Match 6:/ })).toBeVisible();
+
+  await page.goto("/recap/e2e-long-00/match/e2e-first-c");
+  await page.getByRole("link", { name: "Open it in its own session" }).click();
+  await expect(page).toHaveURL(/\/recap\/e2e-first-a\/match\/e2e-first-c$/);
+  await expect(page.getByRole("note")).toBeVisible();
+
+  await page.goto("/recap/e2e-long-00/match/no-such-match");
+  await expect(page.getByRole("heading", { name: "This match isn't here any more." })).toBeVisible();
+});
+
+test("at 320px the new pages fit without a sideways scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  for (const path of ["/recap/e2e-long-00/matches", "/recap/e2e-long-00/match/e2e-long-01"]) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    if (path.includes("/match/")) await scoreboardLoaded(page);
+    else await expect(page.getByRole("table")).toBeVisible();
+    expect(await page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"), path).toBe(0);
+  }
+});
+
 test("axe: the recap, its picker open, and its states in every theme", async ({ page }) => {
-  for (const path of ["/recap/e2e-long-00", "/recap/e2e-old", "/recap/e2e-seed-won?filter=private", "/recap?filter=17", "/recap/no-such-session"]) {
+  const paths = [
+    "/recap/e2e-long-00",
+    "/recap/e2e-long-00/matches",
+    "/recap/e2e-long-00/match/e2e-long-01",
+    "/recap/e2e-first-a/match/e2e-first-c",
+    "/recap/e2e-old",
+    "/recap/e2e-seed-won?filter=private",
+    "/recap?filter=17",
+    "/recap/no-such-session",
+  ];
+  for (const path of paths) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     if (path === "/recap/e2e-long-00") {
       await picker(page).click();
       await expect(page.locator("a[aria-current=true]")).toBeFocused();
     }
+    if (path.includes("/match/")) await scoreboardLoaded(page);
     for (const theme of THEMES) {
       // A string expression: the root tsconfig has no DOM lib for a page-side function.
       await page.evaluate(`document.documentElement.setAttribute("data-theme", ${JSON.stringify(theme)})`);

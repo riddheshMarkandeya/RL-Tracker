@@ -37,7 +37,7 @@ const match = (over: Partial<MyMatch> = {}): MyMatch => {
     scoreTeam1: 1,
     winnerTeamNum: 0,
     mvpKey: null,
-    flagged: false,
+    flags: [],
     me: me(),
     result: "win",
     goals: [{ speedKmh: 90, ownGoal: false }],

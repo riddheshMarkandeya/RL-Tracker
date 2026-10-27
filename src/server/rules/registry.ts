@@ -75,6 +75,7 @@ const PLAN_WP4CB = "docs/plans/2026-10-20-wp4c-b-retention-split.md";
 const MAP = "docs/plans/2026-10-15-rl-tracker-features-map.md";
 const PLAN_WP5AA = "docs/plans/2026-10-21-wp5a-a-query-logic.md";
 const PLAN_WP6AA = "docs/plans/2026-10-26-wp6a-a-recap-navigation.md";
+const PLAN_WP6AC = "docs/plans/2026-10-27-wp6a-c-matches-and-match-page.md";
 
 const p = (column: string) => `match_players.${column}`;
 const m = (column: string) => `matches.${column}`;
@@ -387,6 +388,16 @@ export const RULES: readonly Rule[] = [
     version: 1,
     applied: "read",
     refs: [ADR_RECORDS, PLAN_WP4A],
+  },
+  {
+    id: "match_flags",
+    area: "match",
+    rule: "A match is flagged when you left, the tracker lost its ending, you joined in progress, the winner was taken from the score, the MVP was inferred, or a check failed; a forfeit counts normally and isn't flagged.",
+    checks: [],
+    evidence: "The user's choice (2026-10-27): flag what was guessed or cut short. Real data then: 4 of 76 matches (1 left, 3 inferred MVPs); 21 forfeits unflagged.",
+    version: 1,
+    applied: "read",
+    refs: [MAP, PLAN_WP6AC],
   },
   {
     id: "playlist_map",

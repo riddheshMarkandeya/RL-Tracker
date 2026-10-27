@@ -2,10 +2,11 @@
 // my_ids and not rejected, so confirming or rejecting an id re-labels every match.
 import type { Db, Param } from "../db/sqlite";
 import type { Logger } from "../log";
+import { flagReasons, type FlagInput } from "../../shared/flags";
 import type { Season } from "../../shared/periods";
 import { resultFor, type Result } from "../../shared/result";
 import type { Goal, MatchDetail } from "../../shared/schemas/responses";
-import type { MyMatch, MyRow } from "./aggregate";
+import type { MyMatch, MyRow } from "../../shared/aggregate";
 
 const C = "query";
 
@@ -33,7 +34,10 @@ interface MatchRow {
   winner_team_num: number | null;
   mvp_key: string | null;
   camera_primary_id: string | null;
-  flagged: number;
+  joined_in_progress: number;
+  winner_source: FlagInput["winnerSource"];
+  mvp_source: FlagInput["mvpSource"];
+  check_failed: number;
   // Your row's columns; null when no player of yours is in the match.
   player_key: string | null;
   primary_id: string | null;
@@ -84,8 +88,7 @@ interface GoalRow {
   own_goal: number;
 }
 
-type FullMatchRow = Omit<MatchRow, "flagged" | "player_key" | "primary_id" | "team_num" | keyof PlayerStats> & {
-  joined_in_progress: number;
+type FullMatchRow = Omit<MatchRow, "winner_source" | "mvp_source" | "check_failed" | "player_key" | "primary_id" | "team_num" | keyof PlayerStats> & {
   check_flags: string;
 };
 
@@ -176,7 +179,13 @@ function toMyMatch(
     scoreTeam1: m.score_team1,
     winnerTeamNum: m.winner_team_num,
     mvpKey: m.mvp_key,
-    flagged: m.flagged === 1,
+    flags: flagReasons({
+      endKind: m.end_kind,
+      joinedInProgress: m.joined_in_progress === 1,
+      winnerSource: m.winner_source,
+      mvpSource: m.mvp_source,
+      checkFailed: m.check_failed === 1,
+    }),
     me,
     result: myResult(m, me?.teamNum ?? null),
     goals: goals.map((g) => ({ speedKmh: g.speed_kmh, ownGoal: g.own_goal === 1 })),
@@ -218,7 +227,8 @@ export function createQueryReader({ tracker, logger }: { tracker: Db; logger: Lo
       const w = where(range);
       const rows = tracker.all<MatchRow>(
         `SELECT m.guid, m.started_at, m.ended_at, m.playlist_id, m.arena, m.end_kind, m.closed_via, m.overtime, m.score_team0,
-           m.score_team1, m.winner_team_num, m.mvp_key, m.camera_primary_id, m.check_flags != '[]' AS flagged, p.player_key, p.primary_id, p.team_num, p.score, p.goals, p.shots, p.assists, p.saves,
+           m.score_team1, m.winner_team_num, m.mvp_key, m.camera_primary_id, m.joined_in_progress,
+           m.winner_source, m.mvp_source, m.check_flags != '[]' AS check_failed, p.player_key, p.primary_id, p.team_num, p.score, p.goals, p.shots, p.assists, p.saves,
            p.demos, p.touches, p.hardest_shot_kmh, p.woodwork_hits, p.aerial_touches, p.car_ms, p.boost_avg, p.supersonic_ms,
            p.empty_boost_ms
          FROM matches m

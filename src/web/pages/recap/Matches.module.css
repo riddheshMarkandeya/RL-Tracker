@@ -1,0 +1,25 @@
+/* Every match in a capped box whose header and totals row stay in view. */
+.panel { margin-top: var(--s4); background: var(--surf); border: 1px solid var(--line); border-radius: var(--r); padding: var(--s4); min-width: 0; }
+.h2 { margin: 0 0 var(--s3); font-size: 16px; }
+.box { max-height: 70vh; overflow: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th, .table td { padding: 6px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+.table :is(th, td):nth-child(-n+4) { text-align: left; }
+.table thead th { position: sticky; top: 0; z-index: 2; background: var(--surf); font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--ink2); }
+.table tfoot :is(th, td) { position: sticky; bottom: 0; z-index: 2; background: var(--surf); font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; }
+.table abbr { text-decoration: none; }
+
+/* The # link stretches over its row, so the whole row opens the match. */
+.table tbody tr { position: relative; }
+.table tbody tr:hover { background: var(--surf2); }
+.open { color: inherit; text-decoration: none; }
+.open::after { content: ""; position: absolute; inset: 0; }
+.open:focus-visible { outline: none; }
+.table tbody tr:has(.open:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.result i { font-style: normal; font-weight: 700; color: var(--muted); }
+.win .result i { color: var(--win); }
+.loss .result i { color: var(--loss); }
+.mvp { width: 14px; height: 14px; margin-left: 6px; vertical-align: -2px; object-fit: contain; }
+.flag { margin-left: 6px; color: var(--flag); }
+.note { margin: var(--s2) 0 0; font-size: 12px; color: var(--ink2); }

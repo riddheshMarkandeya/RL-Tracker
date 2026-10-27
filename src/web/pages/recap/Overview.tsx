@@ -1,7 +1,10 @@
 // The recap's Overview: scorebug, the change against the 30-day average, the tiles, the match cards,
 // then per-game stats, what stood out, by playlist, the goal map, extras and highlights.
+import { useId } from "react";
+import { Link } from "react-router";
+import type { PlaylistFilter } from "../../../shared/playlist-filter";
 import { playlistInfo } from "../../../shared/playlists";
-import type { MyMatchWire, SessionDetail, SessionSummary } from "../../../shared/schemas/responses";
+import type { AggregateWire, MyMatchWire, SessionDetail, SessionSummary } from "../../../shared/schemas/responses";
 import assistIcon from "../../assets/icons/Assist.png";
 import demoIcon from "../../assets/icons/Demolition.png";
 import goalIcon from "../../assets/icons/Goal.png";
@@ -15,11 +18,13 @@ import {
   extrasCards,
   highlights,
   isDense,
+  isMyMvp,
   letter,
+  matchLabel,
   pct,
   perGameCards,
   playlistRows,
-  resultWord,
+  recapPath,
   scoreFor,
   stoodOut,
   tilesFor,
@@ -29,23 +34,24 @@ import {
 } from "../../logic/recap";
 import styles from "./Overview.module.css";
 
-export function Overview({ detail, summary }: { detail: SessionDetail; summary: SessionSummary }) {
+export function Overview({ detail, summary, filter }: { detail: SessionDetail; summary: SessionSummary; filter: PlaylistFilter }) {
+  const matchPath = (guid: string) => recapPath(detail.key, filter, { match: guid });
   return (
     <>
       <Scorebug detail={detail} summary={summary} />
       <Headline detail={detail} />
-      <MatchCards matches={detail.matches} />
+      <MatchCards matches={detail.matches} matchPath={matchPath} />
       <PerGame detail={detail} />
       <StandoutAndPlaylists detail={detail} />
       {detail.goals.length > 0 && (
         <section aria-labelledby="goals-heading">
           <h2 id="goals-heading" className={styles.sec}>Where the goals came from</h2>
           <div className={styles.panel}>
-            <GoalMap matches={detail.matches} goals={detail.goals} viewKey={detail.key} />
+            <GoalMap matches={detail.matches} goals={detail.goals} viewKey={detail.key} hrefFor={matchPath} />
           </div>
         </section>
       )}
-      <Extras detail={detail} />
+      <ExtrasSection agg={detail.aggregate} matches={detail.matches} heading="Extras" />
     </>
   );
 }
@@ -102,7 +108,7 @@ function Headline({ detail }: { detail: SessionDetail }) {
   );
 }
 
-function MatchCards({ matches }: { matches: MyMatchWire[] }) {
+function MatchCards({ matches, matchPath }: { matches: MyMatchWire[]; matchPath: (guid: string) => string }) {
   return (
     <section aria-labelledby="matches-heading">
       <div className={styles.cardsHead}>
@@ -112,15 +118,16 @@ function MatchCards({ matches }: { matches: MyMatchWire[] }) {
       <ol className={cx(styles.cards, isDense(matches.length) && styles.dense)}>
         {matches.map((m, i) => {
           const score = scoreFor(m);
-          const mvp = m.me !== null && m.mvpKey === m.me.playerKey;
+          const mvp = isMyMvp(m);
           const playlist = playlistInfo(m.playlistId).name;
-          const label = [`Match ${String(i + 1)}`, clock(m.startedAt), resultWord(m.result), score, playlist, mvp && "MVP", m.flagged && "flagged: a check failed on this match"].filter(Boolean).join(", ");
           return (
-            <li key={m.guid} className={cx(styles.card, m.result === "win" && styles.win, m.result === "loss" && styles.loss, m.flagged && styles.flagged)} aria-label={label}>
-              <span className={styles.t} aria-hidden="true">#{i + 1} · {clock(m.startedAt)}</span>
-              <b className="num" aria-hidden="true"><i>{letter(m.result)}</i> {score}</b>
-              <span className={styles.p} aria-hidden="true" title={playlist}>{playlist}</span>
-              {mvp && <img className={styles.mvp} src={mvpIcon} alt="" />}
+            <li key={m.guid}>
+              <Link to={matchPath(m.guid)} className={cx(styles.card, m.result === "win" && styles.win, m.result === "loss" && styles.loss, m.flags.length > 0 && styles.flagged)} aria-label={matchLabel(m, i + 1)}>
+                <span className={styles.t} aria-hidden="true">#{i + 1} · {clock(m.startedAt)}</span>
+                <b className="num" aria-hidden="true"><i>{letter(m.result)}</i> {score}</b>
+                <span className={styles.p} aria-hidden="true" title={playlist}>{playlist}</span>
+                {mvp && <img className={styles.mvp} src={mvpIcon} alt="" />}
+              </Link>
             </li>
           );
         })}
@@ -211,14 +218,15 @@ function StandoutAndPlaylists({ detail }: { detail: SessionDetail }) {
   );
 }
 
-function Extras({ detail }: { detail: SessionDetail }) {
-  const a = detail.aggregate;
-  const cards = extrasCards(a, detail.matches);
+/** The extras tiles and highlights over these matches; the Overview's "Extras", a match page's "Your match". */
+export function ExtrasSection({ agg: a, matches, heading }: { agg: AggregateWire; matches: MyMatchWire[]; heading: string }) {
+  const id = useId();
+  const cards = extrasCards(a, matches);
   const hl = highlights(a.statfeed);
   if (!cards.length && !hl.length) return null;
   return (
-    <section aria-labelledby="extras-heading">
-      <h2 id="extras-heading" className={styles.sec}>Extras</h2>
+    <section aria-labelledby={id}>
+      <h2 id={id} className={styles.sec}>{heading}</h2>
       {a.extrasMatches > 0 && a.extrasMatches < a.matches && (
         <p className={cx(styles.muted, styles.small)}>Over {a.extrasMatches} of {plural(a.matches, "match", "matches")}.</p>
       )}

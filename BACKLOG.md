@@ -4,9 +4,10 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP6a-c (match page, Matches & numbers, links from cards and goal dots). WP6a-b (Overview
-  sections 5–8, `docs/plans/2026-10-27-wp6a-b-overview-sections.md`) is deployed. WP6a-a (recap
-  navigation, `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`) is deployed. WP5b (web shell; WP5b-b harness and install,
+  WP6b (remarks). WP6a (recap pages) is deployed: WP6a-c (match page, Matches & numbers, links,
+  `docs/plans/2026-10-27-wp6a-c-matches-and-match-page.md`), WP6a-b (Overview sections 5–8,
+  `docs/plans/2026-10-27-wp6a-b-overview-sections.md`) and WP6a-a (recap navigation,
+  `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`). WP5b (web shell; WP5b-b harness and install,
   `docs/plans/2026-10-21-wp5b-b-harness-install.md`) is deployed. WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
   `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's open flag `mvp_count` is
   closed: a podium with no award is normal, so the check flags only more than one award (`mvp` v2,
@@ -62,6 +63,10 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: a `[rlt] recap/player_no_team` warn in the browser
+  console. A scoreboard player with a null team is listed under "Unknown team" (none in real data
+  on 2026-10-27). Then fit the handling to that match. Record:
+  `docs/plans/2026-10-27-wp6a-c-matches-and-match-page.md`.
 - [ ] **[design, Low, Standard]** Trigger: a `[rlt] recap/goal_no_team` warn in the browser
   console. A match with goals but a null `me.teamNum` can't be oriented, so its goals are left off
   the goal map and its counts (0 of 76 player rows had a null team). Then fit the handling to that

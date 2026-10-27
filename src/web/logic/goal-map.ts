@@ -23,6 +23,7 @@ export type Side = "scored" | "conceded";
 
 export interface GoalMark {
   key: string;
+  matchGuid: string;
   x: number;
   y: number;
   side: Side;
@@ -86,6 +87,7 @@ export function goalMarks(matches: readonly MyMatchWire[], goals: readonly Goal[
     return [
       {
         key: `${goal.matchGuid}:${String(goal.idx)}`,
+        matchGuid: goal.matchGuid,
         ...toScreen(goal.pos, s.myTeam),
         side: s.side,
         yours: s.yours,

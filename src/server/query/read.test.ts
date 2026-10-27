@@ -159,14 +159,18 @@ describe("breaks and seasons", () => {
 });
 
 describe("match fields for cards", () => {
-  test("the score and whether a check flagged the match", () => {
+  test("the score and why the match is flagged", () => {
     const { writer, reader, addId } = setup();
     addId(ME, "confirmed");
     writer.save(record("G", 1000, {}, { scoreTeam0: 3, scoreTeam1: 2 }));
     writer.save(record("H", 2000, {}, { checkFlags: ["goals_match_score"], scoreTeam0: null, scoreTeam1: null }));
-    expect(reader.readMyMatches().map((m) => [m.guid, m.scoreTeam0, m.scoreTeam1, m.flagged])).toEqual([
-      ["G", 3, 2, false],
-      ["H", null, null, true],
+    writer.save(record("I", 3000, {}, { endKind: "left", winnerTeamNum: 0, winnerSource: "decided", mvpSource: "inferred" }));
+    writer.save(record("J", 4000, {}, { endKind: "early_end", joinedInProgress: true }));
+    expect(reader.readMyMatches().map((m) => [m.guid, m.scoreTeam0, m.scoreTeam1, m.flags])).toEqual([
+      ["G", 3, 2, []],
+      ["H", null, null, ["check_failed"]],
+      ["I", 1, 1, ["left", "winner_decided", "mvp_inferred"]],
+      ["J", 1, 1, ["joined"]],
     ]);
   });
 });

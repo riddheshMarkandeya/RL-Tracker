@@ -257,6 +257,13 @@ Your result: a winner decides it; without one, a leave, a superseded close or a 
 - **Evidence**: After a restart the tracker was down and play may have gone on, so a loss would be a guess (user's choice).
 - **Decided in**: `docs/decisions/2026-10-20-match-records-per-player.md`, `docs/plans/2026-10-20-wp4a-match-records.md`
 
+### `match_flags` · v1 · read
+
+A match is flagged when you left, the tracker lost its ending, you joined in progress, the winner was taken from the score, the MVP was inferred, or a check failed; a forfeit counts normally and isn't flagged.
+
+- **Evidence**: The user's choice (2026-10-27): flag what was guessed or cut short. Real data then: 4 of 76 matches (1 left, 3 inferred MVPs); 21 forfeits unflagged.
+- **Decided in**: `docs/plans/2026-10-15-rl-tracker-features-map.md`, `docs/plans/2026-10-27-wp6a-c-matches-and-match-page.md`
+
 ### `playlist_map` · v1 · read
 
 A playlist id maps to a name and group when a page reads it; an unmapped id is logged once per run with the team sizes.

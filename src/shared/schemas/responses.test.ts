@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
-import { aggregate, type Aggregate, type MyMatch } from "../../server/query/aggregate";
+import { aggregate, type Aggregate, type MyMatch } from "../aggregate";
 import { aggregateSchema, type AggregateWire, type MyMatchWire } from "./responses";
 
 describe("response schemas", () => {

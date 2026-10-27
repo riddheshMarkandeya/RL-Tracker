@@ -1,6 +1,25 @@
 import { describe, expect, test } from "vitest";
-import type { AggregateWire, MyMatchWire } from "../../shared/schemas/responses";
-import { extrasCards, highlights, isDense, letter, perGameCards, playlistRows, recapPath, resultWord, scoreFor, stoodOut, tilesFor, vsAverage, winPctDelta } from "./recap";
+import type { AggregateWire, MatchDetail, MyMatchWire } from "../../shared/schemas/responses";
+import {
+  extrasCards,
+  flagLines,
+  flagShort,
+  highlights,
+  isDense,
+  letter,
+  matchLabel,
+  perGameCards,
+  playlistRows,
+  recapPath,
+  resultWord,
+  scoreboardTeams,
+  scoreFor,
+  stoodOut,
+  tilesFor,
+  vsAverage,
+  winPctDelta,
+} from "./recap";
+import { clock } from "./format";
 
 const agg = (over: Partial<AggregateWire>): AggregateWire => ({
   matches: 4, wins: 3, losses: 1, noResult: 0, winPct: 0.75, leftEarly: 0, mvps: 2,
@@ -72,6 +91,85 @@ test("a session's path carries the filter only when it isn't the default", () =>
   expect(recapPath("ABC", "everything")).toBe("/recap/ABC");
   expect(recapPath("ABC", { playlist: 53 })).toBe("/recap/ABC?filter=53");
   expect(recapPath(null, "ranked")).toBe("/recap?filter=ranked");
+});
+
+test("the matches page and a match's page, under the same filter", () => {
+  expect(recapPath("ABC", "everything", "matches")).toBe("/recap/ABC/matches");
+  expect(recapPath("ABC", "ranked", { match: "G/1 2" })).toBe("/recap/ABC/match/G%2F1%202?filter=ranked");
+  expect(recapPath("ABC", "everything", "overview")).toBe("/recap/ABC");
+});
+
+describe("flagLines", () => {
+  test("a leave says how it was counted: a loss with no winner, a win the score had decided", () => {
+    expect(flagLines(["left"], "loss")).toEqual(["You left before the end — counted as a loss."]);
+    expect(flagLines(["left", "winner_decided"], "win")).toEqual(["You left before the end — counted as a win, which the score had already decided."]);
+  });
+
+  test("a lost ending: counted by the result, or no result after a restart", () => {
+    expect(flagLines(["lost_ending"], "loss")).toEqual(["The tracker lost this match's ending — counted as a loss."]);
+    expect(flagLines(["lost_ending"], null)).toEqual(["The tracker lost this match's ending, so there's no result."]);
+  });
+
+  test("with no result, a leave can't say the score decided it, so the decided winner gets its own line", () => {
+    expect(flagLines(["left", "winner_decided"], null)).toEqual([
+      "You left before the end.",
+      "The game didn't report a winner — it was taken from the score, which had already decided it.",
+    ]);
+  });
+
+  test("a decided winner on its own gets its own line", () => {
+    expect(flagLines(["winner_decided"], "win")).toEqual(["The game didn't report a winner — it was taken from the score, which had already decided it."]);
+  });
+
+  test("one line per other reason, in order", () => {
+    expect(flagLines(["joined", "mvp_inferred", "check_failed"], "win")).toEqual([
+      "You joined in progress — counted as a full game.",
+      "MVP inferred: no MVP award fired, so it went to the top score on the winning team.",
+      "A data check failed on this match, so some numbers may be off.",
+    ]);
+    expect(flagLines([], "win")).toEqual([]);
+  });
+});
+
+test("flagShort: the reasons in a few words, null when not flagged", () => {
+  expect(flagShort(["left", "winner_decided", "mvp_inferred"])).toBe("flagged: you left early, winner taken from the score, MVP inferred");
+  expect(flagShort(["lost_ending", "joined", "check_failed"])).toBe("flagged: ending not recorded, joined in progress, a data check failed");
+  expect(flagShort([])).toBeNull();
+});
+
+test("matchLabel: number, time, result, score, playlist, then MVP and flags when they apply", () => {
+  const m = { startedAt: 1_700_000_000_000, result: "win", playlistId: 11, me: { playerKey: "me", teamNum: 1 }, mvpKey: "me", flags: ["mvp_inferred"], scoreTeam0: 1, scoreTeam1: 3 } as unknown as MyMatchWire;
+  const t = clock(m.startedAt);
+  expect(matchLabel(m, 2)).toBe(`Match 2, ${t}, win, 3–1, Ranked Doubles, MVP, flagged: MVP inferred`);
+  expect(matchLabel({ ...m, mvpKey: "other", flags: [], result: null, scoreTeam0: null }, 1)).toBe(`Match 1, ${t}, no result, Ranked Doubles`);
+});
+
+describe("scoreboardTeams", () => {
+  type P = MatchDetail["players"][number];
+  const p = (name: string, teamNum: number | null, score: number): P => ({ name, teamNum, score, isMe: false }) as P;
+  test("your team first, then the opponents, each by score", () => {
+    const teams = scoreboardTeams([p("a", 0, 100), p("b", 1, 300), p("c", 1, 500), p("d", 0, 400)], 1);
+    expect(teams.map((t) => [t.side, t.players.map((x) => x.name)])).toEqual([
+      ["yours", ["c", "b"]],
+      ["opponents", ["d", "a"]],
+    ]);
+  });
+
+  test("a player with no team is set apart; an empty team is left out", () => {
+    const teams = scoreboardTeams([p("a", 0, 100), p("x", null, 50)], 0);
+    expect(teams.map((t) => [t.side, t.players.map((x) => x.name)])).toEqual([
+      ["yours", ["a"]],
+      ["unknown", ["x"]],
+    ]);
+  });
+
+  test("with no team for you, blue then orange", () => {
+    const teams = scoreboardTeams([p("o", 1, 10), p("b", 0, 20)], null);
+    expect(teams.map((t) => [t.side, t.teamNum])).toEqual([
+      ["blue", 0],
+      ["orange", 1],
+    ]);
+  });
 });
 
 describe("vsAverage", () => {

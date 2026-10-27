@@ -1,6 +1,7 @@
 // What the API sends. The server's handlers are typed by these schemas' inferred types, and the
 // web parses with them, so a shape change is a type error on both sides.
 import { z } from "zod";
+import { FLAG_REASONS } from "../flags";
 import type { Season } from "../periods";
 
 const counted = z.object({ goals: z.number(), assists: z.number(), saves: z.number(), shots: z.number(), demos: z.number(), score: z.number() });
@@ -67,8 +68,8 @@ export const myMatchSchema = z.object({
   scoreTeam1: z.number().nullable(),
   winnerTeamNum: z.number().nullable(),
   mvpKey: z.string().nullable(),
-  /** A check failed on this match. */
-  flagged: z.boolean(),
+  /** Why the match is flagged; [] when it isn't. */
+  flags: z.array(z.enum(FLAG_REASONS)),
   me: myRowSchema.nullable(),
   result: result.nullable(),
   /** Your goals. */
