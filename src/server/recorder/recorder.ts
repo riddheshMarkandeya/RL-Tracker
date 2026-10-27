@@ -157,6 +157,11 @@ export function createRecorder(opts: RecorderOptions) {
       case "ended":
         logger.info(C, "match_ended", { guid: e.guid, winner: ev?.data.WinnerTeamNum ?? null });
         return;
+      case "refused": {
+        const replay = ((ev?.data.Game ?? {}) as Data).bReplay;
+        logger.info(C, "finished_match_event_dropped", { guid: e.guid, by: ev?.name, replay: typeof replay === "boolean" ? replay : null });
+        return;
+      }
       case "retagged":
         logger.info(C, "teardown_retagged", { guid: e.guid, wireGuid: e.wireGuid });
         return;
@@ -256,7 +261,7 @@ export function createRecorder(opts: RecorderOptions) {
         if (!last || isCloseMarker(last.name)) return;
         const m = rebuild(last.guid, store.names(last.guid));
         open(m.guid, store.nextSeq(m.guid));
-        life = { open: m };
+        life = { open: m, refused: null };
         logger.info(C, "recovered", { guid: m.guid, phase: m.phase });
       } catch (err) {
         // Broad on purpose: whatever stops recovery, the recorder can still record new matches.

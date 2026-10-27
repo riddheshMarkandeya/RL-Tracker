@@ -97,6 +97,15 @@ closed_via is destroyed when the game's MatchDestroyed closed the match, else th
 - **Evidence**: The cause tells a leave from a lost ending: it feeds the end kind (left vs orphaned) and your result.
 - **Decided in**: `docs/decisions/2026-10-19-recorder-websocket-raw-store.md`, `docs/plans/2026-10-19-wp3a-recorder.md`, `docs/decisions/2026-10-20-match-records-per-player.md`
 
+### `finished_match_stays_closed` · v1 · stored
+
+A guid whose stored match reached MatchEnded never reopens: its events are dropped until another guid opens. A match closed before MatchEnded still reopens (Reconnect). The check flags a stretch between close markers of at least REPLAY_MIN_STATES states with at least REPLAY_PLAYBACK_SHARE of them bReplay.
+
+- **Constants**: `REPLAY_MIN_STATES` = 20, `REPLAY_PLAYBACK_SHARE` = 0.9
+- **Checks**: `replay_playback`
+- **Evidence**: Watching a saved replay re-sends its match's guid: on 24 Oct two finished matches reopened 56 times, every UpdateState bReplay (1046/1046, 1777/1777, against about a fifth in live play), with no MatchEnded and a MatchCreated/MatchDestroyed per scrub. No reopen came from a real Reconnect.
+- **Decided in**: `docs/research/2026-10-19-weekend-captures.md`
+
 ### `lobby_no_record` · v1 · recorded
 
 A match that closes before any live trigger (MatchInitialized, CountdownBegin, RoundStarted, GoalScored) is a lobby and gets no record; recompute keeps a lobby's existing record and warns.
@@ -136,6 +145,14 @@ A BallHit whose data equals the previous BallHit's is dropped on read.
 - **Evidence**: The game repeats BallHit with identical data.
 - **Decided in**: `docs/decisions/2026-10-19-recorder-websocket-raw-store.md`, `docs/plans/2026-10-19-wp3a-recorder.md`
 ## Match
+
+### `finished_match_ends_at_first_close` · v1 · recorded
+
+A match's record reads its events up to its first close marker after MatchEnded; anything stored after it is not the match. ended_at is the last event read, and closed_via is that marker's cause.
+
+- **Writes**: `matches.ended_at`, `matches.closed_via`
+- **Evidence**: Replay playback reopened two finished matches before the recorder refused it: their ended_at moved 1.5–2.5 days to the replay's last event and its goals were counted. Cut at the first close they end 22 Oct 03:23:39 and 23 Oct 03:58:52, with score and winner unchanged.
+- **Decided in**: `docs/research/2026-10-19-weekend-captures.md`
 
 ### `roster` · v1 · recorded
 

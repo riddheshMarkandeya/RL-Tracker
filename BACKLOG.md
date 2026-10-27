@@ -19,14 +19,6 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
     covered by `src/server/main.test.ts`.
   - WP3b's manual check still open: sign out and back in, and the tracker should autostart
     (`supervisor/started`, then `app/started`).
-- [ ] **[bug, High, Standard]** Two stored matches end days after they started, and that glues
-  sessions together: `CA081A86…` (Doubles, 21 Oct 22:15, `closed_via: superseded`, ended 24 Oct
-  17:02) and `05A9C7E6…` (Ranked Doubles, 22 Oct 22:51, `closed_via: timeout`, ended 24 Oct 17:15).
-  Both are `early_end` with `goal_events_equal_score` flags. The recap shows 21–24 Oct as one
-  67-hour session of 41 matches. Likely `ended_at` takes the close time instead of the last real
-  event; root-cause it with `debugging-discipline` from the raw events (both are kept whole, being
-  flagged). A fix moves stored values: bump the rule version, then `rules-diff` and recompute.
-  Found in WP6a-a's real-browser check. Record: `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`.
 - [ ] **[design, Med, Trivial]** The "no data" toast is suppressed over the full-screen game and
   only waits in the notification panel. (Its body now names the ini problem to fix.) WP5's status
   display is the reliable signal (`statsConfig()` carries the same diagnosis); WP8 (toast
@@ -60,6 +52,14 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: a `replay_playback` flag (a stretch of a match's
+  states at least 90% `bReplay`). Replay playback of a match you left, or of one never recorded,
+  still gets stored as play; a finished match's guid is refused. Then fit the handling to that
+  real stream. Record: `git log --grep=finished_match_stays_closed`.
+- [ ] **[bug (latent), Low, Standard]** Trigger: a match cut at a `RecorderClosed` with events
+  stored after it (both real cuts were at a MatchDestroyed). Thinning keeps the last state of the
+  whole list, not of the cut, so it can drop the state that gives the cut match its `ended_at`.
+  Then keep the last state before the cut too. Record: `git log --grep=finished_match_stays_closed`.
 - [ ] **[design, Low, Standard]** Trigger: a stored match you played with a null `playlist_id`
   (none among the first 65). `latest`'s `playlistsPresent` drops null ids, so a history of only
   such matches reads "Not enough data yet" under a narrow filter. Then add a played-anything flag

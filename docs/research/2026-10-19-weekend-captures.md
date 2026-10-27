@@ -87,7 +87,10 @@ Each one confirms a mode's event stream before WP3a relies on it:
 - Honor duels (new this season).
 - Limited-time casual modes (Heatseeker, Rumble, Dropshot, Hoops, Snow Day, …). Different balls and rules may break the goal and score assumptions.
 - Extra modes (Rumble, Hoops, Dropshot, Snow Day) if not covered as LTMs.
-- Watching a saved replay. It must not count as a match; its stream is unknown.
+- Watching a saved replay. It must not count as a match. Seen 24 Oct: it re-sends the original
+  match's guid, every UpdateState carries `Game.bReplay: true` (against about a fifth in live play,
+  from goal replays), there's no MatchEnded, and each scrub sends a MatchCreated/MatchDestroyed pair.
+  The recorder refuses a finished match's guid (`finished_match_stays_closed`).
 - Spectating from an online match (not private), and ball-cam/director changes while spectating.
 - Leaving a match early yourself (abandon, and the penalty) and voting to forfeit, from your side.
 - A disconnect or crash mid-match, then rejoining via Reconnect.

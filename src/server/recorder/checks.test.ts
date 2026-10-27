@@ -54,7 +54,7 @@ const clean = (): MatchSummary => ({
   roster: [entry("a", 0, 2), entry("b", 0, 0, 1), entry("c", 1, 1)],
   statfeed: { a: { Goal: 2, Shot: 2, MVP: 1 }, b: { Assist: 1 }, c: { Goal: 1, Shot: 1 } },
   cameraKey: "a",
-  facts: { sawMatchEnded: true, endedWinnerTeamNum: 0, mvpCount: 1, liveGoals: 3, minClock: 0, unresolvedStatfeed: 0, rejectedScoreboards: 0, cameraTargets: 10 },
+  facts: { sawMatchEnded: true, endedWinnerTeamNum: 0, mvpCount: 1, liveGoals: 3, minClock: 0, unresolvedStatfeed: 0, rejectedScoreboards: 0, cameraTargets: 10, replayShare: 0.2 },
   dedupDropped: {},
   extras: {
     players: { a: { ...extrasFor(true), woodwork_hits: 1 }, b: extrasFor(true), c: extrasFor(false) },
@@ -80,6 +80,15 @@ const ids = (s: MatchSummary) => runChecks(s).map((f) => f.id);
 describe("runChecks", () => {
   test("a clean finished match passes every check", () => {
     expect(runChecks(clean())).toEqual([]);
+  });
+
+  test("replay_playback flags a stretch of states nearly all replay, unless thinned (bReplay is gone)", () => {
+    const at = (replayShare: number | null, thinned: MatchSummary["thinned"] = null) => ids({ ...clean(), thinned, facts: { ...clean().facts, replayShare } });
+    expect(at(0.9)).toContain("replay_playback");
+    expect(at(1)).toContain("replay_playback");
+    expect(at(0.89)).not.toContain("replay_playback");
+    expect(at(null)).not.toContain("replay_playback");
+    expect(at(1, { ruleVersions: {}, offRoster: [], unsnapshotted: [] })).not.toContain("replay_playback");
   });
 
   test("a left match with no winner, MVP or podium passes", () => {

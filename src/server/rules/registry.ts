@@ -16,7 +16,8 @@ import { AERIAL_MIN_Z, CORNER_MAX_XY_SUM, HARDEST_SHOT_MAX_KMH, SIDE_WALL_X, WAL
 import { CAR_SAMPLE_CAP_MS, TOUCH_MERGE_MS, WOODWORK_WINDOW_MS } from "../recorder/play";
 import { ORPHAN_TIMEOUT_MS } from "../recorder/lifecycle";
 import { UPDATE_STATE_INTERVAL_MS } from "../recorder/sampler";
-import { CAMERA_SHARE } from "../recorder/summary";
+import { REPLAY_PLAYBACK_SHARE } from "../recorder/checks";
+import { CAMERA_SHARE, REPLAY_MIN_STATES } from "../recorder/summary";
 
 /**
  * When a rule takes effect. "stored": while recording, into raw.db, so recompute can't change it.
@@ -179,6 +180,17 @@ export const RULES: readonly Rule[] = [
     refs: [ADR_RECORDER, PLAN_WP3A, ADR_RECORDS],
   },
   {
+    id: "finished_match_stays_closed",
+    area: "recording",
+    rule: "A guid whose stored match reached MatchEnded never reopens: its events are dropped until another guid opens. A match closed before MatchEnded still reopens (Reconnect). The check flags a stretch between close markers of at least REPLAY_MIN_STATES states with at least REPLAY_PLAYBACK_SHARE of them bReplay.",
+    constants: { REPLAY_MIN_STATES, REPLAY_PLAYBACK_SHARE },
+    checks: ["replay_playback"],
+    evidence: "Watching a saved replay re-sends its match's guid: on 24 Oct two finished matches reopened 56 times, every UpdateState bReplay (1046/1046, 1777/1777, against about a fifth in live play), with no MatchEnded and a MatchCreated/MatchDestroyed per scrub. No reopen came from a real Reconnect.",
+    version: 1,
+    applied: "stored",
+    refs: [CAPTURES],
+  },
+  {
     id: "lobby_no_record",
     area: "recording",
     rule: "A match that closes before any live trigger (MatchInitialized, CountdownBegin, RoundStarted, GoalScored) is a lobby and gets no record; recompute keeps a lobby's existing record and warns.",
@@ -232,6 +244,17 @@ export const RULES: readonly Rule[] = [
     refs: [ADR_RECORDER, PLAN_WP3A],
   },
   // match
+  {
+    id: "finished_match_ends_at_first_close",
+    area: "match",
+    rule: "A match's record reads its events up to its first close marker after MatchEnded; anything stored after it is not the match. ended_at is the last event read, and closed_via is that marker's cause.",
+    checks: [],
+    evidence: "Replay playback reopened two finished matches before the recorder refused it: their ended_at moved 1.5–2.5 days to the replay's last event and its goals were counted. Cut at the first close they end 22 Oct 03:23:39 and 23 Oct 03:58:52, with score and winner unchanged.",
+    version: 1,
+    applied: "recorded",
+    outputs: [m("ended_at"), m("closed_via")],
+    refs: [CAPTURES],
+  },
   {
     id: "roster",
     area: "match",

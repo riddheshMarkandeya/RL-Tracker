@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { initialLife, orphan, rebuild, step, type Effect, type Life } from "./lifecycle";
+import { initialLife, orphan, rebuild, step, untilFinished, type Effect, type Life } from "./lifecycle";
 
 type Ev = [name: string, guid: string];
 
@@ -146,6 +146,92 @@ describe("step", () => {
     ]);
     expect(life.open).toBeNull();
   });
+
+  const finished: Record<string, string[]> = { A: ["MatchCreated", "MatchInitialized", "MatchEnded", "MatchDestroyed"] };
+
+  test("a guid whose history reached ended is refused: nothing filed, nothing opened", () => {
+    const { filed, effects, life } = run([["UpdateState", "A"]], initialLife(), (g) => finished[g] ?? null);
+    expect(filed).toEqual([null]);
+    expect(effects).toEqual([{ kind: "refused", guid: "A" }]);
+    expect(life).toEqual({ open: null, refused: { guid: "A", sawState: true } });
+  });
+
+  test("scrubbing a replay: the refusal survives its close markers, is reported at the refusal and its first state, and resume is asked once", () => {
+    const asked: string[] = [];
+    const resume = (g: string) => (asked.push(g), finished[g] ?? null);
+    const { filed, effects } = run(
+      [
+        ["MatchCreated", "A"],
+        ["UpdateState", "A"],
+        ["MatchDestroyed", "A"],
+        ["MatchCreated", "A"],
+        ["UpdateState", "A"],
+      ],
+      initialLife(),
+      resume,
+    );
+    expect(filed).toEqual([null, null, null, null, null]);
+    expect(effects).toEqual([
+      { kind: "refused", guid: "A" },
+      { kind: "refused", guid: "A" },
+    ]);
+    expect(asked).toEqual(["A"]);
+  });
+
+  test.each([
+    ["pending", ["MatchCreated", "MatchDestroyed"]],
+    ["live", ["MatchCreated", "MatchInitialized", "RecorderClosed"]],
+  ])("a guid whose history stopped %s still resumes", (phase, names) => {
+    const { filed, life } = run([["UpdateState", "A"]], initialLife(), () => names);
+    expect(filed).toEqual(["A"]);
+    expect(life.open).toMatchObject({ guid: "A", phase });
+  });
+
+  test("another guid opening clears the refusal", () => {
+    const { filed, effects, life } = run(
+      [
+        ["UpdateState", "A"],
+        ["MatchCreated", "B"],
+      ],
+      initialLife(),
+      (g) => finished[g] ?? null,
+    );
+    expect(filed).toEqual([null, "B"]);
+    expect(effects).toEqual([
+      { kind: "refused", guid: "A" },
+      { kind: "opened", guid: "B", resumed: false },
+    ]);
+    expect(life.refused).toBeNull();
+  });
+});
+
+describe("untilFinished", () => {
+  const evs = (...names: string[]) => names.map((name, i) => ({ name, i }));
+
+  test("no close: everything, no cut", () => {
+    const events = evs("MatchInitialized", "MatchEnded", "PodiumStart");
+    expect(untilFinished(events)).toEqual({ events, cut: null });
+  });
+
+  test("a close before ended (a Reconnect) is not a cut", () => {
+    const events = evs("MatchInitialized", "MatchDestroyed", "UpdateState", "MatchEnded", "MatchDestroyed");
+    expect(untilFinished(events)).toEqual({ events, cut: events[4] });
+  });
+
+  test("a retagged teardown between MatchEnded and MatchDestroyed is kept, cut at the destroy", () => {
+    const events = evs("MatchInitialized", "MatchEnded", "PodiumStart", "UpdateState", "MatchDestroyed");
+    expect(untilFinished(events)).toEqual({ events, cut: events[4] });
+  });
+
+  test("a tail after the first close past ended is dropped", () => {
+    const events = evs("MatchInitialized", "MatchEnded", "MatchDestroyed", "MatchCreated", "GoalScored", "MatchDestroyed");
+    expect(untilFinished(events)).toEqual({ events: events.slice(0, 3), cut: events[2] });
+  });
+
+  test("a recorder restart marker after ended is a cut", () => {
+    const events = evs("MatchInitialized", "MatchEnded", "RecorderClosed", "UpdateState");
+    expect(untilFinished(events)).toEqual({ events: events.slice(0, 3), cut: events[2] });
+  });
 });
 
 describe("rebuild", () => {
@@ -159,7 +245,7 @@ describe("rebuild", () => {
 describe("orphan", () => {
   test("closes the open match with the given cause", () => {
     const { life } = run([["MatchInitialized", "A"]]);
-    expect(orphan(life, "timeout")).toEqual({ life: { open: null }, effects: [{ kind: "closed", guid: "A", phase: "live", via: "timeout" }] });
+    expect(orphan(life, "timeout")).toEqual({ life: { open: null, refused: null }, effects: [{ kind: "closed", guid: "A", phase: "live", via: "timeout" }] });
   });
 
   test("an orphaned pending match closes from pending (a lobby: no hook)", () => {
@@ -168,6 +254,10 @@ describe("orphan", () => {
   });
 
   test("does nothing with no open match", () => {
-    expect(orphan(initialLife(), "timeout")).toEqual({ life: { open: null }, effects: [] });
+    expect(orphan(initialLife(), "timeout")).toEqual({ life: { open: null, refused: null }, effects: [] });
+  });
+
+  test("keeps a refusal", () => {
+    expect(orphan({ open: null, refused: { guid: "A", sawState: false } }, "timeout").life).toEqual({ open: null, refused: { guid: "A", sawState: false } });
   });
 });

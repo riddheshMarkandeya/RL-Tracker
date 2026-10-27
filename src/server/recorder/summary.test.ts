@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { StoredEvent } from "./store";
-import { summarise } from "./summary";
+import { replayShare, summarise } from "./summary";
 
 let seq = 0;
 const ev = (name: string, data: Record<string, unknown> = {}, ts = seq * 100): StoredEvent => ({ seq: seq++, ts, name, data });
@@ -33,7 +33,7 @@ const state = (players: P[], score: [number, number] = [0, 0], game: Record<stri
   });
 const mvp = (name: string, shortcut: number, team: number) => ev("StatfeedEvent", { EventName: "MVP", MainTarget: { Name: name, Shortcut: shortcut, TeamNum: team } });
 
-const destroyed = { via: "destroyed" as const, dedupDropped: {} };
+const destroyed = { via: "destroyed" as const, dedupDropped: {}, replayShare: null };
 
 describe("summarise", () => {
   test("a completed match: winner from MatchEnded, MVP from the statfeed, score from the state before MatchEnded", () => {
@@ -120,8 +120,8 @@ describe("summarise", () => {
   });
 
   test("orphaned: no MatchEnded and not destroyed; with MatchEnded the result still stands", () => {
-    expect(summarise("G", [ev("MatchInitialized"), state([{ name: "A" }])], { via: "timeout", dedupDropped: {} }).endKind).toBe("orphaned");
-    expect(summarise("G", [ev("MatchInitialized"), state([{ name: "A" }], [0, 0], { TimeSeconds: 0 }), ev("MatchEnded", { WinnerTeamNum: 1 })], { via: "restart", dedupDropped: {} })).toMatchObject({
+    expect(summarise("G", [ev("MatchInitialized"), state([{ name: "A" }])], { via: "timeout", dedupDropped: {}, replayShare: null }).endKind).toBe("orphaned");
+    expect(summarise("G", [ev("MatchInitialized"), state([{ name: "A" }], [0, 0], { TimeSeconds: 0 }), ev("MatchEnded", { WinnerTeamNum: 1 })], { via: "restart", dedupDropped: {}, replayShare: null })).toMatchObject({
       endKind: "completed",
       closedVia: "restart",
     });
@@ -196,7 +196,7 @@ describe("summarise", () => {
   });
 
   test("carries the close cause and dedup counts", () => {
-    expect(summarise("G", [ev("MatchCreated")], { via: "superseded", dedupDropped: { replay_goal: 3 } })).toMatchObject({
+    expect(summarise("G", [ev("MatchCreated")], { via: "superseded", dedupDropped: { replay_goal: 3 }, replayShare: null })).toMatchObject({
       closedVia: "superseded",
       dedupDropped: { replay_goal: 3 },
       score: null,
@@ -218,7 +218,7 @@ describe("summarise: decided winner (no MatchEnded)", () => {
   });
 
   test("a lead in overtime is decided", () => {
-    const s = summarise("G", [ev("MatchInitialized"), state(ab, [0, 1], { TimeSeconds: 40, bOvertime: true })], { via: "timeout", dedupDropped: {} });
+    const s = summarise("G", [ev("MatchInitialized"), state(ab, [0, 1], { TimeSeconds: 40, bOvertime: true })], { via: "timeout", dedupDropped: {}, replayShare: null });
     expect(s.winner).toEqual({ teamNum: 1, source: "decided" });
   });
 
@@ -401,5 +401,20 @@ describe("summarise: final player stats", () => {
       ["B", 0, 0, 0, true],
     ]);
     expect(s.score).toEqual([0, 0]);
+  });
+});
+
+describe("replay share", () => {
+  const states = (n: number, replays: number) => Array.from({ length: n }, (_, i) => state([{ name: "A" }], [0, 0], { bReplay: i < replays }));
+
+  test("is the highest share of bReplay states among the stretches between close markers", () => {
+    const events = [...states(40, 8), ev("MatchDestroyed"), ev("MatchCreated"), ...states(30, 30), ev("MatchDestroyed")];
+    expect(replayShare(events)).toBe(1);
+  });
+
+  test("a stretch under 20 states says nothing", () => {
+    const events = [...states(40, 8), ev("MatchDestroyed"), ...states(19, 19)];
+    expect(replayShare(events)).toBe(0.2);
+    expect(replayShare(states(19, 19))).toBeNull();
   });
 });

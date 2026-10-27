@@ -4,6 +4,9 @@ import { PLAYER_EXTRAS } from "./extras";
 import { REF_KINDS, type RefKind } from "./play";
 import { NO_CONTEST, TEAMS, type MatchSummary, type PlayerStats, type TeamNum } from "./summary";
 
+/** A stretch with this share of replay states is replay playback, not live play. */
+export const REPLAY_PLAYBACK_SHARE = 0.9;
+
 interface Check {
   id: string;
   appliesTo?: (s: MatchSummary) => boolean;
@@ -172,6 +175,16 @@ const CHECKS: readonly Check[] = [
     id: "thinned_snapshot_covers_dense",
     appliesTo: (s) => s.thinned !== null,
     run: (s) => (s.thinned?.unsnapshotted.length ? `dense rule(s) newer than the snapshot: ${s.thinned.unsnapshotted.join(", ")}` : null),
+  },
+  {
+    // Watching a saved replay re-sends its match's guid. A finished match refuses it, but a left
+    // match or one never recorded would take it in as play. Thinning drops bReplay.
+    id: "replay_playback",
+    appliesTo: (s) => s.thinned === null,
+    run: (s) =>
+      s.facts.replayShare !== null && s.facts.replayShare >= REPLAY_PLAYBACK_SHARE
+        ? `${String(Math.round(s.facts.replayShare * 100))}% of a stretch's states are replay`
+        : null,
   },
 ];
 

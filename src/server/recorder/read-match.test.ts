@@ -96,3 +96,49 @@ describe("readMatch on a thinned match", () => {
     expect(order).toEqual(["events", "snapshot"]);
   });
 });
+
+describe("readMatch on a finished match with events stored after its close", () => {
+  const ev = (seq: number, name: string, data: Record<string, unknown> = {}): StoredEvent => ({ seq, ts: seq * 1000, name, data: { MatchGuid: "G", ...data } });
+  const scoreboard = (seq: number, goals: number, bReplay = false) =>
+    ev(seq, "UpdateState", {
+      Game: { Teams: [{ TeamNum: 0, Score: goals }, { TeamNum: 1, Score: 0 }], PlaylistId: 10, TimeSeconds: 100, bOvertime: false, Arena: "cs_p", bReplay },
+      Players: [
+        { Name: "A", PrimaryId: A, Shortcut: 1, TeamNum: 0, Goals: goals },
+        { Name: "B", PrimaryId: B, Shortcut: 2, TeamNum: 1, Goals: 0 },
+      ],
+    });
+  const goal = (seq: number) => ev(seq, "GoalScored", { Scorer: { Name: "A", Shortcut: 1, TeamNum: 0 }, GoalTime: seq });
+  const match = [ev(0, "MatchCreated"), ev(1, "MatchInitialized"), scoreboard(2, 0), goal(3), scoreboard(4, 1), ev(5, "MatchEnded", { WinnerTeamNum: 0 })];
+  // Replay playback re-sends the guid: scrubbing opens and destroys it again, and its goals replay.
+  const replayTail = [ev(50, "MatchCreated"), scoreboard(51, 0, true), goal(52), scoreboard(53, 1, true), ev(54, "MatchDestroyed")];
+
+  test("it ends at its first close: the replay tail moves neither ended_at nor via, and adds no goal", () => {
+    const events = [...match, ev(10, "MatchDestroyed"), ...replayTail, ev(60, "RecorderClosed", { Reason: "timeout" })];
+    const { summary } = readMatch({ matchEvents: () => events }, "G", "timeout");
+    expect(summary.endedAt).toBe(10_000);
+    expect(summary.closedVia).toBe("destroyed");
+    expect(summary.flags).not.toContain("goal_events_equal_score");
+  });
+
+  test("a replay of a match left mid-game isn't cut, but its all-replay stretch is flagged", () => {
+    const left = [ev(0, "MatchCreated"), ev(1, "MatchInitialized"), ...Array.from({ length: 25 }, (_, i) => scoreboard(2 + i, 0, i % 5 === 0)), ev(30, "MatchDestroyed")];
+    const replay = [ev(50, "MatchCreated"), ...Array.from({ length: 25 }, (_, i) => scoreboard(51 + i, 0, true)), ev(80, "MatchDestroyed")];
+    const { summary } = readMatch({ matchEvents: () => [...left, ...replay] }, "G", "destroyed");
+    expect(summary.flags).toContain("replay_playback");
+    expect(readMatch({ matchEvents: () => left }, "G", "destroyed").summary.flags).not.toContain("replay_playback");
+  });
+
+  test("a recorder close bounds a stretch too: a crashed match's live states don't dilute its replay's", () => {
+    const crashed = [ev(0, "MatchCreated"), ev(1, "MatchInitialized"), ...Array.from({ length: 25 }, (_, i) => scoreboard(2 + i, 0, i % 5 === 0)), ev(30, "RecorderClosed", { Reason: "timeout" })];
+    const replay = [ev(50, "MatchCreated"), ...Array.from({ length: 25 }, (_, i) => scoreboard(51 + i, 0, true)), ev(80, "RecorderClosed", { Reason: "timeout" })];
+    expect(readMatch({ matchEvents: () => [...crashed, ...replay] }, "G", "timeout").summary.flags).toContain("replay_playback");
+  });
+
+  test("a recorder close after the end is a cut too, ending at the last event before it", () => {
+    const events = [...match, ev(8, "PodiumStart"), ev(9, "RecorderClosed", { Reason: "timeout" }), ...replayTail];
+    const { summary } = readMatch({ matchEvents: () => events }, "G", "destroyed");
+    expect(summary.endedAt).toBe(8000);
+    expect(summary.closedVia).toBe("timeout");
+    expect(summary.flags).not.toContain("goal_events_equal_score");
+  });
+});

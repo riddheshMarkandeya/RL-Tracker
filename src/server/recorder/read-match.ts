@@ -4,9 +4,9 @@ import { DENSE_PLAYER_COLUMNS, DENSE_RULE_IDS } from "../rules/registry";
 import { runChecks, type CheckFailure } from "./checks";
 import { dedupe } from "./dedup";
 import { computeExtras } from "./extras";
-import { closeViaOf, rebuild, RECORDER_CLOSED, type CloseVia } from "./lifecycle";
+import { closeViaOf, rebuild, RECORDER_CLOSED, untilFinished, type CloseVia } from "./lifecycle";
 import type { RawStore, ThinnedOutputs } from "./store";
-import { summarise, type MatchSummary } from "./summary";
+import { replayShare, summarise, type MatchSummary } from "./summary";
 
 /**
  * A thinned match's raw events no longer support the dense rules, so their outputs come from the
@@ -43,7 +43,11 @@ export function readableAs(store: Pick<RawStore, "lastOf" | "names">, guid: stri
   return { via };
 }
 
-/** Throws whatever the read or a handler throws; callers decide how a lost summary degrades. */
+/**
+ * A finished match ends at its first close: whatever is stored under its guid after that (replay
+ * playback, recorded before the recorder refused it) is left out, and that close gives `via`.
+ * Throws whatever the read or a handler throws; callers decide how a lost summary degrades.
+ */
 export function readMatch(
   store: Pick<RawStore, "matchEvents"> & Partial<Pick<RawStore, "thinnedOutputs">>,
   guid: string,
@@ -52,10 +56,10 @@ export function readMatch(
   // Events first: a recompute running beside retention reads outside its transaction, and full
   // events with the snapshot taken from them is harmless, while thinned events with no snapshot
   // would recompute wrong car stats unflagged.
-  const events = store.matchEvents(guid);
+  const { events, cut } = untilFinished(store.matchEvents(guid));
   const snapshot = store.thinnedOutputs?.(guid);
   const { kept, dropped } = dedupe(events.filter((e) => e.name !== RECORDER_CLOSED));
-  const summary = summarise(guid, kept, { via, dedupDropped: dropped });
+  const summary = summarise(guid, kept, { via: closeViaOf(cut ?? undefined) ?? via, dedupDropped: dropped, replayShare: replayShare(events) });
   // Deliberately broad: whatever a malformed event breaks in the extras, the base record still
   // stands, with the extras null and the failure flagged.
   try {

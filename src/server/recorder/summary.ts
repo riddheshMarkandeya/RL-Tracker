@@ -4,7 +4,7 @@
 // MVP from the MVP statfeed (else inferred from the scoreboard).
 import { isObject, type Data } from "./envelope";
 import type { MatchExtras } from "./extras";
-import type { CloseVia } from "./lifecycle";
+import { isCloseMarker, type CloseVia } from "./lifecycle";
 import { BOT_ID, playerKey, resolveTarget } from "./players";
 import type { StoredEvent } from "./store";
 
@@ -76,6 +76,11 @@ export interface MatchSummary {
     rejectedScoreboards: number;
     /** States with a camera target during play, resolved or not. */
     cameraTargets: number;
+    /**
+     * The highest share of states with `Game.bReplay` among the stretches between close markers
+     * holding at least REPLAY_MIN_STATES states; null when none does.
+     */
+    replayShare: number | null;
   };
   dedupDropped: Record<string, number>;
   /** The extra stats and goal map from live play; readMatch fills them in after summarise. */
@@ -322,13 +327,47 @@ function cameraKey(acc: Acc): string | null {
   return best && best[1] >= CAMERA_SHARE * resolved ? best[0] : null;
 }
 
+/**
+ * Fewer states than this between close markers say nothing about replay playback: a match opens
+ * with a few seconds of states carried over from the last game.
+ */
+export const REPLAY_MIN_STATES = 20;
+
+/**
+ * Live play is about a fifth goal replays; watching a saved replay is all replay, in its own stretch.
+ * Takes the events before RecorderClosed markers are dropped, since those bound stretches too.
+ */
+export function replayShare(events: readonly StoredEvent[]): number | null {
+  let best: number | null = null;
+  let states = 0;
+  let replays = 0;
+  const endStretch = () => {
+    if (states >= REPLAY_MIN_STATES) best = Math.max(best ?? 0, replays / states);
+    states = 0;
+    replays = 0;
+  };
+  for (const ev of events) {
+    if (isCloseMarker(ev.name)) endStretch();
+    else if (ev.name === "UpdateState") {
+      states++;
+      if (((ev.data.Game ?? {}) as Data).bReplay === true) replays++;
+    }
+  }
+  endStretch();
+  return best;
+}
+
 function endKind(acc: Acc, via: CloseVia): EndKind {
   if (acc.sawMatchEnded) return endedEarly(acc) ? "early_end" : "completed";
   return via === "destroyed" ? "left" : "orphaned";
 }
 
-/** `events` are one match's events, deduped, in seq order. */
-export function summarise(guid: string, events: readonly StoredEvent[], close: { via: CloseVia; dedupDropped: Record<string, number> }): MatchSummary {
+/** `events` are one match's events, deduped, in seq order; `replayShare` comes from {@link replayShare}. */
+export function summarise(
+  guid: string,
+  events: readonly StoredEvent[],
+  close: { via: CloseVia; dedupDropped: Record<string, number>; replayShare: number | null },
+): MatchSummary {
   const acc: Acc = {
     playlistId: null,
     arena: null,
@@ -380,6 +419,7 @@ export function summarise(guid: string, events: readonly StoredEvent[], close: {
       unresolvedStatfeed: acc.unresolvedStatfeed,
       rejectedScoreboards: acc.rejectedScoreboards,
       cameraTargets: acc.cameraTargets,
+      replayShare: close.replayShare,
     },
     dedupDropped: close.dedupDropped,
     extras: null,

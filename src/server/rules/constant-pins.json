@@ -17,6 +17,13 @@
       "ORPHAN_TIMEOUT_MS": 600000
     }
   },
+  "finished_match_stays_closed": {
+    "version": 1,
+    "constants": {
+      "REPLAY_MIN_STATES": 20,
+      "REPLAY_PLAYBACK_SHARE": 0.9
+    }
+  },
   "camera_identity": {
     "version": 1,
     "constants": {

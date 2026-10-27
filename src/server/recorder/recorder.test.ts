@@ -266,6 +266,39 @@ describe("orphaned matches", () => {
     expect(logger.events()).not.toContain("recorder/store_failed");
   });
 
+  test("a finished match's guid coming back (replay playback) is dropped: no rows, no hook, logged at the refusal and its first state", () => {
+    const { recorder, calls, fields } = setup();
+    feed(recorder, [...liveMatch("G"), frame(3500, "MatchEnded", "G", { WinnerTeamNum: 0 }), frame(4000, "MatchDestroyed", "G")]);
+    const before = countsByName("G");
+    const replay = (t: number) => frame(t, "UpdateState", "G", { Game: { bReplay: true, PlaylistId: 10, Teams: [] }, Players: [] });
+    feed(recorder, [
+      frame(10_000, "MatchCreated", "G"),
+      replay(11_000),
+      replay(13_000),
+      frame(14_000, "MatchDestroyed", "G"),
+      frame(15_000, "MatchCreated", "G"),
+      replay(16_000),
+      frame(17_000, "GoalScored", "G"),
+    ]);
+    recorder.flush();
+    expect(countsByName("G")).toEqual(before);
+    expect(calls).toHaveLength(1);
+    expect(recorder.isRecording()).toBe(false);
+    expect(fields("finished_match_event_dropped")).toEqual([
+      { guid: "G", by: "MatchCreated", replay: null },
+      { guid: "G", by: "UpdateState", replay: true },
+    ]);
+    expect(fields("reopened")).toEqual([]);
+  });
+
+  test("a refused guid's first frame says whether it was replay playback", () => {
+    const { recorder, fields } = setup();
+    feed(recorder, [...liveMatch("G"), frame(3500, "MatchEnded", "G", { WinnerTeamNum: 0 }), frame(4000, "MatchDestroyed", "G")]);
+    feed(recorder, [frame(10_000, "UpdateState", "G", { Game: { bReplay: true, PlaylistId: 10, Teams: [] }, Players: [] })]);
+    recorder.flush();
+    expect(fields("finished_match_event_dropped")).toEqual([{ guid: "G", by: "UpdateState", replay: true }]);
+  });
+
   test("a reopened match whose seq lookup failed once still stores after its earlier rows", () => {
     const { recorder: first } = setup();
     feed(first, [...liveMatch("G"), frame(4000, "MatchDestroyed", "G")]);
