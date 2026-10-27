@@ -17,13 +17,15 @@ export interface Stack {
   go: () => void;
 }
 
-export const test = base.extend<{ consoleErrors: string[] }, { stack: Stack }>({
+/** What the stack's DB holds. A spec file picks one with `test.use({ seed })`, and gets its own worker and stack. */
+export type Seed = "rich" | "empty";
+
+export const test = base.extend<{ consoleErrors: string[] }, { stack: Stack; seed: Seed }>({
+  seed: ["rich", { scope: "worker", option: true }],
   stack: [
-    // Playwright requires the first argument to be a destructuring pattern, even with no dependencies.
-    // eslint-disable-next-line no-empty-pattern
-    async ({}, use) => {
+    async ({ seed }, use) => {
       console.log(`[e2e] runner ${JSON.stringify({ node: process.versions.node, underBun: "bun" in process.versions })}`);
-      const child = spawn("bun", ["run", join(import.meta.dirname, "stack.ts")], { cwd: join(import.meta.dirname, "..", ".."), stdio: ["pipe", "pipe", "pipe"] });
+      const child = spawn("bun", ["run", join(import.meta.dirname, "stack.ts"), seed], { cwd: join(import.meta.dirname, "..", ".."), stdio: ["pipe", "pipe", "pipe"] });
       const output: string[] = [];
       const exited = new Promise<number | null>((resolve) => {
         // "close", not "exit": by then stdout/stderr have drained, so `output` has the stack's last lines.

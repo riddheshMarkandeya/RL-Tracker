@@ -118,6 +118,9 @@ export const monthsResponse = z.object({
 
 export const currentResponse = z.object({ session: sessionSummarySchema.nullable() });
 
+/** The newest session under the filter, and every playlist you've played, so an empty history and a narrow filter can be told apart. */
+export const latestResponse = z.object({ session: sessionSummarySchema.nullable(), playlistsPresent: z.array(z.number()) });
+
 export const sessionDetailResponse = z.object({
   key: z.string(),
   day: z.string(),
@@ -137,6 +140,8 @@ export const sessionDetailResponse = z.object({
   /** The neighbouring sessions listed under the filter. */
   prev: z.string().nullable(),
   next: z.string().nullable(),
+  prevMonth: z.string().nullable(),
+  nextMonth: z.string().nullable(),
 });
 
 export const matchPlayerSchema = counted.extend({
@@ -206,6 +211,7 @@ export type MyMatchWire = z.infer<typeof myMatchSchema>;
 export type Goal = z.infer<typeof goalSchema>;
 export type SessionSummary = z.infer<typeof sessionSummarySchema>;
 export type SessionList = z.infer<typeof sessionsResponse>;
+export type LatestSession = z.infer<typeof latestResponse>;
 export type MonthFolds = z.infer<typeof monthsResponse>;
 export type PeriodView = z.infer<typeof periodResponse>;
 export type SessionDetail = z.infer<typeof sessionDetailResponse>;

@@ -7,7 +7,7 @@ type GroupFilter = "ranked" | "casual" | "extra" | "private";
 export type PlaylistFilter = "everything" | GroupFilter | { playlist: number };
 
 // LTMs sit with the extra modes; Official Tournament has its own rank, so it isn't in "ranked".
-const GROUPS: Readonly<Record<GroupFilter, readonly PlaylistGroup[]>> = {
+export const GROUPS: Readonly<Record<GroupFilter, readonly PlaylistGroup[]>> = {
   ranked: ["ranked"],
   casual: ["casual"],
   extra: ["extra", "ltm"],

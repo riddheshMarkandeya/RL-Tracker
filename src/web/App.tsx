@@ -1,7 +1,8 @@
 import { Navigate, Route, Routes } from "react-router";
 import { Header } from "./components/Header";
 import { useLiveEvents } from "./events/useLiveEvents";
-import { NotFoundPage, RecapPage, SettingsPage, TrendsPage } from "./pages/Placeholders";
+import { NotFoundPage, SettingsPage, TrendsPage } from "./pages/Placeholders";
+import { RecapIndex, RecapSession } from "./pages/recap/RecapPage";
 
 export function App() {
   useLiveEvents();
@@ -11,7 +12,8 @@ export function App() {
       <main>
         <Routes>
           <Route path="/" element={<Navigate to="/recap" replace />} />
-          <Route path="/recap" element={<RecapPage />} />
+          <Route path="/recap" element={<RecapIndex />} />
+          <Route path="/recap/:session" element={<RecapSession />} />
           <Route path="/trends" element={<TrendsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />

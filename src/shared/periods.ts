@@ -37,6 +37,15 @@ export function shiftDay(day: string, n: number): string {
   return format(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
 }
 
+/** The `YYYY-MM` month a `YYYY-MM-DD` day is in: what the session list and its month steps mean by a month. */
+export const monthOf = (day: string): string => day.slice(0, 7);
+
+/** The first day of the month after a day's. */
+export function nextMonthStart(day: string): string {
+  const [y, m] = parts(day);
+  return m === 12 ? format(y + 1, 1, 1) : format(y, m + 1, 1);
+}
+
 /** The local day an instant counts toward: before the cutoff hour it is still the day before. */
 export function dayOf(ms: number): string {
   const t = new Date(ms);
@@ -82,8 +91,7 @@ export function periodRange(spec: PeriodSpec, { now, seasons }: { now: number; s
       return closed(start, shiftDay(start, 7), now);
     }
     case "month": {
-      const [y, m] = parts(spec.day);
-      return closed(format(y, m, 1), m === 12 ? format(y + 1, 1, 1) : format(y, m + 1, 1), now);
+      return closed(`${monthOf(spec.day)}-01`, nextMonthStart(spec.day), now);
     }
     case "year": {
       const [y] = parts(spec.day);

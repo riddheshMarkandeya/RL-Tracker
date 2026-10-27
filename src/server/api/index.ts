@@ -7,6 +7,7 @@ import { filterOnly, monthsParams, periodParams, sessionsParams } from "../../sh
 import {
   breakResponse,
   currentResponse,
+  latestResponse,
   matchDetailResponse,
   monthsResponse,
   periodResponse,
@@ -98,6 +99,11 @@ export function createApi({ tracker, reader, status, staticDir, logger, now = Da
       method: "GET",
       path: "/api/sessions/current",
       handler: ({ query }) => ok(currentResponse, { session: pages.currentSummary(parse(filterOnly, query).filter) }),
+    },
+    {
+      method: "GET",
+      path: "/api/sessions/latest",
+      handler: ({ query }) => ok(latestResponse, pages.latest(parse(filterOnly, query).filter)),
     },
     {
       method: "GET",

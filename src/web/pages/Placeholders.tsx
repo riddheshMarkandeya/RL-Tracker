@@ -3,15 +3,6 @@ import { EmptyState } from "../components/EmptyState";
 
 // Each page's content arrives with its own work package; until then it says so plainly.
 
-export function RecapPage() {
-  return (
-    <>
-      <h1 className="visually-hidden">Recap</h1>
-      <EmptyState title="Session recaps are coming in the next update." />
-    </>
-  );
-}
-
 export function TrendsPage() {
   return (
     <>

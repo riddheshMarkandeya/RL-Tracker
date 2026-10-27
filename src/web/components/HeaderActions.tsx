@@ -3,7 +3,7 @@ import { REQUEST_HEADER, SHUTDOWN_HEADER } from "../../shared/constants";
 import { post } from "../api";
 import { live } from "../events/live";
 import { ConfirmButton } from "./ConfirmButton";
-import { useCurrentSession } from "./queries";
+import { useCurrentSession } from "../queries";
 
 /** Why neither action can reach the tracker now, if so. A string snapshot, so a status event alone doesn't re-render. */
 function useOffline(): string | undefined {

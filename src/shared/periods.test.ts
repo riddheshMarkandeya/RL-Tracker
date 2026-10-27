@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { dayOf, dayStart, periodRange, shiftDay, type Season } from "./periods";
+import { dayOf, dayStart, monthOf, nextMonthStart, periodRange, shiftDay, type Season } from "./periods";
 
 // Local time is the process's zone; each block pins one. Expected instants are written in UTC
 // from the zone's known offsets (New York: EST −5, EDT −4; London: GMT 0, BST +1).
@@ -26,6 +26,14 @@ describe("shiftDay", () => {
     ["2026-10-21", 0, "2026-10-21"],
   ] as const)("%s %+d is %s", (day, n, out) => {
     expect(shiftDay(day, n)).toBe(out);
+  });
+});
+
+describe("months", () => {
+  test("a day's month, and the first day of the month after, across a year end", () => {
+    expect(monthOf("2026-10-26")).toBe("2026-10");
+    expect(nextMonthStart("2026-10-26")).toBe("2026-11-01");
+    expect(nextMonthStart("2026-12-15")).toBe("2027-01-01");
   });
 });
 

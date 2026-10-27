@@ -4,21 +4,29 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP6a (Recap pages). WP5b (web shell; WP5b-b harness and install,
+  WP6a-b (Overview sections 5–8). WP6a-a (recap navigation,
+  `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`) is deployed. WP5b (web shell; WP5b-b harness and install,
   `docs/plans/2026-10-21-wp5b-b-harness-install.md`) is deployed. WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
-  `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's one open flag (`mvp_count` on a real match) is unexamined.
+  `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's open flag `mvp_count` is
+  closed: a podium with no award is normal, so the check flags only more than one award (`mvp` v2,
+  commit 87881b5); after the 2026-10-26 recompute no stored match has it.
   - **[design, Low, Trivial]** Add back the themes midnight, dusk, steel and daylight (values in the
     `prototype/settings-layout` tokens; each needs a `tokens.css` block, and the token test covers
     it). Daylight has the real cost: every chart gets checked in light mode. Record:
     `docs/plans/2026-10-21-wp5b-a-web-shell.md`.
-  - **[performance, Low, Trivial]** When WP6a adds the heavy page queries: `match_ended` invalidates
-    every query (`src/web/events/useLiveEvents.ts`); narrow it to the keys a match can move.
-    Record: `docs/plans/2026-10-21-wp5b-a-web-shell.md` (Review log).
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.
   - WP3b's manual check still open: sign out and back in, and the tracker should autostart
     (`supervisor/started`, then `app/started`).
+- [ ] **[bug, High, Standard]** Two stored matches end days after they started, and that glues
+  sessions together: `CA081A86…` (Doubles, 21 Oct 22:15, `closed_via: superseded`, ended 24 Oct
+  17:02) and `05A9C7E6…` (Ranked Doubles, 22 Oct 22:51, `closed_via: timeout`, ended 24 Oct 17:15).
+  Both are `early_end` with `goal_events_equal_score` flags. The recap shows 21–24 Oct as one
+  67-hour session of 41 matches. Likely `ended_at` takes the close time instead of the last real
+  event; root-cause it with `debugging-discipline` from the raw events (both are kept whole, being
+  flagged). A fix moves stored values: bump the rule version, then `rules-diff` and recompute.
+  Found in WP6a-a's real-browser check. Record: `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`.
 - [ ] **[design, Med, Trivial]** The "no data" toast is suppressed over the full-screen game and
   only waits in the notification panel. (Its body now names the ini problem to fix.) WP5's status
   display is the reliable signal (`statsConfig()` carries the same diagnosis); WP8 (toast
@@ -48,6 +56,14 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: a stored match you played with a null `playlist_id`
+  (none among the first 65). `latest`'s `playlistsPresent` drops null ids, so a history of only
+  such matches reads "Not enough data yet" under a narrow filter. Then add a played-anything flag
+  to `latestResponse`. Record: `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`.
+- [ ] **[test, Low, Standard]** Trigger: Playwright sharding, `workers` above 1, or a spec rename
+  that puts `shell.spec.ts` before `recap.spec.ts`. Both share the rich-seed stack, and the shell
+  spec's replay and session break change it, so the recap spec must run first. Then give the
+  replay spec its own stack. Record: `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`.
 - [ ] **[design, Low, Standard]** Trigger: a `query/two_yous` warn in `tracker.log` (two of your
   ids in one match, never seen). Pages take the camera's player, else the lowest key; check that
   match and fit the rule to it. Record: `docs/plans/2026-10-21-wp5a-a-query-logic.md`.

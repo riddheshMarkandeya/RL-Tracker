@@ -196,9 +196,10 @@ mobile app are avoided, but that app is not designed here.
   - The 30-day baseline follows the active filters. Changing what the headline compares against
     (e.g. always ranked) should stay a small setting (see "Settings page").
   - Long history and long sessions (tested with about 90 sessions and a 40-match session):
-    - The session picker lists the last 2 weeks by day. Older sessions fold into one collapsed group
-      per month, showing session count and W–L. The real build loads a month's sessions only when it
-      is opened. Mini W/L strips stop at 24 squares and show "+N" after that.
+    - The session picker lists the open session's month by day, with « ‹ › » stepping by month and
+      by session. Mini W/L strips stop at 24 squares and show "+N" after that. (Revisited
+      2026-10-26 in WP6a-a review, the user's call: the 2-week list with lazy month folds made
+      focus and loading order fiddly across five review rounds. It replaces that design.)
     - Sessions over 24 matches get denser match cards, about 13 per row.
     - The match list on Matches & numbers scrolls inside a viewport-high box and keeps the open
       match in view.

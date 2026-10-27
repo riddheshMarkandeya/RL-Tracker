@@ -1,5 +1,6 @@
-// The web shell against the real tracker: seeded with one won match (chip 1–0), then a replay of
-// the completed fixture, which the camera player loses (chip 1–1). Serial: the replay is one-shot.
+// The web shell against the real tracker: the rich seed, whose current session is one won match
+// (chip 1–0), then a replay of the completed fixture, which the camera player loses (chip 1–1).
+// Serial: the replay is one-shot.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
@@ -16,14 +17,15 @@ test.afterEach(({ consoleErrors }) => {
 
 test("before the match: redirect, live status, chip, navigation, deep link, not found", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveURL(/\/recap$/);
+  await expect(page).toHaveURL(/\/recap\/e2e-seed-won$/);
   await expect(status(page, "connected")).toBeVisible();
   await expect(chip(page)).toHaveText("This session: 1–0");
 
   for (const name of ["Trends", "Settings", "Recap"]) {
     const link = page.getByRole("link", { name, exact: true });
     await link.click();
-    await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}$`));
+    // Recap moves on to the latest session's page.
+    await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}(/[^/]+)?$`));
     await expect(link).toHaveAttribute("aria-current", "page");
   }
 
@@ -49,14 +51,16 @@ test("axe: every page in every theme has no violations", async ({ page }) => {
   }
 });
 
-test("the replay: status follows the match and the chip updates without a reload", async ({ page, stack }) => {
+test("the replay: status follows the match; the chip and the open recap update without a reload", async ({ page, stack }) => {
   await page.goto("/recap");
   await expect(status(page, "connected")).toBeVisible();
   await expect(chip(page)).toHaveText("This session: 1–0");
+  await expect(page.getByRole("img", { name: "1 win, 0 losses" })).toBeVisible();
   stack.go();
   await expect(status(page, "recording match")).toBeVisible({ timeout: 10_000 });
   await expect(status(page, "connected")).toBeVisible({ timeout: 20_000 });
   await expect(chip(page)).toHaveText("This session: 1–1");
+  await expect(page.getByRole("img", { name: "1 win, 1 loss" })).toBeVisible();
 });
 
 test("Start new session: confirm, then the chip is gone and the button unavailable", async ({ page }) => {

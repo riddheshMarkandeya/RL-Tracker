@@ -1,7 +1,8 @@
 // The e2e stack, run under Bun by the Playwright fixture (seeding needs bun:sqlite): a temp data dir
-// seeded with one won match, the repo's web build copied to the installed path, a gated replay of the
-// completed fixture, and the real tracker. Protocol: prints `ready {"url","dataDir"}` on stdout; the
-// stdin line `go` releases the replay; stdin EOF tears everything down.
+// seeded per the mode in argv (`rich`, the default, or `empty`), the repo's web build copied to the
+// installed path, a gated replay of the completed fixture, and the real tracker. Protocol: prints
+// `ready {"url","dataDir"}` on stdout; the stdin line `go` releases the replay; stdin EOF tears
+// everything down.
 // RLT_E2E_KEEP=1 keeps the temp dir (and its tracker.log).
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,6 +14,8 @@ import { createLogger } from "../../src/server/log";
 import { createRecordWriter } from "../../src/server/records/save";
 import { openStorage } from "../../src/server/storage";
 import { freePort, ME, readFixture, record } from "../../src/server/testing";
+import { dayStart, dayOf } from "../../src/shared/periods";
+import type { Seed } from "./fixtures";
 import { DASHBOARD_HOST } from "../../src/shared/constants";
 
 const REPO = join(import.meta.dirname, "..", "..");
@@ -34,14 +37,42 @@ function logTail(dir: string, lines = 30): string {
   }
 }
 
-/** One won match for ME, ended 5 minutes ago: the header chip reads "This session: 1–0". */
-function seed(dir: string): void {
+const HOUR = 60 * MIN;
+
+/** A match of ME's, won or lost, `start` ms after the local day's 4am start. */
+const match = (guid: string, day: string, start: number, won: boolean, over: { playlistId?: number; checkFlags?: string[] } = {}) => {
+  const at = dayStart(day) + start;
+  return record(guid, at, {}, { endedAt: at + 5 * MIN, scoreTeam0: won ? 2 : 1, scoreTeam1: won ? 1 : 2, winnerTeamNum: won ? 0 : 1, mvpKey: won ? ME : null, ...over });
+};
+
+/**
+ * `rich`: the current session is exactly one won match, ended 5 minutes ago (the header chip reads
+ * "This session: 1–0"). Last month, so none is current: a 26-match session, a private-only one,
+ * and two sessions on one day (one with a flagged match). The month before: one session.
+ * `empty`: no matches at all.
+ */
+function seed(dir: string, mode: Seed): void {
   const logger = createLogger({ dir });
   const storage = openStorage({ dir, logger });
   try {
     storage.tracker.run("INSERT INTO my_ids (primary_id, name, status, added_at) VALUES (?, 'me', 'confirmed', ?)", ME, Date.now());
+    if (mode === "empty") return;
     const now = Date.now();
-    createRecordWriter({ tracker: storage.tracker, logger }).save(record("e2e-seed-won", now - 10 * MIN, {}, { endedAt: now - 5 * MIN }));
+    // Days of months before the current session's, so which month holds each session doesn't
+    // depend on the run's date.
+    const [y = 0, m = 1] = dayOf(now - 10 * MIN).split("-").map(Number);
+    const day = (monthsBack: number, d: number) => {
+      const i = y * 12 + (m - 1) - monthsBack;
+      return `${String(Math.floor(i / 12))}-${String((i % 12) + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    };
+    const writer = createRecordWriter({ tracker: storage.tracker, logger });
+    writer.save(match("e2e-old", day(2, 15), 14 * HOUR, true));
+    for (let i = 0; i < 26; i++) writer.save(match(`e2e-long-${String(i).padStart(2, "0")}`, day(1, 5), 10 * HOUR + i * 6 * MIN, i % 3 !== 0));
+    writer.save(match("e2e-private", day(1, 8), 14 * HOUR, true, { playlistId: 6 }));
+    writer.save(match("e2e-first-a", day(1, 12), 8 * HOUR, true, { playlistId: 11 }));
+    writer.save(match("e2e-first-b", day(1, 12), 8 * HOUR + 10 * MIN, false, { playlistId: 11, checkFlags: ["mvp_count"] }));
+    writer.save(match("e2e-second", day(1, 12), 12 * HOUR, false, { playlistId: 2 }));
+    writer.save(record("e2e-seed-won", now - 10 * MIN, {}, { endedAt: now - 5 * MIN }));
   } finally {
     storage.close();
   }
@@ -68,7 +99,7 @@ async function main(): Promise<void> {
   try {
     // The installed path, so the tracker's default staticDir is what's served.
     cpSync(dist, join(dir, "bin", "web"), { recursive: true });
-    seed(dir);
+    seed(dir, process.argv[2] === "empty" ? "empty" : "rich");
   } catch (err) {
     removeDir(dir);
     throw err;

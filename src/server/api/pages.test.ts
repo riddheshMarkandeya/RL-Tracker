@@ -169,6 +169,27 @@ describe("session detail", () => {
     expect(p.sessionDetail("B", "ranked")).toMatchObject({ summary: null, matches: [], prev: "A", next: "C" });
   });
 
+  test("month steps land on the nearest session in the month before or after, skipping empty months", () => {
+    const { play, pages } = seed();
+    play("JUL", t(7, 20, 18));
+    play("SEP1", t(9, 3, 18));
+    play("SEP2", t(9, 20, 18), { playlistId: CASUAL });
+    play("SEP3", t(9, 28, 18));
+    play("OCT1", t(10, 2, 18));
+    play("OCT2", t(10, 9, 18));
+    const p = pages();
+    const months = (key: string, f: "everything" | "ranked" = "everything") => {
+      const d = p.sessionDetail(key, f);
+      return [d?.prevMonth, d?.nextMonth];
+    };
+    // Back to the previous month's newest, on to the next month's first; August is empty.
+    expect(months("OCT2")).toEqual(["SEP3", null]);
+    expect(months("SEP2")).toEqual(["JUL", "OCT1"]);
+    expect(months("JUL")).toEqual([null, "SEP1"]);
+    // Under a filter, only its sessions count.
+    expect(months("OCT1", "ranked")).toEqual(["SEP3", null]);
+  });
+
   test("the baseline is the 30 days before the start, under the same filter", () => {
     const { play, pages } = seed();
     play("OLD", t(9, 1, 10)); // over 30 days before

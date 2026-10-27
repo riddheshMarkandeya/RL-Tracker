@@ -9,6 +9,7 @@ import { REQUEST_HEADER } from "../../shared/constants";
 import {
   breakResponse,
   currentResponse,
+  latestResponse,
   matchDetailResponse,
   monthsResponse,
   periodResponse,
@@ -170,6 +171,22 @@ describe("endpoints", () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "internal" });
     expect(logger.lines.find((l) => l.event === "failed")).toMatchObject({ level: "error", fields: { route: "/api/seasons" } });
+  });
+});
+
+describe("latest session", () => {
+  test("the newest session under the filter, or null; a private-only one is skipped by everything", async () => {
+    const latest = async (filter: string) => (await get(latestResponse, `/api/sessions/latest?filter=${filter}`)).session?.key ?? null;
+    expect(await latest("private")).toBeNull();
+    createRecordWriter({ tracker: storage.tracker, logger: memoryLogger(), now: () => 1 }).save(record("C", T0 + 60 * MIN, {}, { endedAt: T0 + 65 * MIN, playlistId: 6 }));
+    expect(await latest("everything")).toBe("A");
+    expect(await latest("private")).toBe("C");
+  });
+
+  test("lists the playlists played across all history, whatever the filter", async () => {
+    createRecordWriter({ tracker: storage.tracker, logger: memoryLogger(), now: () => 1 }).save(record("C", T0 + 60 * MIN, {}, { endedAt: T0 + 65 * MIN, playlistId: 6 }));
+    const body = await get(latestResponse, "/api/sessions/latest?filter=17");
+    expect(body).toEqual({ session: null, playlistsPresent: [6, 13] });
   });
 });
 
