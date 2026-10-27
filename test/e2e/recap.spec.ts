@@ -67,10 +67,62 @@ test("« » step by month to the nearest session there; the ends are disabled", 
   await at(page, "e2e-seed-won");
 });
 
-test("at 320px a two-digit scorebug fits without a sideways scroll", async ({ page }) => {
+test("the long session's Overview: per game, what stood out, by playlist, the goal map, extras", async ({ page }) => {
+  await page.goto("/recap/e2e-long-00");
+  const section = (name: string) => page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
+
+  const perGame = section("Per game vs your 30-day average");
+  await expect(perGame.getByRole("listitem")).toHaveCount(6);
+  await expect(perGame.getByRole("listitem").filter({ hasText: "Goals" })).toContainText("1.12 /game");
+  await expect(perGame.getByRole("listitem").filter({ hasText: "Goals" })).toContainText("up 12% vs 30-day avg");
+  await expect(perGame.getByRole("listitem").filter({ hasText: "Goals" })).toContainText("29 total");
+  await expect(perGame.getByRole("listitem").filter({ hasText: "Score" })).toContainText("≈ 30-day avg");
+  // A zero average has no fair ratio, so saves (none, then and now) show no comparison.
+  await expect(perGame.getByRole("listitem").filter({ hasText: "Saves" })).not.toContainText("avg");
+
+  // Every other stat matches the baseline's one match, so only goals stood out.
+  const stood = section("What stood out");
+  await expect(stood.getByRole("listitem")).toHaveCount(1);
+  await expect(stood).toContainText("1.12 goals per game");
+  await expect(stood).toContainText("up 12% vs 30-day avg (1)");
+
+  const byPlaylist = section("By playlist");
+  await expect(byPlaylist.getByRole("row")).toHaveCount(3);
+  await expect(byPlaylist.getByRole("row", { name: /Ranked Doubles/ })).toContainText("1–0");
+
+  const goals = section("Where the goals came from");
+  await expect(goals.getByRole("img", { name: "Where 29 goals for and 26 against came from" })).toBeVisible();
+  await expect(goals).toContainText("Scored · 29");
+  await expect(goals).toContainText("2 close · 26 mid · 1 long");
+  await expect(goals).toContainText("Conceded · 26 · 1 aerial");
+  await expect(goals).toContainText("1 close · 25 mid · 0 long");
+  await expect(goals).toContainText("You scored 29 of the team's 29.");
+
+  const extras = section("Extras");
+  await expect(extras.getByRole("listitem").filter({ hasText: "Hardest shot" })).toContainText("102 km/h");
+  await expect(extras.getByRole("listitem").filter({ hasText: "Fastest goal" })).toContainText("120 km/h");
+  await expect(extras.getByRole("listitem").filter({ hasText: "Crossbar hits" })).toContainText("26");
+  await expect(extras.getByRole("listitem").filter({ hasText: "Supersonic" })).toContainText("10%");
+  await expect(extras.getByRole("heading", { name: "Highlights" })).toBeVisible();
+  await expect(extras.getByRole("listitem").filter({ hasText: "Hat tricks" })).toContainText("1");
+});
+
+test("one playlist: no By playlist; no baseline: no What stood out and no ▲▼", async ({ page }) => {
+  await page.goto("/recap/e2e-first-a");
+  await expect(page.getByRole("heading", { name: "What stood out" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "By playlist" })).toHaveCount(0);
+
+  await page.goto("/recap/e2e-old");
+  await expect(page.getByRole("heading", { name: "Per game", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What stood out" })).toHaveCount(0);
+  await expect(page.getByText(/30-day avg/)).toHaveCount(0);
+});
+
+test("at 320px a two-digit scorebug and the full Overview fit without a sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto("/recap/e2e-long-00");
   await expect(page.getByRole("img", { name: "17 wins, 9 losses" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Highlights" })).toBeVisible();
   // A string expression: the root tsconfig has no DOM lib for a page-side function.
   expect(await page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")).toBe(0);
 });
@@ -141,7 +193,7 @@ test("the playlist filter: in the URL, only what was played, and notes when noth
 });
 
 test("axe: the recap, its picker open, and its states in every theme", async ({ page }) => {
-  for (const path of ["/recap/e2e-long-00", "/recap/e2e-seed-won?filter=private", "/recap?filter=17", "/recap/no-such-session"]) {
+  for (const path of ["/recap/e2e-long-00", "/recap/e2e-old", "/recap/e2e-seed-won?filter=private", "/recap?filter=17", "/recap/no-such-session"]) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     if (path === "/recap/e2e-long-00") {

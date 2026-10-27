@@ -2,7 +2,7 @@
 // computed from the play view. The writer builds its column list from here, and a migration test
 // fails for an entry whose column doesn't exist.
 import { buildPlay, CAR_SAMPLE_CAP_MS, type CarSample, type GoalPoint, type Play, type Pos } from "./play";
-import { GOAL_LINE_Y } from "../../shared/constants";
+import { GOAL_LINE_Y, SIDE_WALL_X } from "../../shared/constants";
 import type { StoredEvent } from "./store";
 import type { MatchSummary, RosterEntry } from "./summary";
 
@@ -19,7 +19,6 @@ export const HARDEST_SHOT_MAX_KMH = 250;
 export const AERIAL_MIN_Z = 550;
 /** A touch this close to a wall is a wall ride or a wall touch, not an aerial. */
 export const WALL_MARGIN = 300;
-export const SIDE_WALL_X = 4096;
 /** The corners are cut at 45°, so they bound |x| + |y|; this limit keeps the same margin off them. */
 export const CORNER_MAX_XY_SUM = 7640;
 

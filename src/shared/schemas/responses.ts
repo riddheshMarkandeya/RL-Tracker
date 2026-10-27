@@ -71,6 +71,7 @@ export const myMatchSchema = z.object({
   flagged: z.boolean(),
   me: myRowSchema.nullable(),
   result: result.nullable(),
+  /** Your goals. */
   goals: z.array(z.object({ speedKmh: z.number().nullable(), ownGoal: z.boolean() })),
   statfeed: z.record(z.string(), z.number()),
 });

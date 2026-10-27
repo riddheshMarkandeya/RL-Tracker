@@ -9,10 +9,11 @@ import {
   ROLLING_LONG_DAYS,
   ROLLING_SHORT_DAYS,
   SESSION_GAP_MS,
+  SIDE_WALL_X,
   WEEK_START_DAY,
 } from "../../shared/constants";
 import { CLOSE_UNDER, LONG_FROM } from "../../shared/goal-range";
-import { AERIAL_MIN_Z, CORNER_MAX_XY_SUM, HARDEST_SHOT_MAX_KMH, SIDE_WALL_X, WALL_MARGIN } from "../recorder/extras";
+import { AERIAL_MIN_Z, CORNER_MAX_XY_SUM, HARDEST_SHOT_MAX_KMH, WALL_MARGIN } from "../recorder/extras";
 import { CAR_SAMPLE_CAP_MS, TOUCH_MERGE_MS, WOODWORK_WINDOW_MS } from "../recorder/play";
 import { ORPHAN_TIMEOUT_MS } from "../recorder/lifecycle";
 import { UPDATE_STATE_INTERVAL_MS } from "../recorder/sampler";

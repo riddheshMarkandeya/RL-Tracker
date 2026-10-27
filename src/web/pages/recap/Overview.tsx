@@ -1,11 +1,32 @@
-// The recap's Overview, sections 1–4: scorebug, the change against the 30-day average, the tiles
-// and the match cards. Sections 5–8 follow below them.
+// The recap's Overview: scorebug, the change against the 30-day average, the tiles, the match cards,
+// then per-game stats, what stood out, by playlist, the goal map, extras and highlights.
 import { playlistInfo } from "../../../shared/playlists";
 import type { MyMatchWire, SessionDetail, SessionSummary } from "../../../shared/schemas/responses";
+import assistIcon from "../../assets/icons/Assist.png";
+import demoIcon from "../../assets/icons/Demolition.png";
+import goalIcon from "../../assets/icons/Goal.png";
 import mvpIcon from "../../assets/icons/MVP.png";
+import saveIcon from "../../assets/icons/Save.png";
+import shotIcon from "../../assets/icons/Shot.png";
 import { cx } from "../../components/cx";
-import { clock, dayLabel, durationText, plural } from "../../logic/format";
-import { isDense, letter, pct, resultWord, scoreFor, tilesFor, winPctDelta } from "../../logic/recap";
+import { GoalMap } from "../../components/GoalMap";
+import { clock, dayLabel, decimal, durationText, plural } from "../../logic/format";
+import {
+  extrasCards,
+  highlights,
+  isDense,
+  letter,
+  pct,
+  perGameCards,
+  playlistRows,
+  resultWord,
+  scoreFor,
+  stoodOut,
+  tilesFor,
+  winPctDelta,
+  type IconName,
+  type Vs,
+} from "../../logic/recap";
 import styles from "./Overview.module.css";
 
 export function Overview({ detail, summary }: { detail: SessionDetail; summary: SessionSummary }) {
@@ -14,6 +35,17 @@ export function Overview({ detail, summary }: { detail: SessionDetail; summary: 
       <Scorebug detail={detail} summary={summary} />
       <Headline detail={detail} />
       <MatchCards matches={detail.matches} />
+      <PerGame detail={detail} />
+      <StandoutAndPlaylists detail={detail} />
+      {detail.goals.length > 0 && (
+        <section aria-labelledby="goals-heading">
+          <h2 id="goals-heading" className={styles.sec}>Where the goals came from</h2>
+          <div className={styles.panel}>
+            <GoalMap matches={detail.matches} goals={detail.goals} viewKey={detail.key} />
+          </div>
+        </section>
+      )}
+      <Extras detail={detail} />
     </>
   );
 }
@@ -93,6 +125,127 @@ function MatchCards({ matches }: { matches: MyMatchWire[] }) {
           );
         })}
       </ol>
+    </section>
+  );
+}
+
+const ICONS: Record<IconName, string> = { Goal: goalIcon, Assist: assistIcon, Save: saveIcon, Shot: shotIcon, Demolition: demoIcon };
+
+/** "▲ 12%" with the direction in words for screen readers, or "≈ 30-day avg". */
+function VsText({ vs }: { vs: Vs }) {
+  if (vs.dir === "same") return <span className={styles.muted}>≈ 30-day avg</span>;
+  return (
+    <span className={vs.dir === "up" ? styles.up : styles.down}>
+      <span aria-hidden="true">{vs.dir === "up" ? "▲" : "▼"}</span>
+      <span className="visually-hidden">{vs.dir}</span> {Math.abs(vs.pct)}%
+    </span>
+  );
+}
+
+function PerGame({ detail }: { detail: SessionDetail }) {
+  const cards = perGameCards(detail.aggregate, detail.baseline);
+  if (!cards.length) return null;
+  const hasBase = detail.baseline.matches > 0;
+  return (
+    <section aria-labelledby="per-game-heading">
+      <h2 id="per-game-heading" className={styles.sec}>{hasBase ? "Per game vs your 30-day average" : "Per game"}</h2>
+      <ul className={styles.grid}>
+        {cards.map((c) => (
+          <li key={c.id} className={styles.stat}>
+            <span className={styles.lbl}>{c.icon && <img className={styles.sIco} src={ICONS[c.icon]} alt="" />}{c.label}</span>
+            <b className="num">{decimal(c.perGame)}<small> /game</small></b>
+            {c.vs && <span className={styles.vs}><VsText vs={c.vs} />{c.vs.dir !== "same" && <span className={styles.muted}> vs 30-day avg</span>}</span>}
+            <span className={cx(styles.muted, styles.small, "num")}>{c.total} total</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function StandoutAndPlaylists({ detail }: { detail: SessionDetail }) {
+  const stood = stoodOut(detail.aggregate, detail.baseline);
+  const rows = playlistRows(detail.byPlaylist);
+  if (stood === null && rows === null) return null;
+  return (
+    <div className={styles.grid2}>
+      {stood !== null && (
+        <section className={styles.panel} aria-labelledby="stood-out-heading">
+          <h2 id="stood-out-heading" className={styles.h2}>What stood out</h2>
+          {stood.length === 0 ? (
+            <p className={styles.muted}>Close to your 30-day average on every stat.</p>
+          ) : (
+            <ul className={styles.stand}>
+              {stood.map((s) => (
+                <li key={s.id}>
+                  {s.icon ? <img className={styles.bIco} src={ICONS[s.icon]} alt="" /> : <span />}
+                  <div>
+                    <b className="num">{decimal(s.perGame)} {s.label.toLowerCase()} per game</b>
+                    <div className="num"><VsText vs={s.vs} /> <span className={styles.muted}>vs 30-day avg ({decimal(s.avg)})</span></div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+      {rows !== null && (
+        <section className={styles.panel} aria-labelledby="by-playlist-heading">
+          <h2 id="by-playlist-heading" className={styles.h2}>By playlist</h2>
+          <table className={cx(styles.table, "num")}>
+            <thead><tr><th scope="col">Playlist</th><th scope="col">W–L</th><th scope="col">Win %</th><th scope="col">Goals/g</th></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={String(r.playlistId)}>
+                  <th scope="row">{r.name}</th>
+                  <td>{r.wins === null || r.losses === null ? "–" : `${String(r.wins)}–${String(r.losses)}`}</td>
+                  <td>{r.winPct === null ? "–" : `${String(r.winPct)}%`}</td>
+                  <td>{r.goalsPerGame === null ? "–" : decimal(r.goalsPerGame)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Extras({ detail }: { detail: SessionDetail }) {
+  const a = detail.aggregate;
+  const cards = extrasCards(a, detail.matches);
+  const hl = highlights(a.statfeed);
+  if (!cards.length && !hl.length) return null;
+  return (
+    <section aria-labelledby="extras-heading">
+      <h2 id="extras-heading" className={styles.sec}>Extras</h2>
+      {a.extrasMatches > 0 && a.extrasMatches < a.matches && (
+        <p className={cx(styles.muted, styles.small)}>Over {a.extrasMatches} of {plural(a.matches, "match", "matches")}.</p>
+      )}
+      {cards.length > 0 && (
+        <ul className={styles.grid}>
+          {cards.map((c) => (
+            <li key={c.id} className={styles.stat}>
+              <span className={styles.lbl}>{c.label}</span>
+              <b className="num">{c.value}{c.unit && <small>{c.unit === "%" ? "%" : ` ${c.unit}`}</small>}</b>
+              {c.sub && <span className={cx(styles.muted, styles.small)}>{c.sub}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {hl.length > 0 && (
+        <>
+          <h3 className={styles.h3}>Highlights</h3>
+          <ul className={styles.grid}>
+            {hl.map((h) => (
+              <li key={h.event} className={styles.stat}>
+                <span className={styles.lbl}>{h.label}</span>
+                <b className="num">{h.count}</b>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

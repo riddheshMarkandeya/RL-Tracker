@@ -4,8 +4,9 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP6a-b (Overview sections 5–8). WP6a-a (recap navigation,
-  `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`) is deployed. WP5b (web shell; WP5b-b harness and install,
+  WP6a-c (match page, Matches & numbers, links from cards and goal dots). WP6a-b (Overview
+  sections 5–8, `docs/plans/2026-10-27-wp6a-b-overview-sections.md`) is deployed. WP6a-a (recap
+  navigation, `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`) is deployed. WP5b (web shell; WP5b-b harness and install,
   `docs/plans/2026-10-21-wp5b-b-harness-install.md`) is deployed. WP5a-a and WP5a-b (API, `docs/plans/2026-10-21-wp5a-b-api.md`) are deployed. WP4c-a (rule registry, `rules-diff`) and WP4c-b (retention split,
   `docs/plans/2026-10-20-wp4c-b-retention-split.md`) are deployed. WP4b's open flag `mvp_count` is
   closed: a podium with no award is normal, so the check flags only more than one award (`mvp` v2,
@@ -14,6 +15,15 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
     `prototype/settings-layout` tokens; each needs a `tokens.css` block, and the token test covers
     it). Daylight has the real cost: every chart gets checked in light mode. Record:
     `docs/plans/2026-10-21-wp5b-a-web-shell.md`.
+  - **[design, Low, Trivial]** Around 2026-12-27, check the "What stood out" threshold
+    (`STOOD_OUT_MIN_PCT`, 10%). On 2026-10-27, the 5 sessions that had a baseline had 4–6 stats past
+    ±10% (3–5 past ±20%). Every baseline was under a month old (13–65 matches), so swings ran
+    large. Re-run that table against full 30-day baselines and pick the number then. Record:
+    `docs/plans/2026-10-27-wp6a-b-overview-sections.md`.
+  - **[design, Low, Trivial]** Check the goal map's top/bottom against a goal you remember:
+    +X is assumed to be blue's left, which nothing has verified. A wrong guess mirrors the map top
+    to bottom; left/right (your goal) is confirmed by real data. Fix it in `toScreen`, which has
+    the tests. Record: `docs/plans/2026-10-27-wp6a-b-overview-sections.md`.
   - WP3a's manual check still open: Ctrl+C on `bun run start` mid-match should end `tracker.log`
     with `app/stopped` (Git Bash can't send a console SIGINT). The shutdown endpoint path is
     covered by `src/server/main.test.ts`.
@@ -52,6 +62,10 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: a `[rlt] recap/goal_no_team` warn in the browser
+  console. A match with goals but a null `me.teamNum` can't be oriented, so its goals are left off
+  the goal map and its counts (0 of 76 player rows had a null team). Then fit the handling to that
+  match. Record: `docs/plans/2026-10-27-wp6a-b-overview-sections.md`.
 - [ ] **[design, Low, Standard]** Trigger: a `replay_playback` flag (a stretch of a match's
   states at least 90% `bReplay`). Replay playback of a match you left, or of one never recorded,
   still gets stored as play; a finished match's guid is refused. Then fit the handling to that

@@ -35,3 +35,6 @@ export function monthLabel(month: string, locale?: string): string {
 
 /** "1 win", "2 wins"; `many` for a plural that isn't one plus "s". */
 export const plural = (n: number, one: string, many = `${one}s`): string => `${String(n)} ${n === 1 ? one : many}`;
+
+/** Whole from 100, else up to 2 decimals with trailing zeros dropped: "413", "1.04", "1.5". */
+export const decimal = (v: number): string => (v >= 100 ? String(Math.round(v)) : String(Math.round(v * 100) / 100));

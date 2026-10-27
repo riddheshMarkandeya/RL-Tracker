@@ -13,7 +13,7 @@ import { describeStopResult, requestStop } from "../../scripts/stop";
 import { createLogger } from "../../src/server/log";
 import { createRecordWriter } from "../../src/server/records/save";
 import { openStorage } from "../../src/server/storage";
-import { freePort, ME, readFixture, record } from "../../src/server/testing";
+import { freePort, goal, ME, player, readFixture, record, THEM } from "../../src/server/testing";
 import { dayStart, dayOf } from "../../src/shared/periods";
 import type { Seed } from "./fixtures";
 import { DASHBOARD_HOST } from "../../src/shared/constants";
@@ -40,15 +40,37 @@ function logTail(dir: string, lines = 30): string {
 const HOUR = 60 * MIN;
 
 /** A match of ME's, won or lost, `start` ms after the local day's 4am start. */
-const match = (guid: string, day: string, start: number, won: boolean, over: { playlistId?: number; checkFlags?: string[] } = {}) => {
+const match = (guid: string, day: string, start: number, won: boolean, over: { playlistId?: number; checkFlags?: string[]; scoreTeam0?: number } = {}, rows: Parameters<typeof record>[2] = {}) => {
   const at = dayStart(day) + start;
-  return record(guid, at, {}, { endedAt: at + 5 * MIN, scoreTeam0: won ? 2 : 1, scoreTeam1: won ? 1 : 2, winnerTeamNum: won ? 0 : 1, mvpKey: won ? ME : null, ...over });
+  return record(guid, at, rows, { endedAt: at + 5 * MIN, scoreTeam0: won ? 2 : 1, scoreTeam1: won ? 1 : 2, winnerTeamNum: won ? 0 : 1, mvpKey: won ? ME : null, ...over });
+};
+
+/**
+ * Your 4 goals and a hat trick: 3 more than the usual 1, so goals per game are 12% over the
+ * baseline's and stand out. The goal you concede is aerial and deflected (your team touched it last).
+ */
+const HAT_TRICK: Parameters<typeof record>[2] = {
+  players: [player(ME, 0, { goals: 4 }), player(THEM, 1)],
+  statfeed: [
+    { playerKey: ME, eventName: "Goal", count: 4 },
+    { playerKey: ME, eventName: "HatTrick", count: 1 },
+    { playerKey: THEM, eventName: "Goal", count: 1 },
+  ],
+  goals: [
+    goal(0, ME, { speedKmh: 120 }),
+    goal(0, ME, { pos: { x: 300, y: 4100, z: 93 }, distance: 1000 }),
+    goal(0, ME, { pos: { x: -300, y: 4100, z: 93 }, distance: 1000 }),
+    goal(0, ME, { pos: { x: -800, y: -880, z: 93 }, distance: 6000 }),
+    goal(1, THEM, { pos: { x: 600, y: -2920, z: 700 }, distance: 2200, aerial: true, deflected: true }),
+  ],
 };
 
 /**
  * `rich`: the current session is exactly one won match, ended 5 minutes ago (the header chip reads
  * "This session: 1–0"). Last month, so none is current: a 26-match session, a private-only one,
- * and two sessions on one day (one with a flagged match). The month before: one session.
+ * and two sessions on one day (one with a flagged match). The month before: one session, the
+ * 26-match session's only baseline match. In the 26-match session, match 2 is HAT_TRICK and match 3
+ * is on Ranked Doubles.
  * `empty`: no matches at all.
  */
 function seed(dir: string, mode: Seed): void {
@@ -67,7 +89,9 @@ function seed(dir: string, mode: Seed): void {
     };
     const writer = createRecordWriter({ tracker: storage.tracker, logger });
     writer.save(match("e2e-old", day(2, 15), 14 * HOUR, true));
-    for (let i = 0; i < 26; i++) writer.save(match(`e2e-long-${String(i).padStart(2, "0")}`, day(1, 5), 10 * HOUR + i * 6 * MIN, i % 3 !== 0));
+    for (let i = 0; i < 26; i++) {
+      writer.save(match(`e2e-long-${String(i).padStart(2, "0")}`, day(1, 5), 10 * HOUR + i * 6 * MIN, i % 3 !== 0, i === 2 ? { playlistId: 11 } : i === 1 ? { scoreTeam0: 4 } : {}, i === 1 ? HAT_TRICK : {}));
+    }
     writer.save(match("e2e-private", day(1, 8), 14 * HOUR, true, { playlistId: 6 }));
     writer.save(match("e2e-first-a", day(1, 12), 8 * HOUR, true, { playlistId: 11 }));
     writer.save(match("e2e-first-b", day(1, 12), 8 * HOUR + 10 * MIN, false, { playlistId: 11, checkFlags: ["mvp_count"] }));

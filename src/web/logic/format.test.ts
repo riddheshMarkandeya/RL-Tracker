@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { dayLabel, durationText, monthLabel, ordinal, plural, timeRange } from "./format";
+import { dayLabel, decimal, durationText, monthLabel, ordinal, plural, timeRange } from "./format";
 
 beforeAll(() => {
   vi.stubEnv("TZ", "UTC");
@@ -34,4 +34,8 @@ describe("text", () => {
   test("month label", () => {
     expect(monthLabel("2026-09", "en-GB")).toBe("September 2026");
   });
+});
+
+test("decimal: whole from 100, else up to 2 decimals without trailing zeros", () => {
+  expect([decimal(412.6), decimal(100), decimal(1.04), decimal(1.5), decimal(2), decimal(0.333), decimal(0)]).toEqual(["413", "100", "1.04", "1.5", "2", "0.33", "0"]);
 });

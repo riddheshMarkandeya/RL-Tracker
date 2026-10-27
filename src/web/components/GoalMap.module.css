@@ -1,0 +1,33 @@
+.wrap { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--s5); align-items: start; }
+.pitch { display: block; width: 100%; height: auto; }
+
+.field { fill: var(--surf2); stroke: var(--line); }
+.line { fill: none; stroke: var(--line); }
+.ourGoal { fill: var(--blue); }
+.theirGoal { fill: var(--orange); }
+.label { fill: var(--ink2); font-size: 12px; }
+
+/* A surface ring keeps overlapping marks apart. */
+.yours { fill: var(--blue); stroke: var(--surf2); stroke-width: 1.5; }
+.mate { fill: var(--surf2); stroke: var(--blue); stroke-width: 2.5; }
+.conceded { fill: var(--orange); stroke: var(--surf2); stroke-width: 1.5; }
+.defl { fill: none; stroke: var(--ink2); stroke-width: 1.5; stroke-dasharray: 3 2; }
+.keyShape { fill: var(--ink2); }
+
+.key { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin: var(--s2) 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--ink2); }
+.key li { display: flex; align-items: center; gap: 6px; }
+
+.summary { display: flex; flex-direction: column; gap: var(--s3); }
+.h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--s1); font-size: 15px; }
+.note { margin: 0; font-size: 12px; font-weight: 400; color: var(--ink2); }
+.bar { display: flex; gap: 2px; height: 12px; margin-bottom: var(--s1); }
+.bar i { border-radius: 2px; }
+.barBlue i { background: var(--blue); }
+.barOrange i { background: var(--orange); }
+.close { opacity: 1; }
+.mid { opacity: .65; }
+.long { opacity: .35; }
+
+@media (max-width: 720px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,8 +1,10 @@
 // What the recap's Overview shows from a session's aggregate and its 30-day baseline. A value
 // with nothing behind it is left out rather than shown as a zero.
 import type { PlaylistFilter } from "../../shared/playlist-filter";
-import type { AggregateWire, MyMatchWire } from "../../shared/schemas/responses";
+import { playlistInfo } from "../../shared/playlists";
+import type { AggregateWire, MyMatchWire, SessionDetail } from "../../shared/schemas/responses";
 import { filterValue } from "./filter-options";
+import { decimal } from "./format";
 
 /** A share as whole percent. */
 export const pct = (share: number) => Math.round(share * 100);
@@ -38,6 +40,126 @@ export function tilesFor(a: AggregateWire, base: AggregateWire): Tile[] {
   }
   if (a.mvps) tiles.push({ id: "mvps", label: "MVPs", value: `×${String(a.mvps)}` });
   return tiles;
+}
+
+export type StatId = "score" | "goals" | "assists" | "saves" | "shots" | "demos";
+export type IconName = "Goal" | "Assist" | "Save" | "Shot" | "Demolition";
+
+export const PER_GAME: readonly { id: StatId; label: string; icon: IconName | null }[] = [
+  { id: "score", label: "Score", icon: null },
+  { id: "goals", label: "Goals", icon: "Goal" },
+  { id: "assists", label: "Assists", icon: "Assist" },
+  { id: "saves", label: "Saves", icon: "Save" },
+  { id: "shots", label: "Shots", icon: "Shot" },
+  { id: "demos", label: "Demos", icon: "Demolition" },
+];
+
+export interface Vs { pct: number; dir: "up" | "down" | "same" }
+
+/** Whole-percent change against an average; null without one or at zero, where no ratio is fair. */
+export function vsAverage(value: number, avg: number | null): Vs | null {
+  if (avg === null || avg === 0) return null;
+  const p = Math.round((100 * (value - avg)) / avg);
+  return { pct: p, dir: Math.abs(p) < 3 ? "same" : p > 0 ? "up" : "down" };
+}
+
+export interface PerGameCard { id: StatId; label: string; icon: IconName | null; perGame: number; total: number; avg: number | null; vs: Vs | null }
+
+export function perGameCards(a: AggregateWire, base: AggregateWire): PerGameCard[] {
+  return PER_GAME.flatMap(({ id, label, icon }) => {
+    const perGame = a.perGame[id];
+    const total = a.totals[id];
+    if (perGame === null || total === null) return [];
+    const avg = base.matches === 0 ? null : base.perGame[id];
+    return [{ id, label, icon, perGame, total, avg, vs: avg === null ? null : vsAverage(perGame, avg) }];
+  });
+}
+
+/** How far a per-game stat must move from the 30-day average, either way, to stand out. */
+export const STOOD_OUT_MIN_PCT = 10;
+
+export interface StoodOut { id: StatId; label: string; icon: IconName | null; perGame: number; avg: number; vs: Vs }
+
+/** Up to three stats furthest from the average, biggest first; null with no baseline, [] when none moved enough. */
+export function stoodOut(a: AggregateWire, base: AggregateWire): StoodOut[] | null {
+  if (base.matches === 0) return null;
+  return perGameCards(a, base)
+    .flatMap(({ id, label, icon, perGame, avg, vs }) => {
+      // Compared on the rounded percent, as shown, so "▲ 10%" never reads as close to average.
+      return vs === null || avg === null || Math.abs(vs.pct) < STOOD_OUT_MIN_PCT ? [] : [{ id, label, icon, perGame, avg, vs }];
+    })
+    .sort((x, y) => Math.abs(y.vs.pct) - Math.abs(x.vs.pct))
+    .slice(0, 3);
+}
+
+export interface PlaylistRow { playlistId: number | null; name: string; wins: number | null; losses: number | null; winPct: number | null; goalsPerGame: number | null }
+
+/** A row per playlist; null with fewer than two, where it would repeat the session. */
+export function playlistRows(byPlaylist: SessionDetail["byPlaylist"]): PlaylistRow[] | null {
+  if (byPlaylist.length < 2) return null;
+  return byPlaylist.map(({ playlistId, aggregate: a }) => ({
+    playlistId,
+    name: playlistInfo(playlistId).name,
+    wins: a.wins,
+    losses: a.losses,
+    winPct: a.winPct === null ? null : pct(a.winPct),
+    goalsPerGame: a.perGame.goals,
+  }));
+}
+
+export interface ExtraCard {
+  id: "hardest" | "fastest" | "woodwork" | "boost" | "supersonic" | "empty" | "aerial";
+  label: string;
+  value: string;
+  unit: "km/h" | "%" | null;
+  sub: string | null;
+}
+
+/** The extras tiles; [] when no match has its extras computed. */
+export function extrasCards(a: AggregateWire, matches: readonly MyMatchWire[]): ExtraCard[] {
+  if (a.extrasMatches === 0) return [];
+  // The match a record came from, among those the aggregate counted; the first on a tie.
+  const counted = (m: MyMatchWire) => m.me !== null && m.me.woodworkHits !== null;
+  const matchOf = (has: (m: MyMatchWire) => boolean): string | null => {
+    if (matches.length < 2) return null;
+    const i = matches.findIndex((m) => counted(m) && has(m));
+    return i < 0 ? null : `match ${String(i + 1)}`;
+  };
+  const cards: (ExtraCard | null)[] = [
+    a.hardestShotKmh === null ? null : { id: "hardest", label: "Hardest shot", value: decimal(a.hardestShotKmh), unit: "km/h", sub: matchOf((m) => m.me?.hardestShotKmh === a.hardestShotKmh) },
+    a.fastestGoalKmh === null
+      ? null
+      : { id: "fastest", label: "Fastest goal", value: decimal(a.fastestGoalKmh), unit: "km/h", sub: matchOf((m) => m.goals.some((g) => !g.ownGoal && g.speedKmh === a.fastestGoalKmh)) },
+    a.woodworkHits === null ? null : { id: "woodwork", label: "Crossbar hits", value: String(a.woodworkHits), unit: null, sub: null },
+    a.boostAvg === null ? null : { id: "boost", label: "Avg boost", value: String(Math.round(a.boostAvg)), unit: null, sub: "your car" },
+    a.supersonicShare === null ? null : { id: "supersonic", label: "Supersonic", value: String(pct(a.supersonicShare)), unit: "%", sub: "of time played" },
+    a.emptyBoostShare === null ? null : { id: "empty", label: "Empty tank", value: String(pct(a.emptyBoostShare)), unit: "%", sub: "time on 0 boost" },
+    a.aerialTouches === null ? null : { id: "aerial", label: "Aerial touches", value: String(a.aerialTouches), unit: null, sub: "yours, in the air" },
+  ];
+  return cards.filter((c) => c !== null);
+}
+
+/** Statfeed events worth a tile, in display order. LongGoal is the game's award, which follows no simple distance rule. */
+export const HIGHLIGHTS: readonly (readonly [event: string, label: string])[] = [
+  ["HatTrick", "Hat tricks"],
+  ["OvertimeGoal", "Overtime goals"],
+  ["Savior", "Savior"],
+  ["EpicSave", "Epic saves"],
+  ["AerialGoal", "Aerial goals"],
+  ["LongGoal", "Long goal awards"],
+  ["BicycleHit", "Bicycle hits"],
+  ["Playmaker", "Playmaker"],
+  ["PoolShot", "Pool shots"],
+  ["BackwardsGoal", "Backwards goals"],
+  ["FlipReset", "Flip resets"],
+  ["LowFive", "Low fives"],
+];
+
+export function highlights(statfeed: Record<string, number>): { event: string; label: string; count: number }[] {
+  return HIGHLIGHTS.flatMap(([event, label]) => {
+    const count = statfeed[event] ?? 0;
+    return count > 0 ? [{ event, label, count }] : [];
+  });
 }
 
 /** "3–1", your team first (team 0 first when your team is unknown); null without a score. */
