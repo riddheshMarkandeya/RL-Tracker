@@ -54,7 +54,7 @@ const clean = (): MatchSummary => ({
   roster: [entry("a", 0, 2), entry("b", 0, 0, 1), entry("c", 1, 1)],
   statfeed: { a: { Goal: 2, Shot: 2, MVP: 1 }, b: { Assist: 1 }, c: { Goal: 1, Shot: 1 } },
   cameraKey: "a",
-  facts: { sawMatchEnded: true, endedWinnerTeamNum: 0, sawPodium: true, mvpCount: 1, liveGoals: 3, minClock: 0, unresolvedStatfeed: 0, rejectedScoreboards: 0, cameraTargets: 10 },
+  facts: { sawMatchEnded: true, endedWinnerTeamNum: 0, mvpCount: 1, liveGoals: 3, minClock: 0, unresolvedStatfeed: 0, rejectedScoreboards: 0, cameraTargets: 10 },
   dedupDropped: {},
   extras: {
     players: { a: { ...extrasFor(true), woodwork_hits: 1 }, b: extrasFor(true), c: extrasFor(false) },
@@ -83,12 +83,12 @@ describe("runChecks", () => {
   });
 
   test("a left match with no winner, MVP or podium passes", () => {
-    const s = { ...clean(), endKind: "left" as const, winner: null, mvp: null, facts: { ...clean().facts, sawMatchEnded: false, sawPodium: false, mvpCount: 0 } };
+    const s = { ...clean(), endKind: "left" as const, winner: null, mvp: null, facts: { ...clean().facts, sawMatchEnded: false, mvpCount: 0 } };
     expect(runChecks(s)).toEqual([]);
   });
 
   test("a no contest (MatchEnded winner -1) passes with no winner", () => {
-    const s = { ...clean(), winner: null, mvp: null, facts: { ...clean().facts, endedWinnerTeamNum: -1, sawPodium: false, mvpCount: 0 } };
+    const s = { ...clean(), winner: null, mvp: null, facts: { ...clean().facts, endedWinnerTeamNum: -1, mvpCount: 0 } };
     expect(runChecks(s)).toEqual([]);
   });
 
@@ -97,7 +97,6 @@ describe("runChecks", () => {
     ["winner_valid", (s) => ((s.winner = null), (s.facts.endedWinnerTeamNum = null))],
     ["winner_valid", (s) => ((s.winner = null), (s.facts.endedWinnerTeamNum = 255))],
     ["mvp_count", (s) => (s.facts.mvpCount = 2)],
-    ["mvp_count", (s) => ((s.facts.mvpCount = 0), (s.mvp = null))],
     ["mvp_on_roster", (s) => (s.mvp = { name: "x", teamNum: 0, key: null, source: "statfeed" })],
     ["statfeed_resolved", (s) => (s.facts.unresolvedStatfeed = 1)],
     ["scoreboards_complete", (s) => (s.facts.rejectedScoreboards = 1)],
@@ -145,9 +144,8 @@ describe("runChecks", () => {
     expect(runChecks(s).find((f) => f.id === "touches_resolved")?.detail).toBe("unidentified: 1 hitter(s), 2 goal last toucher(s)");
   });
 
-  test("an MVP-less MatchEnded without a podium is fine (seen once: F6FE4498)", () => {
+  test("a podium without an MVP award is fine (the game holds it back when the winning top scorer left)", () => {
     const s = clean();
-    s.facts.sawPodium = false;
     s.facts.mvpCount = 0;
     s.mvp = null;
     expect(runChecks(s)).toEqual([]);

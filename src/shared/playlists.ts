@@ -58,6 +58,8 @@ export const PLAYLISTS: Readonly<Record<number, Playlist>> = {
   49: p("Spring Loaded", "ltm"),
   50: p("Speed Demon", "ltm"),
   52: p("Gotham City Rumble", "ltm"),
+  // Seen live as a 1v1 against a friend (not private, which is 6); the name is the user's.
+  53: p("Honor Duel", "extra"),
   54: p("Knockout", "ltm"),
   62: p("Nike FC Showdown", "ltm"),
   64: p("Haunted Heatseeker (2v2)", "ltm"),

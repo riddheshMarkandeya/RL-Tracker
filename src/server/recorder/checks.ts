@@ -81,10 +81,10 @@ const CHECKS: readonly Check[] = [
     run: (s) => (s.winner !== null ? null : `MatchEnded winner ${String(s.facts.endedWinnerTeamNum)} is not a team`),
   },
   {
-    // The MVP is awarded on the podium, and a match can end without one.
+    // At most one award: even a podium can end without one (the game holds it back when the
+    // winning team's top scorer left).
     id: "mvp_count",
-    run: ({ facts: { mvpCount, sawPodium } }) =>
-      mvpCount > 1 || (sawPodium && mvpCount !== 1) ? `${String(mvpCount)} MVPs${sawPodium ? " with a podium" : ""}` : null,
+    run: ({ facts: { mvpCount } }) => (mvpCount > 1 ? `${String(mvpCount)} MVPs` : null),
   },
   { id: "mvp_on_roster", appliesTo: (s) => s.mvp !== null, run: (s) => (s.mvp?.key ? null : `MVP ${String(s.mvp?.name)} not on the roster`) },
   { id: "statfeed_resolved", run: (s) => (s.facts.unresolvedStatfeed === 0 ? null : `${String(s.facts.unresolvedStatfeed)} statfeed target(s) not on the roster`) },

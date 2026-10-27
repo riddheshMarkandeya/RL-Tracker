@@ -91,7 +91,7 @@ describe("recorder on the fixtures", () => {
       winner: { teamNum: 1, source: "match_ended" },
       dedupDropped: { replay_goal: 3 },
       flags: [],
-      facts: { sawMatchEnded: true, sawPodium: true, mvpCount: 1, liveGoals: 3 },
+      facts: { sawMatchEnded: true, mvpCount: 1, liveGoals: 3 },
     });
     expect(summary.mvp?.key).toEqual(expect.any(String));
     expect(summary.roster).toHaveLength(6);
@@ -105,7 +105,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("0116");
-    expect(summary).toMatchObject({ endKind: "early_end", playlistId: 2, arena: "Stadium_P", score: [2, 3], winner: { teamNum: 0, source: "match_ended" }, facts: { sawPodium: true, liveGoals: 5 } });
+    expect(summary).toMatchObject({ endKind: "early_end", playlistId: 2, arena: "Stadium_P", score: [2, 3], winner: { teamNum: 0, source: "match_ended" }, facts: { liveGoals: 5 } });
   });
 
   test("overtime-leavers: overtime, no podium, and leavers kept on the roster", () => {
@@ -114,7 +114,7 @@ describe("recorder on the fixtures", () => {
     const { summary, failures } = only(calls);
     expect(failures).toEqual([]);
     expect(short(summary.guid)).toBe("1567");
-    expect(summary).toMatchObject({ endKind: "completed", playlistId: 13, overtime: true, score: [5, 4], winner: { teamNum: 0, source: "match_ended" }, facts: { sawPodium: false, liveGoals: 9 } });
+    expect(summary).toMatchObject({ endKind: "completed", playlistId: 13, overtime: true, score: [5, 4], winner: { teamNum: 0, source: "match_ended" }, facts: { liveGoals: 9 } });
     expect(summary.roster).toHaveLength(6);
     expect(summary.roster.filter((r) => r.presentAtEnd)).toHaveLength(2);
   });

@@ -72,6 +72,7 @@ const ADR_THINNING = "docs/decisions/2026-10-20-raw-thinning.md";
 const PLAN_WP4CB = "docs/plans/2026-10-20-wp4c-b-retention-split.md";
 const MAP = "docs/plans/2026-10-15-rl-tracker-features-map.md";
 const PLAN_WP5AA = "docs/plans/2026-10-21-wp5a-a-query-logic.md";
+const PLAN_WP6AA = "docs/plans/2026-10-26-wp6a-a-recap-navigation.md";
 
 const p = (column: string) => `match_players.${column}`;
 const m = (column: string) => `matches.${column}`;
@@ -346,11 +347,12 @@ export const RULES: readonly Rule[] = [
     area: "match",
     rule: "The MVP is the MVP statfeed's target; with none, the winning team's unique top scorer among players present at the end; a tie or no winner gives none.",
     checks: ["mvp_count", "mvp_on_roster"],
-    evidence: "The game awards the MVP on the podium, and a match can end without one.",
-    version: 1,
+    evidence:
+      "Of 65 real matches, 61 had a podium and one award, 3 a podium and none, 1 an award and no podium. 61 of the 62 awards went to the winning team's top scorer (the other was a tie on score), never to a player who had left. In 2 of the 3 without an award that top scorer had left, so the game held it back and the inference names someone it didn't pick: kept by the user's choice.",
+    version: 2,
     applied: "recorded",
     outputs: [m("mvp_key"), m("mvp_source")],
-    refs: [ADR_RECORDS, PLAN_WP4A],
+    refs: [ADR_RECORDS, PLAN_WP4A, PLAN_WP6AA],
   },
   {
     id: "your_result",

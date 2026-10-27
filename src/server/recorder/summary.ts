@@ -68,7 +68,6 @@ export interface MatchSummary {
     sawMatchEnded: boolean;
     /** MatchEnded's WinnerTeamNum as sent, NO_CONTEST included. */
     endedWinnerTeamNum: number | null;
-    sawPodium: boolean;
     mvpCount: number;
     liveGoals: number;
     minClock: number | null;
@@ -133,7 +132,6 @@ interface Acc {
   arena: string | null;
   sawInitialized: boolean;
   sawMatchEnded: boolean;
-  sawPodium: boolean;
   overtime: boolean;
   /** The last clock reading before MatchEnded, and the different one before it. */
   clock: number | null;
@@ -253,9 +251,6 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
     acc.sawMatchEnded = true;
     acc.winnerTeamNum = num(data.WinnerTeamNum);
   },
-  PodiumStart: (acc) => {
-    acc.sawPodium = true;
-  },
   GoalScored: (acc) => {
     acc.liveGoals++;
   },
@@ -339,7 +334,6 @@ export function summarise(guid: string, events: readonly StoredEvent[], close: {
     arena: null,
     sawInitialized: false,
     sawMatchEnded: false,
-    sawPodium: false,
     overtime: false,
     clock: null,
     prevClock: null,
@@ -380,7 +374,6 @@ export function summarise(guid: string, events: readonly StoredEvent[], close: {
     facts: {
       sawMatchEnded: acc.sawMatchEnded,
       endedWinnerTeamNum: acc.winnerTeamNum,
-      sawPodium: acc.sawPodium,
       mvpCount: acc.mvpCount,
       liveGoals: acc.liveGoals,
       minClock: acc.minClock,

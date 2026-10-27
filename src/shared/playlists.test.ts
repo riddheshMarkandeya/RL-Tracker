@@ -14,6 +14,10 @@ describe("playlistInfo", () => {
     expect(playlistInfo(4)).toEqual({ name: "Casual Quads", group: "casual", ranked: false });
   });
 
+  test("53 is Honor Duel: a 1v1 seen live, named by the user", () => {
+    expect(playlistInfo(53)).toEqual({ name: "Honor Duel", group: "extra", ranked: false });
+  });
+
   test("an unknown id, or none, names itself and has no group or ranked flag", () => {
     expect(playlistInfo(999)).toEqual({ name: "Unknown playlist (999)", group: null, ranked: null });
     expect(playlistInfo(null)).toEqual({ name: "Unknown playlist", group: null, ranked: null });

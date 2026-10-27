@@ -60,7 +60,7 @@ describe("summarise", () => {
       score: [0, 1],
       winner: { teamNum: 1, source: "match_ended" },
       mvp: { name: "B", teamNum: 1, key: "Epic|B|0", source: "statfeed" },
-      facts: { sawMatchEnded: true, sawPodium: true, mvpCount: 1, liveGoals: 1, minClock: 0 },
+      facts: { sawMatchEnded: true, mvpCount: 1, liveGoals: 1, minClock: 0 },
     });
     expect(s.startedAt).toBe(events[0]?.ts);
     expect(s.endedAt).toBe(events.at(-1)?.ts);

@@ -224,14 +224,14 @@ The winner is MatchEnded's WinnerTeamNum when it names a real team (a no contest
 - **Evidence**: Every MatchEnded match on the captures has a winner; a one-goal lead at 0 s could in theory still be equalised, which the feature map accepts.
 - **Decided in**: `docs/decisions/2026-10-20-match-records-per-player.md`, `docs/plans/2026-10-20-wp4a-match-records.md`
 
-### `mvp` · v1 · recorded
+### `mvp` · v2 · recorded
 
 The MVP is the MVP statfeed's target; with none, the winning team's unique top scorer among players present at the end; a tie or no winner gives none.
 
 - **Checks**: `mvp_count`, `mvp_on_roster`
 - **Writes**: `matches.mvp_key`, `matches.mvp_source`
-- **Evidence**: The game awards the MVP on the podium, and a match can end without one.
-- **Decided in**: `docs/decisions/2026-10-20-match-records-per-player.md`, `docs/plans/2026-10-20-wp4a-match-records.md`
+- **Evidence**: Of 65 real matches, 61 had a podium and one award, 3 a podium and none, 1 an award and no podium. 61 of the 62 awards went to the winning team's top scorer (the other was a tie on score), never to a player who had left. In 2 of the 3 without an award that top scorer had left, so the game held it back and the inference names someone it didn't pick: kept by the user's choice.
+- **Decided in**: `docs/decisions/2026-10-20-match-records-per-player.md`, `docs/plans/2026-10-20-wp4a-match-records.md`, `docs/plans/2026-10-26-wp6a-a-recap-navigation.md`
 
 ### `your_result` · v1 · read
 
