@@ -200,6 +200,12 @@ export const statusSchema = z.object({
 
 export const breakResponse = z.object({ at: z.number() });
 
+/** A session's headline remarks. Texts are templates: `{n}`-style placeholders filled from `values` (raw numbers, km/h, epoch ms). */
+export const remarksResponse = z.object({
+  mood: z.object({ band: z.string(), text: z.string() }),
+  quip: z.object({ trigger: z.string(), text: z.string(), values: z.record(z.string(), z.number()) }).nullable(),
+});
+
 /** Server-sent events, by event name. */
 export const sseEvents = {
   status: statusSchema,
@@ -219,3 +225,4 @@ export type PeriodView = z.infer<typeof periodResponse>;
 export type SessionDetail = z.infer<typeof sessionDetailResponse>;
 export type MatchDetail = z.infer<typeof matchDetailResponse>;
 export type Status = z.infer<typeof statusSchema>;
+export type Remarks = z.infer<typeof remarksResponse>;

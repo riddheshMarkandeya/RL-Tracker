@@ -110,6 +110,27 @@ export const trackerMigrations: readonly string[] = [
   `
   ALTER TABLE matches ADD COLUMN rule_versions TEXT; -- JSON {ruleId: version} of the rules it was computed under; null before this
   `,
+  // Recap remarks: the headline picked per session and filter, kept so a revisit shows the same
+  // lines, and every line shown, so the next sessions can avoid repeating it. Lines are ids into
+  // the copy pool in code.
+  `
+  CREATE TABLE remark_picks (
+    session_key  TEXT NOT NULL,
+    filter       TEXT NOT NULL, -- the filter's query value
+    mood_band    TEXT NOT NULL,
+    mood_line    TEXT NOT NULL,
+    quip_trigger TEXT,          -- null: no quip
+    quip_line    TEXT,
+    picked_at    INTEGER NOT NULL,
+    PRIMARY KEY (session_key, filter)
+  );
+  CREATE TABLE remark_shown (
+    line_id     TEXT NOT NULL,
+    session_key TEXT NOT NULL,
+    shown_at    INTEGER NOT NULL
+  );
+  CREATE INDEX remark_shown_session ON remark_shown (session_key, shown_at);
+  `,
 ];
 
 export const rawMigrations: readonly string[] = [

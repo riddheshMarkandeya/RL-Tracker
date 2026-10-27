@@ -3,11 +3,11 @@
 // match. The filter lives in `?filter=`.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, NavigationType, useNavigate, useNavigationType, useParams, useSearchParams } from "react-router";
-import type { PlaylistFilter as Filter } from "../../../shared/playlist-filter";
+import { filterValue, type PlaylistFilter as Filter } from "../../../shared/playlist-filter";
 import { ApiError } from "../../api";
 import { EmptyState } from "../../components/EmptyState";
 import { PlaylistFilter } from "../../components/PlaylistFilter";
-import { filterValue, parseFilter } from "../../logic/filter-options";
+import { parseFilter } from "../../logic/filter-options";
 import { recapPath, type RecapView } from "../../logic/recap";
 import { useLatestSession, useSessionDetail } from "../../queries";
 import { Matches } from "./Matches";

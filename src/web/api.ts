@@ -55,8 +55,8 @@ async function request(path: string, deps: ApiDeps, init: RequestInit = {}): Pro
   throw new ApiError(res.status, await errorCode(res));
 }
 
-export async function getJson<S extends z.ZodType>(path: string, schema: S, deps: ApiDeps = browser): Promise<z.infer<S>> {
-  const res = await request(path, deps);
+/** A 2xx body parsed with the schema; one that isn't JSON or doesn't fit is a logged ApiError. */
+async function parseBody<S extends z.ZodType>(res: Response, path: string, schema: S, deps: ApiDeps): Promise<z.infer<S>> {
   let body: unknown;
   try {
     body = await res.json();
@@ -75,8 +75,17 @@ export async function getJson<S extends z.ZodType>(path: string, schema: S, deps
   return parsed.data;
 }
 
+export async function getJson<S extends z.ZodType>(path: string, schema: S, deps: ApiDeps = browser): Promise<z.infer<S>> {
+  return parseBody(await request(path, deps), path, schema, deps);
+}
+
 export async function post(path: string, headers: Record<string, string>, deps: ApiDeps = browser): Promise<Response> {
   return request(path, deps, { method: "POST", headers });
+}
+
+/** A POST whose answer the page uses. */
+export async function postJson<S extends z.ZodType>(path: string, headers: Record<string, string>, schema: S, deps: ApiDeps = browser): Promise<z.infer<S>> {
+  return parseBody(await post(path, headers, deps), path, schema, deps);
 }
 
 /** TanStack Query's retry rule: retry only failures that can pass next time (no answer, a 5xx). */

@@ -15,8 +15,9 @@ const at = async (page: Page, key: string) => {
   await expect(page.locator(`[data-session="${key}"]`)).toHaveCount(1);
 };
 
-// The browser logs any 404 response as a console error; the unknown session's and match's are the expected ones.
-const NOT_FOUND = /^Failed to load resource: .* 404 .*\/api\/(sessions\/no-such-session\?|matches\/no-such-match\))/;
+// The browser logs any 404 response as a console error; the unknown session's and match's are the expected ones,
+// as is the reroll failure the remarks test fakes.
+const NOT_FOUND = /^Failed to load resource: .* (404 .*\/api\/(sessions\/no-such-session\?|matches\/no-such-match\))|500 .*\/remarks\/reroll\?)/;
 const rail = (page: Page) => page.getByRole("navigation", { name: "Matches" });
 const numbersTab = (page: Page) => page.getByRole("link", { name: "Matches & numbers" });
 const scoreboardLoaded = (page: Page) => expect(page.getByRole("rowheader", { name: /\(you\)/ })).toBeVisible();
@@ -48,6 +49,37 @@ test("/recap opens the latest session; ‹ steps back through the days, with 2nd
   await expect(page).toHaveURL(/\/recap\/e2e-long-00$/);
   await expect(page.getByRole("link", { name: /^Match 26,/ })).toBeVisible();
   await expect(page.locator("ol").filter({ has: page.getByRole("link", { name: /^Match 26,/ }) })).toHaveClass(/dense/);
+});
+
+test("remarks: a revisit shows the same lines; ↻ picks new ones, which stick", async ({ page }) => {
+  const again = page.getByRole("button", { name: "Another remark" });
+  const mood = page.locator("p").filter({ has: again });
+  const moodText = async () => (await mood.innerText()).replace("↻", "").trim();
+  await page.goto("/recap/e2e-seed-won");
+  await expect(again).toBeVisible();
+  const first = await moodText();
+  expect(first.length).toBeGreaterThan(0);
+
+  await page.reload();
+  await expect(again).toBeVisible();
+  expect(await moodText()).toBe(first);
+
+  await again.click();
+  await expect(mood).not.toContainText(first);
+  await expect(again).toBeFocused();
+  const rolled = await moodText();
+  await page.reload();
+  await expect(again).toBeVisible();
+  expect(await moodText()).toBe(rolled);
+
+  // A failed reroll keeps the lines and offers a retry, which works once the server answers.
+  await page.route("**/remarks/reroll?*", (route) => route.fulfill({ status: 500, json: { error: "internal" } }), { times: 1 });
+  await again.click();
+  await expect(page.getByText("Couldn't re-roll")).toBeVisible();
+  expect(await moodText()).toContain(rolled);
+  await page.getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByText("Couldn't re-roll")).toHaveCount(0);
+  await expect(mood).not.toContainText(rolled);
 });
 
 test("« » step by month to the nearest session there; the ends are disabled", async ({ page }) => {

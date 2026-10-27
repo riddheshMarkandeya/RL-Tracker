@@ -1,7 +1,7 @@
 // The playlist dropdown, the same on Recap and Trends: only what was played, no counts. The
 // filter lives in the query string as its API value.
 import { playlistInfo, type PlaylistGroup } from "../../shared/playlists";
-import { GROUPS, type PlaylistFilter } from "../../shared/playlist-filter";
+import { filterValue, GROUPS, type PlaylistFilter } from "../../shared/playlist-filter";
 import { filterParam } from "../../shared/schemas/params";
 
 export interface FilterOption {
@@ -13,8 +13,6 @@ export interface FilterGroup {
   label: string | null;
   options: FilterOption[];
 }
-
-export const filterValue = (f: PlaylistFilter): string => (typeof f === "object" ? String(f.playlist) : f);
 
 /** The filter a query value names; left out is everything, a bad value is everything and `bad`. */
 export function parseFilter(value: string | null): { filter: PlaylistFilter; bad: boolean } {

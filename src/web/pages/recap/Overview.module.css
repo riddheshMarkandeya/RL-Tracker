@@ -18,6 +18,13 @@
 .mid b { font-size: 32px; font-style: italic; font-weight: 800; letter-spacing: .04em; line-height: 1.1; }
 
 .sub { text-align: center; margin: var(--s4) auto 0; max-width: 780px; }
+.mood { margin: 0 0 var(--s1); font-size: 24px; font-weight: 700; }
+.reroll { width: 26px; height: 26px; padding: 0; vertical-align: middle; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink2); font-size: 13px; cursor: pointer; }
+.reroll:hover { color: var(--ink); border-color: var(--ink2); }
+.reroll[aria-disabled="true"] { opacity: .5; cursor: progress; }
+.rerollError { margin-left: var(--s2); font-size: 13px; font-weight: 400; color: var(--down); }
+.retry { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.quip { margin: 0 0 var(--s2); font-style: italic; color: var(--ink2); }
 .delta { margin: 0; }
 .up { color: var(--up); }
 .down { color: var(--down); }

@@ -14,6 +14,9 @@ export const GROUPS: Readonly<Record<GroupFilter, readonly PlaylistGroup[]>> = {
   private: ["private"],
 };
 
+/** The filter's query-string value: a group name, or the playlist id. */
+export const filterValue = (f: PlaylistFilter): string => (typeof f === "object" ? String(f.playlist) : f);
+
 /** Whether a match's playlist is in the filter; an unmapped id counts only toward "everything". */
 export function inFilter(playlistId: number | null, f: PlaylistFilter): boolean {
   if (typeof f === "object") return playlistId === f.playlist;

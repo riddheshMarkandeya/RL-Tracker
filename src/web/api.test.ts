@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { z } from "zod";
-import { ApiError, getJson, post, shouldRetry } from "./api";
+import { ApiError, getJson, post, postJson, shouldRetry } from "./api";
 
 const schema = z.object({ n: z.number() });
 const reply = (status: number, body: unknown) => vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status })));
@@ -68,6 +68,21 @@ describe("post", () => {
     const err = await post("/api/sessions/break", {}, { fetchFn: reply(403, { error: "forbidden" }), warn }).catch((e: unknown) => e);
     expect(err).toMatchObject({ status: 403 });
     expect(warn).toHaveBeenCalledWith("[rlt] api/failed", { path: "/api/sessions/break", status: 403 });
+  });
+});
+
+describe("postJson", () => {
+  test("posts with the header and parses the body with the schema", async () => {
+    const fetchFn = reply(200, { n: 2 });
+    await expect(postJson("/api/x", { "X-H": "1" }, schema, { fetchFn, warn: vi.fn() })).resolves.toEqual({ n: 2 });
+    expect(fetchFn).toHaveBeenCalledWith("/api/x", expect.objectContaining({ method: "POST", headers: { "X-H": "1" } }));
+  });
+
+  test("a body the schema rejects throws bad_shape and logs it, as for a GET", async () => {
+    const warn = vi.fn();
+    const err = await postJson("/api/x", {}, schema, { fetchFn: reply(200, {}), warn }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 200, code: "bad_shape" });
+    expect(warn).toHaveBeenCalledWith("[rlt] api/bad_shape", { path: "/api/x", issues: ["n"] });
   });
 });
 

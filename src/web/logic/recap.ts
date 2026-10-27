@@ -4,7 +4,7 @@ import type { PlaylistFilter } from "../../shared/playlist-filter";
 import { playlistInfo } from "../../shared/playlists";
 import type { FlagReason } from "../../shared/flags";
 import type { AggregateWire, MatchDetail, MyMatchWire, SessionDetail } from "../../shared/schemas/responses";
-import { filterValue } from "./filter-options";
+import { filterValue } from "../../shared/playlist-filter";
 import { clock, decimal } from "./format";
 
 /** A share as whole percent. */

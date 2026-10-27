@@ -1,6 +1,6 @@
 import { useId, type RefObject } from "react";
-import type { PlaylistFilter as Filter } from "../../shared/playlist-filter";
-import { filterOptions, filterValue, parseFilter } from "../logic/filter-options";
+import { filterValue, type PlaylistFilter as Filter } from "../../shared/playlist-filter";
+import { filterOptions, parseFilter } from "../logic/filter-options";
 import styles from "./PlaylistFilter.module.css";
 
 /** The playlist dropdown: only the playlists played, grouped, no counts. */

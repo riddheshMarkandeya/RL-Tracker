@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { filterOptions, filterValue, parseFilter } from "./filter-options";
+import { filterValue } from "../../shared/playlist-filter";
+import { filterOptions, parseFilter } from "./filter-options";
 
 const flat = (groups: ReturnType<typeof filterOptions>) => groups.map((g) => [g.label, g.options.map((o) => `${o.value}=${o.label}`)]);
 

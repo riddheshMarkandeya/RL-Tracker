@@ -1,8 +1,9 @@
-// The recap's Overview: scorebug, the change against the 30-day average, the tiles, the match cards,
-// then per-game stats, what stood out, by playlist, the goal map, extras and highlights.
+// The recap's Overview: scorebug, the remarks and the change against the 30-day average, the
+// tiles, the match cards, then per-game stats, what stood out, by playlist, the goal map, extras
+// and highlights.
 import { useId } from "react";
 import { Link } from "react-router";
-import type { PlaylistFilter } from "../../../shared/playlist-filter";
+import { filterValue, type PlaylistFilter } from "../../../shared/playlist-filter";
 import { playlistInfo } from "../../../shared/playlists";
 import type { AggregateWire, MyMatchWire, SessionDetail, SessionSummary } from "../../../shared/schemas/responses";
 import assistIcon from "../../assets/icons/Assist.png";
@@ -32,6 +33,8 @@ import {
   type IconName,
   type Vs,
 } from "../../logic/recap";
+import { fillRemark } from "../../logic/remarks";
+import { useRemarks, useRerollRemarks } from "../../queries";
 import styles from "./Overview.module.css";
 
 export function Overview({ detail, summary, filter }: { detail: SessionDetail; summary: SessionSummary; filter: PlaylistFilter }) {
@@ -39,7 +42,7 @@ export function Overview({ detail, summary, filter }: { detail: SessionDetail; s
   return (
     <>
       <Scorebug detail={detail} summary={summary} />
-      <Headline detail={detail} />
+      <Headline detail={detail} filter={filter} />
       <MatchCards matches={detail.matches} matchPath={matchPath} />
       <PerGame detail={detail} />
       <StandoutAndPlaylists detail={detail} />
@@ -71,11 +74,38 @@ function Scorebug({ detail, summary }: { detail: SessionDetail; summary: Session
   );
 }
 
-function Headline({ detail }: { detail: SessionDetail }) {
+/** The mood line, ↻, and the quip. Absent while loading or when they can't be fetched: the rest of the headline doesn't wait. */
+function Remarks({ sessionKey, filter }: { sessionKey: string; filter: PlaylistFilter }) {
+  const { data } = useRemarks(sessionKey, filter);
+  const reroll = useRerollRemarks(sessionKey, filter);
+  if (!data) return null;
+  // aria-disabled, not disabled: a disabled button drops keyboard focus mid-reroll.
+  const again = () => {
+    if (!reroll.isPending) reroll.mutate();
+  };
+  return (
+    <div aria-live="polite">
+      <p className={styles.mood}>
+        {data.mood.text}{" "}
+        <button type="button" className={styles.reroll} aria-label="Another remark" title="Another remark" aria-disabled={reroll.isPending} onClick={again}>↻</button>
+        {reroll.isError && (
+          <span className={styles.rerollError}>
+            Couldn't re-roll · <button type="button" className={styles.retry} onClick={again}>Retry</button>
+          </span>
+        )}
+      </p>
+      {data.quip && <p className={styles.quip}>{fillRemark(data.quip.text, data.quip.values)}</p>}
+    </div>
+  );
+}
+
+function Headline({ detail, filter }: { detail: SessionDetail; filter: PlaylistFilter }) {
   const delta = winPctDelta(detail.aggregate, detail.baseline);
   const tiles = tilesFor(detail.aggregate, detail.baseline);
   return (
     <div className={styles.sub}>
+      {/* Keyed so a reroll's pending or failed state doesn't follow you to another session. */}
+      <Remarks key={`${detail.key}|${filterValue(filter)}`} sessionKey={detail.key} filter={filter} />
       {delta && (
         <p className={styles.delta}>
           {delta.points === 0 ? (

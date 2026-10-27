@@ -13,6 +13,7 @@ import {
   matchDetailResponse,
   monthsResponse,
   periodResponse,
+  remarksResponse,
   seasonsResponse,
   sessionDetailResponse,
   sessionsResponse,
@@ -203,6 +204,30 @@ describe("session break", () => {
     expect(storage.tracker.all("SELECT at FROM session_breaks")).toEqual([{ at: clock }]);
     expect(logger.events()).toContain("api/session_break");
     await events.cancel();
+  });
+});
+
+describe("remarks", () => {
+  const reroll = (key: string, headers: Record<string, string> = { [REQUEST_HEADER]: "1" }) => fetch(url(`/api/sessions/${key}/remarks/reroll?filter=ranked`), { method: "POST", headers });
+
+  test("a revisit gets the same lines, a reroll new ones that stick", async () => {
+    const first = await get(remarksResponse, "/api/sessions/A/remarks?filter=ranked");
+    expect(first.mood.band).toBe("short");
+    expect(await get(remarksResponse, "/api/sessions/A/remarks?filter=ranked")).toEqual(first);
+    const res = await reroll("A");
+    expect(res.status).toBe(200);
+    const rolled = remarksResponse.parse(await res.json());
+    expect(rolled.mood.text).not.toBe(first.mood.text);
+    expect(await get(remarksResponse, "/api/sessions/A/remarks?filter=ranked")).toEqual(rolled);
+    expect(logger.events().filter((e) => e === "remarks/remark_picked")).toHaveLength(2);
+  });
+
+  test("404 for an unknown session or nothing under the filter; 403 for a reroll without the header; 400 for a bad filter", async () => {
+    expect((await fetch(url("/api/sessions/nope/remarks"))).status).toBe(404);
+    expect((await fetch(url("/api/sessions/A/remarks?filter=casual"))).status).toBe(404);
+    expect((await reroll("nope")).status).toBe(404);
+    expect((await reroll("A", {})).status).toBe(403);
+    expect((await fetch(url("/api/sessions/A/remarks?filter=bogus"))).status).toBe(400);
   });
 });
 

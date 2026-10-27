@@ -10,7 +10,7 @@ import { ApiError } from "../../api";
 import mvpIcon from "../../assets/icons/MVP.png";
 import { cx } from "../../components/cx";
 import { GoalMap } from "../../components/GoalMap";
-import { filterValue } from "../../logic/filter-options";
+import { filterValue } from "../../../shared/playlist-filter";
 import { clock } from "../../logic/format";
 import { flagLines, flagShort, isMyMvp, letter, matchLabel, recapPath, resultWord, scoreboardTeams, scoreFor, type ScoreTeam } from "../../logic/recap";
 import { useMatchDetail } from "../../queries";

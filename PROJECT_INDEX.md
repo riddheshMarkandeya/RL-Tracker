@@ -14,7 +14,9 @@ maybe later.
   `definitions.ts` renders the doc; `query/`: `read.ts` match records for pages with "you"
   joined, `sessions.ts` session cutting, `aggregate.ts` stats and the 30-day baseline; `api/`: the
   dashboard API mounted on the host: `index.ts` routes and writes, `pages.ts` composes each page,
-  `events.ts` SSE, `router.ts`, `static.ts` built web app),
+  `events.ts` SSE, `router.ts`, `static.ts` built web app; `remarks/`: the recap headline,
+  `copy.ts` line pool, `triggers.ts` mood and quip triggers, `pick.ts` the pure picker, `store.ts`
+  stored picks and history),
   `src/web/` (the dashboard: Vite + React + React Router + TanStack Query; `main.tsx`, `App.tsx`
   routes, `api.ts` fetch + Zod parse; `events/`: `hub.ts` one `/api/events` stream fanned out to
   tabs from a SharedWorker (`worker.ts`, in-page fallback in `client.ts`), `live.ts` header state,
@@ -79,6 +81,9 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-27-wp6b-remarks.md`: WP6b plan (recap remarks: mood bands, tiered quips,
+  picks stored per session + filter, repeat avoidance, ↻), review log.
+- `docs/reviews/2026-10-27-wp6b-remarks.md`: WP6b review summary (3 rounds).
 - `docs/plans/2026-10-27-wp6a-c-matches-and-match-page.md`: WP6a-c plan (Matches & numbers, the
   match page with its side list, scoreboard and flag note, links from cards and goal dots, the
   `match_flags` read rule), review log.

@@ -11,6 +11,7 @@ import {
   matchDetailResponse,
   monthsResponse,
   periodResponse,
+  remarksResponse,
   seasonsResponse,
   sessionDetailResponse,
   sessionsResponse,
@@ -20,6 +21,7 @@ import {
 import type { Db } from "../db/sqlite";
 import type { Logger } from "../log";
 import type { QueryReader } from "../query/read";
+import { createRemarks } from "../remarks/store";
 import { createEventHub, type EventHubOptions } from "./events";
 import { createPages } from "./pages";
 import { matchRoute, type Route } from "./router";
@@ -66,6 +68,7 @@ const orNotFound = <S extends z.ZodType>(schema: S, body: z.infer<S> | null) => 
 export function createApi({ tracker, reader, status, staticDir, logger, now = Date.now, events: eventOptions }: ApiOptions) {
   const pages = createPages({ reader, now });
   const hub = createEventHub({ status, logger, ...eventOptions });
+  const remarks = createRemarks({ tracker, pages, logger, now });
 
   const routes: Route<RouteHandler>[] = [
     { method: "GET", path: "/api/status", handler: () => ok(statusSchema, status()) },
@@ -109,6 +112,17 @@ export function createApi({ tracker, reader, status, staticDir, logger, now = Da
       method: "GET",
       path: "/api/sessions/:key",
       handler: ({ query, params }) => orNotFound(sessionDetailResponse, pages.sessionDetail(params.key ?? "", parse(filterOnly, query).filter)),
+    },
+    {
+      method: "GET",
+      path: "/api/sessions/:key/remarks",
+      // Picks and stores on first view: a revisit shows the same lines.
+      handler: ({ query, params }) => orNotFound(remarksResponse, remarks.get(params.key ?? "", parse(filterOnly, query).filter)),
+    },
+    {
+      method: "POST",
+      path: "/api/sessions/:key/remarks/reroll",
+      handler: ({ query, params }) => orNotFound(remarksResponse, remarks.reroll(params.key ?? "", parse(filterOnly, query).filter)),
     },
     {
       method: "POST",
