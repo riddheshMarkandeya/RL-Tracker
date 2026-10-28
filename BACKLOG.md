@@ -4,6 +4,7 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
+  WP6c (Share card, specified in the roadmap; design on `prototype/share-card`, variant F4), then
   WP7 (Trends). WP6b (remarks, `docs/plans/2026-10-27-wp6b-remarks.md`) is deployed. WP6a
   (recap pages) is deployed: WP6a-c (match page, Matches & numbers, links,
   `docs/plans/2026-10-27-wp6a-c-matches-and-match-page.md`), WP6a-b (Overview sections 5–8,
@@ -15,7 +16,8 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   commit 87881b5); after the 2026-10-26 recompute no stored match has it.
   - **[design, Low, Trivial]** Add back the themes midnight, dusk, steel and daylight (values in the
     `prototype/settings-layout` tokens; each needs a `tokens.css` block, and the token test covers
-    it). Daylight has the real cost: every chart gets checked in light mode. Record:
+    it). Daylight has the real cost: every chart gets checked in light mode, and so does the WP6c
+    share card's corner glow (built for dark themes). Record:
     `docs/plans/2026-10-21-wp5b-a-web-shell.md`.
   - **[design, Low, Trivial]** Around 2026-12-27, check the "What stood out" threshold
     (`STOOD_OUT_MIN_PCT`, 10%). On 2026-10-27, the 5 sessions that had a baseline had 4–6 stats past
