@@ -4,7 +4,7 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP8 (Settings). WP7 (Trends) is implemented and reviewed, not yet deployed: WP7b (the big chart,
+  WP8 (Settings). WP7 (Trends) is deployed: WP7b (the big chart,
   rolling 20, the W/L chart with click-through, `docs/plans/2026-10-28-wp7b-trends-charts.md`) and
   WP7a (Trends page, controls and tiles, `docs/plans/2026-10-27-wp7a-trends-page.md`). WP6c (share card, `docs/plans/2026-10-27-wp6c-share-card.md`) is deployed. WP6b (remarks, `docs/plans/2026-10-27-wp6b-remarks.md`) is deployed. WP6a
   (recap pages) is deployed: WP6a-c (match page, Matches & numbers, links,
