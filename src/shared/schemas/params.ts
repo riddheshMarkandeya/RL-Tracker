@@ -6,7 +6,7 @@ import type { PlaylistFilter } from "../playlist-filter";
 import { ROLLING_WINDOW } from "../trends";
 import { groupFilter, windowParam } from "./settings";
 
-const wholeId = z.string().regex(/^\d{1,9}$/).transform(Number);
+export const wholeId = z.string().regex(/^\d{1,9}$/).transform(Number);
 
 /** `everything | ranked | casual | extra | private | <playlist id>`, everything when left out. */
 export const filterParam = z

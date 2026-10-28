@@ -1,49 +1,19 @@
-// The Settings page: Appearance, Defaults and Remarks, one row per setting. Each change saves at
-// once and the row says so ("✓ Saved", or "Couldn't save · Retry"); controls show the stored value,
-// so a failed save leaves the old one. Each section resets to its defaults.
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { groupFilter, THEMES, type SectionId, type Settings, type SettingsPatch } from "../../../shared/schemas/settings";
-import { ApiError } from "../../api";
+// The Settings page: Appearance, Defaults and Remarks, one row per setting, then the You and
+// Seasons tables. Each change saves at once and the row says so ("✓ Saved", or "Couldn't save ·
+// Retry"); controls show the stored value, so a failed save leaves the old one. Each settings
+// section resets to its defaults. A sticky list of links jumps to each section.
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { groupFilter, THEMES, type Settings, type SettingsPatch } from "../../../shared/schemas/settings";
 import { cx } from "../../components/cx";
 import { EmptyState } from "../../components/EmptyState";
 import { filterLabel } from "../../logic/filter-options";
 import { SPEED_LABEL } from "../../logic/format";
-import { atDefaults, parseWindow, sectionDefaults } from "../../logic/settings";
-import { useSaveSettings, useSettingsQuery } from "../../queries";
+import { parseWindow } from "../../logic/settings";
+import { useSettingsQuery } from "../../queries";
+import { SaveStatus, Section, SECTIONS, useSave } from "./parts";
+import { SeasonsSection } from "./SeasonsSection";
 import styles from "./Settings.module.css";
-
-type Save = ReturnType<typeof useSaveSettings>;
-
-const codeOf = (e: unknown) => (e instanceof ApiError ? e.code : String(e));
-
-/** One save's state for a row or a section: a fresh mutation each, so their ticks don't mix. */
-function useSave(onSaved?: () => void) {
-  const m = useSaveSettings();
-  const save = (patch: SettingsPatch, onFailed?: () => void) => {
-    m.mutate(patch, {
-      onSuccess: () => onSaved?.(),
-      onError: (error) => {
-        console.warn("[rlt] settings/save_failed", { keys: Object.keys(patch), code: codeOf(error) });
-        onFailed?.();
-      },
-    });
-  };
-  return { m, save };
-}
-
-/** "✓ Saved" (fading), or "Couldn't save · Retry"; the live region is there from the start so each is announced. */
-function SaveStatus({ m, retry }: { m: Save; retry: () => void }) {
-  return (
-    <span className={styles.status} role="status">
-      {m.isSuccess && <span key={m.submittedAt} className={styles.tick}>✓ Saved</span>}
-      {m.isError && (
-        <span className={styles.failed}>
-          Couldn't save · <button type="button" className={styles.link} onClick={retry}>Retry</button>
-        </span>
-      )}
-    </span>
-  );
-}
+import { YouSection } from "./YouSection";
 
 function Row({ label, help, htmlFor, labelId, children }: { label: string; help?: string; htmlFor?: string; labelId: string; children: (save: (p: SettingsPatch, onFailed?: () => void) => void) => ReactNode }) {
   const row = useRef<HTMLDivElement>(null);
@@ -160,25 +130,6 @@ function FilterSelect({ id, value, onPick }: { id: string; value: Settings["reca
   );
 }
 
-function Section({ id, title, intro, s, children }: { id: SectionId; title: string; intro: string; s: Settings; children: ReactNode }) {
-  const heading = useRef<HTMLHeadingElement>(null);
-  const headingId = useId();
-  // The link turns into "Defaults" as the reset lands, so focus moves to the section's heading.
-  const { m, save } = useSave(() => heading.current?.focus());
-  const reset = () => { save(sectionDefaults(id)); };
-  return (
-    <section className={styles.section} aria-labelledby={headingId}>
-      <div className={styles.head}>
-        <h2 id={headingId} ref={heading} tabIndex={-1} className={styles.h2}>{title}</h2>
-        {atDefaults(s, id) ? <span className={styles.muted}>Defaults</span> : <button type="button" className={styles.link} onClick={reset}>Reset to defaults</button>}
-        <SaveStatus m={m} retry={reset} />
-      </div>
-      <p className={styles.intro}>{intro}</p>
-      <div className={styles.card}>{children}</div>
-    </section>
-  );
-}
-
 const THEME_NAMES: Record<Settings["theme"], string> = { carbon: "Carbon", slate: "Slate", oled: "OLED" };
 
 function Form({ s }: { s: Settings }) {
@@ -186,7 +137,7 @@ function Form({ s }: { s: Settings }) {
   const id = (k: string) => `${ids}-${k}`;
   return (
     <>
-      <Section id="appearance" title="Appearance" intro="How the dashboard looks." s={s}>
+      <Section anchor="appearance" title="Appearance" intro="How the dashboard looks." reset={{ id: "appearance", s }}>
         <Row label="Theme" labelId={id("theme")}>
           {(save) => <Choice swatch labelId={id("theme")} name="theme" value={s.theme} options={THEMES.map((t) => [t, THEME_NAMES[t]] as const)} onPick={(theme) => { save({ theme }); }} />}
         </Row>
@@ -197,7 +148,7 @@ function Form({ s }: { s: Settings }) {
           {(save) => <Choice labelId={id("speed")} name="speed" value={s.speed} options={[["kmh", SPEED_LABEL.kmh], ["mph", SPEED_LABEL.mph]]} onPick={(speed) => { save({ speed }); }} />}
         </Row>
       </Section>
-      <Section id="defaults" title="Defaults" intro="What a page shows when you open it." s={s}>
+      <Section anchor="defaults" title="Defaults" intro="What a page shows when you open it." reset={{ id: "defaults", s }}>
         <Row label="Start page" help="Where the dashboard opens." labelId={id("start")}>
           {(save) => <Choice labelId={id("start")} name="startPage" value={s.startPage} options={[["recap", "Recap"], ["trends", "Trends"]]} onPick={(startPage) => { save({ startPage }); }} />}
         </Row>
@@ -211,7 +162,7 @@ function Form({ s }: { s: Settings }) {
           {(save) => <WindowInput id={id("window")} stored={s.rollingWindow} from={s} onSave={(rollingWindow, onFailed) => { save({ rollingWindow }, onFailed); }} />}
         </Row>
       </Section>
-      <Section id="remarks" title="Remarks" intro="The mood line and quip under the recap scorebug." s={s}>
+      <Section anchor="remarks" title="Remarks" intro="The mood line and quip under the recap scorebug." reset={{ id: "remarks", s }}>
         <Row label="Remarks" help="The mood line and quip, on the recap and the share card." labelId={id("remarks")}>
           {(save) => <Switch labelId={id("remarks")} checked={s.remarks} onToggle={(remarks) => { save({ remarks }); }} />}
         </Row>
@@ -225,19 +176,45 @@ function Form({ s }: { s: Settings }) {
   );
 }
 
+/**
+ * A fragment jump scrolls but doesn't move focus, so the link scrolls and focuses the section's h2
+ * itself. The URL keeps no hash: the sections render after their data loads, so a reload couldn't
+ * jump back anyway.
+ */
+function focusSection(e: MouseEvent<HTMLAnchorElement>, anchor: string) {
+  // Always ours: a section whose data failed to load has no heading, and is no reason to write a hash.
+  e.preventDefault();
+  const heading = document.getElementById(anchor);
+  heading?.scrollIntoView();
+  heading?.focus({ preventScroll: true });
+}
+
 export function SettingsPage() {
   // App logs a failed load (settings/load_failed).
   const q = useSettingsQuery();
   return (
-    <div className={styles.page}>
+    <div className={styles.layout}>
       <h1 className="visually-hidden">Settings</h1>
-      {q.data ? (
-        <Form s={q.data} />
-      ) : (
-        <EmptyState title="Couldn't load your settings.">
-          <p>The other pages use the defaults meanwhile. <button type="button" className={styles.link} onClick={() => { void q.refetch(); }}>Retry</button></p>
-        </EmptyState>
-      )}
+      <nav aria-label="Settings sections" className={styles.nav}>
+        <ul>
+          {SECTIONS.map(([anchor, title]) => (
+            <li key={anchor}>
+              <a href={`#${anchor}`} onClick={(e) => { focusSection(e, anchor); }}>{title}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className={styles.page}>
+        {q.data ? (
+          <Form s={q.data} />
+        ) : (
+          <EmptyState title="Couldn't load your settings.">
+            <p>The other pages use the defaults meanwhile. <button type="button" className={styles.link} onClick={() => { void q.refetch(); }}>Retry</button></p>
+          </EmptyState>
+        )}
+        <YouSection />
+        <SeasonsSection />
+      </div>
     </div>
   );
 }

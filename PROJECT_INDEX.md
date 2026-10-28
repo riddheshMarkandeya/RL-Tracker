@@ -81,6 +81,10 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-28-wp8b-settings-tables.md`: WP8b plan (Settings: the You table answering
+  "is this you?", the Seasons table with add/edit/delete, `/api/ids` and `/api/seasons` writes,
+  the section list), review log.
+- `docs/reviews/2026-10-28-wp8b-settings-tables.md`: WP8b review summary (2 rounds).
 - `docs/plans/2026-10-28-wp8a-settings.md`: WP8a plan (Settings: per-key store + Zod, `/api/settings`,
   theme / clock / speed, start page and default filters, rolling window via `?window=`, remarks and
   mood-line switches, the Settings page), review log.

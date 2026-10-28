@@ -7,12 +7,14 @@ import { filterOnly, monthsParams, periodParams, playedDaysParams, sessionsParam
 import {
   breakResponse,
   currentResponse,
+  idsResponse,
   latestResponse,
   matchDetailResponse,
   monthsResponse,
   periodResponse,
   playedDaysResponse,
   remarksResponse,
+  seasonConflict,
   seasonsResponse,
   sessionDetailResponse,
   sessionsResponse,
@@ -20,10 +22,13 @@ import {
   type Status,
 } from "../../shared/schemas/responses";
 import { settingsPatch, settingsSchema } from "../../shared/schemas/settings";
+import { idStatusParams, seasonIdParams, seasonInput } from "../../shared/schemas/tables";
 import type { Db } from "../db/sqlite";
+import { createIds } from "../ids";
 import type { Logger } from "../log";
 import type { QueryReader } from "../query/read";
 import { createRemarks } from "../remarks/store";
+import { createSeasons, type SeasonWrite } from "../seasons";
 import { createSettings } from "../settings";
 import { createEventHub, type EventHubOptions } from "./events";
 import { createPages } from "./pages";
@@ -68,11 +73,20 @@ const ok = <S extends z.ZodType>(_schema: S, body: z.infer<S>) => Response.json(
 const notFound = () => Response.json({ error: "not_found" }, { status: 404 });
 const orNotFound = <S extends z.ZodType>(schema: S, body: z.infer<S> | null) => (body === null ? notFound() : ok(schema, body));
 
+function seasonWritten(write: SeasonWrite): Response {
+  if (write.ok) return ok(seasonsResponse, { seasons: write.seasons });
+  if (write.error === "not_found") return notFound();
+  const body: z.infer<typeof seasonConflict> = { error: write.error };
+  return Response.json(body, { status: 409 });
+}
+
 export function createApi({ tracker, reader, status, staticDir, logger, now = Date.now, events: eventOptions }: ApiOptions) {
   const pages = createPages({ reader, now });
   const hub = createEventHub({ status, logger, ...eventOptions });
   const remarks = createRemarks({ tracker, pages, logger, now });
   const settings = createSettings({ tracker, logger });
+  const ids = createIds({ tracker, logger });
+  const seasons = createSeasons({ tracker, reader, logger });
 
   const routes: Route<RouteHandler>[] = [
     { method: "GET", path: "/api/status", handler: () => ok(statusSchema, status()) },
@@ -158,6 +172,23 @@ export function createApi({ tracker, reader, status, staticDir, logger, now = Da
       },
     },
     { method: "GET", path: "/api/seasons", handler: () => ok(seasonsResponse, { seasons: pages.seasons() }) },
+    { method: "POST", path: "/api/seasons", handler: ({ query }) => seasonWritten(seasons.add(parse(seasonInput, query))) },
+    {
+      method: "POST",
+      path: "/api/seasons/:id",
+      handler: ({ query, params }) => seasonWritten(seasons.edit(parse(seasonIdParams, params).id, parse(seasonInput, query))),
+    },
+    { method: "POST", path: "/api/seasons/:id/delete", handler: ({ params }) => seasonWritten(seasons.remove(parse(seasonIdParams, params).id)) },
+    { method: "GET", path: "/api/ids", handler: () => ok(idsResponse, { ids: ids.list() }) },
+    {
+      method: "POST",
+      path: "/api/ids",
+      handler: ({ query }) => {
+        const p = parse(idStatusParams, query);
+        const list = ids.setStatus(p.id, p.status);
+        return orNotFound(idsResponse, list && { ids: list });
+      },
+    },
     { method: "GET", path: "/api/settings", handler: () => ok(settingsSchema, settings.get()) },
     // The changes ride in the query string: every setting is one scalar, and handlers are synchronous.
     { method: "POST", path: "/api/settings", handler: ({ query }) => ok(settingsSchema, settings.save(parse(settingsPatch, query))) },

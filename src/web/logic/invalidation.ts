@@ -12,7 +12,7 @@
 
 import { monthOf, shiftDay } from "../../shared/periods";
 
-interface CachedQuery {
+export interface CachedQuery {
   queryKey: readonly unknown[];
   state: { data: unknown };
 }
@@ -31,3 +31,10 @@ export function staleAfter(sessionKey: string | null, today: string | null): (qu
     return day >= after.yesterday || (field(data, "nextMonth") === null && monthOf(day) < after.month);
   };
 }
+
+/**
+ * The predicate for `invalidateQueries` after a You or Seasons save. Either can move every stat or
+ * period, so it's coarse (the app is local). Settings and the two tables are spared: neither table
+ * depends on the other, and the save put its own answer in the cache.
+ */
+export const staleAfterTables = ({ queryKey: [kind] }: CachedQuery): boolean => kind !== "settings" && kind !== "ids" && kind !== "seasons";

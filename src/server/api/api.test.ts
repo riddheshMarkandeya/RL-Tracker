@@ -9,12 +9,14 @@ import { REQUEST_HEADER } from "../../shared/constants";
 import {
   breakResponse,
   currentResponse,
+  idsResponse,
   latestResponse,
   matchDetailResponse,
   monthsResponse,
   periodResponse,
   playedDaysResponse,
   remarksResponse,
+  seasonConflict,
   seasonsResponse,
   sessionDetailResponse,
   sessionsResponse,
@@ -138,7 +140,7 @@ describe("endpoints", () => {
       expect(res.status, path).toBe(404);
       expect(await res.json()).toEqual({ error: "not_found" });
     }
-    expect((await fetch(url("/api/seasons"), { method: "POST", headers: { [REQUEST_HEADER]: "1" } })).status).toBe(405);
+    expect((await fetch(url("/api/played-days"), { method: "POST", headers: { [REQUEST_HEADER]: "1" } })).status).toBe(405);
   });
 
   test("a write without the request header is 403 and logged", async () => {
@@ -260,6 +262,70 @@ describe("settings", () => {
     const at = (window: string) => get(periodResponse, `/api/period?kind=all&window=${window}`);
     expect((await at("5")).rolling).toEqual([]);
     expect((await fetch(url("/api/period?kind=all&window=4"))).status).toBe(400);
+  });
+});
+
+describe("ids", () => {
+  const answer = (query: string, headers: Record<string, string> = { [REQUEST_HEADER]: "1" }) => fetch(url(`/api/ids?${query}`), { method: "POST", headers });
+
+  test("GET lists them; a POST answers one and comes back with the list", async () => {
+    storage.tracker.run("INSERT INTO my_ids (primary_id, name, status, added_at) VALUES ('Steam|alt|0', 'alt', 'pending', 2)");
+    expect(await get(idsResponse, "/api/ids")).toEqual({
+      ids: [
+        { primaryId: ME, name: "me", platform: "Epic", status: "confirmed" },
+        { primaryId: "Steam|alt|0", name: "alt", platform: "Steam", status: "pending" },
+      ],
+    });
+    const res = await answer(`id=${encodeURIComponent("Steam|alt|0")}&status=rejected`);
+    expect(res.status).toBe(200);
+    expect(idsResponse.parse(await res.json()).ids[1]?.status).toBe("rejected");
+    expect((await get(idsResponse, "/api/ids")).ids[1]?.status).toBe("rejected");
+  });
+
+  test("400 for a bad status or no id, 404 for an unknown id, 403 without the header", async () => {
+    for (const q of [`id=${encodeURIComponent(ME)}&status=pending`, "status=confirmed"]) expect((await answer(q)).status, q).toBe(400);
+    expect((await answer("id=Epic%7Cnobody%7C0&status=confirmed")).status).toBe(404);
+    expect((await answer(`id=${encodeURIComponent(ME)}&status=rejected`, {})).status).toBe(403);
+    expect((await get(idsResponse, "/api/ids")).ids[0]?.status).toBe("confirmed");
+  });
+});
+
+describe("seasons", () => {
+  const post = (path: string, headers: Record<string, string> = { [REQUEST_HEADER]: "1" }) => fetch(url(path), { method: "POST", headers });
+  const names = async (res: Response) => seasonsResponse.parse(await res.json()).seasons.map((s) => `${s.name} ${s.startDate}`);
+
+  test("add, edit and delete each answer with the whole list", async () => {
+    let res = await post("/api/seasons?name=S25&start=2026-12-09");
+    expect(res.status).toBe(200);
+    expect(await names(res)).toEqual(["S22 2026-03-11", "S23 2026-06-09", "S24 2026-09-23", "S25 2026-12-09"]);
+    res = await post("/api/seasons/4?name=S21&start=2025-12-10");
+    expect(await names(res)).toEqual(["S21 2025-12-10", "S22 2026-03-11", "S23 2026-06-09", "S24 2026-09-23"]);
+    res = await post("/api/seasons/4/delete");
+    expect(await names(res)).toEqual(["S22 2026-03-11", "S23 2026-06-09", "S24 2026-09-23"]);
+    expect((await get(seasonsResponse, "/api/seasons")).seasons).toHaveLength(3);
+  });
+
+  test("409 with the field's code for each clash", async () => {
+    for (const [path, error] of [
+      ["/api/seasons?name=s22&start=2026-12-09", "duplicate_name"],
+      ["/api/seasons?name=S25&start=2026-09-23", "duplicate_start"],
+      ["/api/seasons/1?name=S23&start=2026-03-11", "duplicate_name"],
+      ["/api/seasons/1?name=S22&start=2026-06-09", "duplicate_start"],
+    ] as const) {
+      const res = await post(path);
+      expect(res.status, path).toBe(409);
+      expect(seasonConflict.parse(await res.json())).toEqual({ error });
+    }
+  });
+
+  test("400 for a bad body or a non-number id, 404 for an unknown id, 403 without the header", async () => {
+    for (const path of ["/api/seasons?name=&start=2026-12-09", "/api/seasons?name=S25&start=2026-13-01", "/api/seasons/abc?name=S25&start=2026-12-09", "/api/seasons/abc/delete"]) {
+      expect((await post(path)).status, path).toBe(400);
+    }
+    expect((await post("/api/seasons/99?name=S25&start=2026-12-09")).status).toBe(404);
+    expect((await post("/api/seasons/99/delete")).status).toBe(404);
+    expect((await post("/api/seasons/1/delete", {})).status).toBe(403);
+    expect((await get(seasonsResponse, "/api/seasons")).seasons).toHaveLength(3);
   });
 });
 

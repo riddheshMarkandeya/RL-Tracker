@@ -1,5 +1,5 @@
 // The e2e stack, run under Bun by the Playwright fixture (seeding needs bun:sqlite): a temp data dir
-// seeded per the mode in argv (`rich`, the default, `empty`, `few` or `share`), the repo's web build copied to the
+// seeded per the mode in argv (`rich`, the default, `empty`, `few`, `share` or `tables`), the repo's web build copied to the
 // installed path, a gated replay of the completed fixture, and the real tracker. Protocol: prints
 // `ready {"url","dataDir"}` on stdout; the stdin line `go` releases the replay; stdin EOF tears
 // everything down.
@@ -74,6 +74,8 @@ const HAT_TRICK: Parameters<typeof record>[2] = {
  * loss that failed a check, a loss you left, and a win with an inferred MVP. The month before: one session, the
  * 26-match session's only baseline match. In the 26-match session, match 2 is HAT_TRICK and match 3
  * is on Ranked Doubles.
+ * `tables`: `rich`, plus a pending guess per You test that answers one and a rejected id, none of
+ * them a player in any match (TABLE_IDS).
  * `empty`: no matches at all.
  * `share`: the share card's worst case. The current session is 48 matches of mixed results, one
  * left early, under a 32-character name; your saves stand out against three days ago, and you
@@ -84,6 +86,11 @@ function seed(dir: string, mode: Seed): void {
   const storage = openStorage({ dir, logger });
   try {
     storage.tracker.run("INSERT INTO my_ids (primary_id, name, status, added_at) VALUES (?, 'me', 'confirmed', ?)", ME, Date.now());
+    if (mode === "tables") {
+      for (const [i, [id, name, status]] of TABLE_IDS.entries()) {
+        storage.tracker.run("INSERT INTO my_ids (primary_id, name, status, added_at) VALUES (?, ?, ?, ?)", id, name, status, Date.now() + i + 1);
+      }
+    }
     if (mode === "empty") return;
     const now = Date.now();
     if (mode === "share") {
@@ -119,6 +126,13 @@ function seed(dir: string, mode: Seed): void {
     storage.close();
   }
 }
+
+/** The You table's e2e rows; the spec names them too. A pending guess can't be put back, so each test answers its own. */
+const TABLE_IDS = [
+  ["Steam|e2e-guess-yes|0", "GuessYes", "pending"],
+  ["XboxOne|e2e-guess-retry|0", "GuessRetry", "pending"],
+  ["PS4|e2e-not-me|0", "NotMe", "rejected"],
+] as const;
 
 // 32 characters, the most a name has, and wide ones: it has to be cut.
 const SHARE_NAME = "WWW_MaximumWidthNameWWWWWWWWWWWW";
@@ -159,7 +173,7 @@ async function main(): Promise<void> {
     cpSync(dist, join(dir, "bin", "web"), { recursive: true });
     const mode = process.argv[2];
     // `settings` seeds as `rich`; its own name only buys a separate stack, so the settings it saves stay there.
-    seed(dir, mode === "empty" || mode === "few" || mode === "share" ? mode : "rich");
+    seed(dir, mode === "empty" || mode === "few" || mode === "share" || mode === "tables" ? mode : "rich");
   } catch (err) {
     removeDir(dir);
     throw err;

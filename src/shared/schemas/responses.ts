@@ -220,6 +220,15 @@ export const playedDaysResponse = z.object({
 
 export const seasonsResponse = z.object({ seasons: z.array(z.object({ id: z.number(), name: z.string(), startDate: z.string() }) satisfies z.ZodType<Season>) });
 
+/** The players the tracker counts as you, or asks about. `pending` counts as you until answered. */
+export const idsResponse = z.object({
+  ids: z.array(z.object({ primaryId: z.string(), name: z.string().nullable(), platform: z.string(), status: z.enum(["confirmed", "pending", "rejected"]) })),
+});
+export type IdRow = z.infer<typeof idsResponse>["ids"][number];
+
+/** A season write refused because another season has that name or start. */
+export const seasonConflict = z.object({ error: z.enum(["duplicate_name", "duplicate_start"]) });
+
 export const statusSchema = z.object({
   connection: z.enum(["waiting", "connected", "recording"]),
   /** The game has run a minute or more without the Stats API answering. */

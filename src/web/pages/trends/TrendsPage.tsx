@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { dayOf, periodRange, shiftDay } from "../../../shared/periods";
 import { EmptyState } from "../../components/EmptyState";
 import { Loading } from "../../components/Loading";
+import { useNow } from "../../components/useNow";
 import { chartMode } from "../../logic/trend-chart";
 import { ENOUGH_MATCHES, parseTrends, patchTrends, stripYear, trendsPath, type TrendsState } from "../../logic/trends";
 import { usePeriod, usePlayedDays, useSeasons, useSettings } from "../../queries";
@@ -31,18 +32,6 @@ function useTrendsState(): TrendsState {
     if (badKey) console.warn("[rlt] trends/bad_param", { params: badKey, query });
   }, [badKey, query]);
   return state;
-}
-
-const CLOCK_MS = 60_000;
-
-/** The time, a minute at a time, so a page left open moves on to the next day at the cutoff. */
-function useNow(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => { setNow(Date.now()); }, CLOCK_MS);
-    return () => { clearInterval(t); };
-  }, []);
-  return now;
 }
 
 export function TrendsPage() {

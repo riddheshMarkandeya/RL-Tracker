@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { staleAfter } from "./invalidation";
+import { staleAfter, staleAfterTables } from "./invalidation";
 
 const q = (queryKey: readonly unknown[], data?: unknown) => ({ queryKey, state: { data } });
 // A match's session started today or yesterday (its first match may have begun before the cutoff).
@@ -57,4 +57,14 @@ test("every other key is stale by default, lists and keys added later alike", ()
 test("settings are spared: only a save changes them, and it writes the answer into the cache", () => {
   expect(staleAfter("C", TODAY)(q(["settings"], {}))).toBe(false);
   expect(staleAfter(null, null)(q(["settings"], {}))).toBe(false);
+});
+
+test("after an ids or seasons save, everything but settings and the two tables is stale", () => {
+  // Neither table's rows depend on the other's, and the save put its own answer in the cache.
+  expect(staleAfterTables(q(["ids"], {}))).toBe(false);
+  expect(staleAfterTables(q(["seasons"], {}))).toBe(false);
+  expect(staleAfterTables(q(["settings"], {}))).toBe(false);
+  expect(staleAfterTables(q(["session", "A", "everything"], { key: "A", next: "B", day: "2026-01-01", nextMonth: "N" }))).toBe(true);
+  expect(staleAfterTables(q(["period", "last7", "ranked"], {}))).toBe(true);
+  expect(staleAfterTables(q(["something-new"]))).toBe(true);
 });

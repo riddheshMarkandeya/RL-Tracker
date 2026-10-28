@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { clock, dayLabel, decimal, durationText, monthLabel, ordinal, plural, SPEED_LABEL, speedIn, timeRange } from "./format";
+import { clock, dateLabel, dayLabel, decimal, durationText, monthLabel, ordinal, plural, SPEED_LABEL, speedIn, timeRange } from "./format";
 
 beforeAll(() => {
   vi.stubEnv("TZ", "UTC");
@@ -25,6 +25,7 @@ describe("text", () => {
     const at = Date.UTC(2026, 9, 19, 23, 4);
     expect(timeRange(at, at + 65 * 60_000, "24h", "en-GB")).toBe("23:04 – 00:09");
     expect(dayLabel("2026-10-19", "en-GB")).toBe("Mon 19 Oct");
+    expect(dateLabel("2026-03-11", "en-GB")).toBe("11 Mar 2026");
   });
 
   test("the clock setting picks 12 or 24 hours, whatever the locale's own style", () => {

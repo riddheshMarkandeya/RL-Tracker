@@ -390,6 +390,10 @@ mobile app are avoided, but that app is not designed here.
     and Cancel (Enter and Esc work too). "+ Add" adds an editable row at the end. Errors show under
     the row (missing name or date, duplicate name, two seasons on one day, a Steam ID that isn't
     17 digits, a duplicate ID).
+  - Revisited 2026-10-28, simplest-first (user; record `2026-10-28-wp8b-settings-tables.md`):
+    IDs are confirm/reject only (no "+ Add", so no ID-format errors); the section list is plain
+    links with no in-view highlight; the Q14 confirmation sits in each pending row of the You
+    table (a "Waiting for you" badge) rather than at the top.
   - Seasons show the end date (the day before the next start), "still running" for the last one,
     and a "current" badge.
   - Assumptions the user accepted:

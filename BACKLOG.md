@@ -4,9 +4,10 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP8 (Settings), split 2026-10-28: WP8a done and reviewed, awaiting deploy
-  and the user's check on the real DB (`docs/plans/2026-10-28-wp8a-settings.md`),
-  then WP8b (the You and Seasons tables). WP7 (Trends) is deployed: WP7b (the big chart,
+  WP8 (Settings), split 2026-10-28: WP8a and WP8b (the You and Seasons tables, the section list)
+  done and reviewed, awaiting deploy and the user's check on the real DB: answer the pending guess,
+  look at Settings at phone width (`docs/plans/2026-10-28-wp8a-settings.md`,
+  `docs/plans/2026-10-28-wp8b-settings-tables.md`). WP7 (Trends) is deployed: WP7b (the big chart,
   rolling 20, the W/L chart with click-through, `docs/plans/2026-10-28-wp7b-trends-charts.md`) and
   WP7a (Trends page, controls and tiles, `docs/plans/2026-10-27-wp7a-trends-page.md`). WP6c (share card, `docs/plans/2026-10-27-wp6c-share-card.md`) is deployed. WP6b (remarks, `docs/plans/2026-10-27-wp6b-remarks.md`) is deployed. WP6a
   (recap pages) is deployed: WP6a-c (match page, Matches & numbers, links,
@@ -84,6 +85,11 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: an `ids/unknown_platform` warn in tracker.log, or the first
+  `PS5|` or `Switch|` id in my_ids. The You table maps the raw primary-id prefix to a platform name
+  (`src/shared/platforms.ts`); PS5 and Switch are mapped on assumption, never seen in a capture, and
+  any other prefix shows as itself. Fit the table to the real prefix. Record:
+  `docs/plans/2026-10-28-wp8b-settings-tables.md`.
 - [ ] **[performance, Low, Standard]** Trigger: `/api/played-days` getting slow as matches pile up
   (paging the Trends strip's year feels slow, or the request log shows it). It reads every result
   on each request just for one year's ticks, plus the first day and total. Read only the year's

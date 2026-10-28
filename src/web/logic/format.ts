@@ -41,6 +41,9 @@ function utcDate(day: string, locale: string | undefined, options: Intl.DateTime
 /** "Mon 19 Oct" (in the reader's locale order). */
 export const dayLabel = (day: string, locale?: string): string => utcDate(day, locale, { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
 
+/** "11 Mar 2026". */
+export const dateLabel = (day: string, locale?: string): string => utcDate(day, locale, { day: "numeric", month: "short", year: "numeric" });
+
 /** "19 Oct". */
 export const shortDayLabel = (day: string, locale?: string): string => utcDate(day, locale, { day: "numeric", month: "short" });
 
