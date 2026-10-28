@@ -19,6 +19,8 @@ import {
   vsAverage,
   winPctDelta,
 } from "./recap";
+
+const KMH = { clock: "24h", speed: "kmh" } as const;
 import { clock } from "./format";
 
 const agg = (over: Partial<AggregateWire>): AggregateWire => ({
@@ -88,15 +90,15 @@ test("match cards get dense above 24 matches", () => {
 });
 
 test("a session's path carries the filter only when it isn't the default", () => {
-  expect(recapPath("ABC", "everything")).toBe("/recap/ABC");
+  expect(recapPath("ABC", "everything")).toBe("/recap/ABC?filter=everything");
   expect(recapPath("ABC", { playlist: 53 })).toBe("/recap/ABC?filter=53");
   expect(recapPath(null, "ranked")).toBe("/recap?filter=ranked");
 });
 
 test("the matches page and a match's page, under the same filter", () => {
-  expect(recapPath("ABC", "everything", "matches")).toBe("/recap/ABC/matches");
+  expect(recapPath("ABC", "everything", "matches")).toBe("/recap/ABC/matches?filter=everything");
   expect(recapPath("ABC", "ranked", { match: "G/1 2" })).toBe("/recap/ABC/match/G%2F1%202?filter=ranked");
-  expect(recapPath("ABC", "everything", "overview")).toBe("/recap/ABC");
+  expect(recapPath("ABC", "everything", "overview")).toBe("/recap/ABC?filter=everything");
 });
 
 describe("flagLines", () => {
@@ -139,9 +141,10 @@ test("flagShort: the reasons in a few words, null when not flagged", () => {
 
 test("matchLabel: number, time, result, score, playlist, then MVP and flags when they apply", () => {
   const m = { startedAt: 1_700_000_000_000, result: "win", playlistId: 11, me: { playerKey: "me", teamNum: 1 }, mvpKey: "me", flags: ["mvp_inferred"], scoreTeam0: 1, scoreTeam1: 3 } as unknown as MyMatchWire;
-  const t = clock(m.startedAt);
-  expect(matchLabel(m, 2)).toBe(`Match 2, ${t}, win, 3–1, Ranked Doubles, MVP, flagged: MVP inferred`);
-  expect(matchLabel({ ...m, mvpKey: "other", flags: [], result: null, scoreTeam0: null }, 1)).toBe(`Match 1, ${t}, no result, Ranked Doubles`);
+  const t = clock(m.startedAt, "24h");
+  expect(matchLabel(m, 2, "24h")).toBe(`Match 2, ${t}, win, 3–1, Ranked Doubles, MVP, flagged: MVP inferred`);
+  expect(matchLabel({ ...m, mvpKey: "other", flags: [], result: null, scoreTeam0: null }, 1, "24h")).toBe(`Match 1, ${t}, no result, Ranked Doubles`);
+  expect(matchLabel(m, 2, "12h")).toContain(clock(m.startedAt, "12h"));
 });
 
 describe("scoreboardTeams", () => {
@@ -251,7 +254,7 @@ describe("extrasCards", () => {
   const three = [match({}), second, match({ hardestShotKmh: 131.46 })];
 
   test("in the map's order; a measured zero is kept; 'match N' with more than one match", () => {
-    expect(extrasCards(agg(extras), three)).toEqual([
+    expect(extrasCards(agg(extras), three, KMH)).toEqual([
       { id: "hardest", label: "Hardest shot", value: "131", unit: "km/h", sub: "match 2" },
       { id: "fastest", label: "Fastest goal", value: "98.7", unit: "km/h", sub: "match 2" },
       { id: "woodwork", label: "Crossbar hits", value: "0", unit: null, sub: null },
@@ -262,19 +265,24 @@ describe("extrasCards", () => {
     ]);
   });
 
+  test("speeds in the speed setting's unit", () => {
+    const [hardest, fastest] = extrasCards(agg(extras), three, { ...KMH, speed: "mph" });
+    expect([hardest?.value, hardest?.unit, fastest?.value, fastest?.unit]).toEqual(["81.69", "mph", "61.33", "mph"]);
+  });
+
   test("a null value is left out; no extras at all is []", () => {
-    const ids = extrasCards(agg({ ...extras, fastestGoalKmh: null, boostAvg: null, supersonicShare: null, emptyBoostShare: null }), three).map((c) => c.id);
+    const ids = extrasCards(agg({ ...extras, fastestGoalKmh: null, boostAvg: null, supersonicShare: null, emptyBoostShare: null }), three, KMH).map((c) => c.id);
     expect(ids).toEqual(["hardest", "woodwork", "aerial"]);
-    expect(extrasCards(agg({}), three)).toEqual([]);
+    expect(extrasCards(agg({}), three, KMH)).toEqual([]);
   });
 
   test("no 'match N' for a single match", () => {
-    expect(extrasCards(agg(extras), [second])[0]?.sub).toBeNull();
+    expect(extrasCards(agg(extras), [second], KMH)[0]?.sub).toBeNull();
   });
 
   test("'match N' looks only at matches with extras; own goals don't count as fastest", () => {
     const ms = [match({ hardestShotKmh: 131.46, woodworkHits: null }, [{ speedKmh: 98.7, ownGoal: false }]), match({}, [{ speedKmh: 98.7, ownGoal: true }]), match({ hardestShotKmh: 131.46 }, [{ speedKmh: 98.7, ownGoal: false }])];
-    const subs = extrasCards(agg(extras), ms).slice(0, 2).map((c) => c.sub);
+    const subs = extrasCards(agg(extras), ms, KMH).slice(0, 2).map((c) => c.sub);
     expect(subs).toEqual(["match 3", "match 3"]);
   });
 });

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { dayLabel, decimal, durationText, monthLabel, ordinal, plural, timeRange } from "./format";
+import { clock, dayLabel, decimal, durationText, monthLabel, ordinal, plural, SPEED_LABEL, speedIn, timeRange } from "./format";
 
 beforeAll(() => {
   vi.stubEnv("TZ", "UTC");
@@ -23,8 +23,25 @@ describe("text", () => {
 
   test("local time range and day label", () => {
     const at = Date.UTC(2026, 9, 19, 23, 4);
-    expect(timeRange(at, at + 65 * 60_000, "en-GB")).toBe("23:04 – 00:09");
+    expect(timeRange(at, at + 65 * 60_000, "24h", "en-GB")).toBe("23:04 – 00:09");
     expect(dayLabel("2026-10-19", "en-GB")).toBe("Mon 19 Oct");
+  });
+
+  test("the clock setting picks 12 or 24 hours, whatever the locale's own style", () => {
+    const evening = Date.UTC(2026, 9, 19, 21, 4);
+    const morning = Date.UTC(2026, 9, 19, 9, 4);
+    expect(clock(evening, "24h", "en-US")).toBe("21:04");
+    expect(clock(evening, "24h", "en-GB")).toBe("21:04");
+    // The space before PM depends on the ICU version (a plain or a narrow no-break space).
+    expect(clock(evening, "12h", "en-US")).toMatch(/^9:04\sPM$/);
+    expect(clock(morning, "12h", "en-GB").toLowerCase()).toMatch(/^0?9:04\s?am$/);
+    expect(clock(Date.UTC(2026, 9, 19, 0, 30), "24h", "en-US")).toBe("00:30");
+  });
+
+  test("speed in km/h or mph", () => {
+    expect(speedIn(100, "kmh")).toBe(100);
+    expect(speedIn(100, "mph")).toBeCloseTo(62.1371);
+    expect([SPEED_LABEL.kmh, SPEED_LABEL.mph]).toEqual(["km/h", "mph"]);
   });
 
   test("a count with its noun", () => {

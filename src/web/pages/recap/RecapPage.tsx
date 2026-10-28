@@ -10,7 +10,7 @@ import { Loading } from "../../components/Loading";
 import { PlaylistFilter } from "../../components/PlaylistFilter";
 import { parseFilter } from "../../logic/filter-options";
 import { recapPath, type RecapView } from "../../logic/recap";
-import { useLatestSession, useSessionDetail } from "../../queries";
+import { useLatestSession, useSessionDetail, useSettings } from "../../queries";
 import { Matches } from "./Matches";
 import { MatchView } from "./MatchView";
 import { Overview } from "./Overview";
@@ -21,7 +21,7 @@ import styles from "./RecapPage.module.css";
 function useRecapFilter(): Filter {
   const [params] = useSearchParams();
   const raw = params.get("filter");
-  const { filter, bad } = parseFilter(raw);
+  const { filter, bad } = parseFilter(raw, useSettings().recapFilter);
   useEffect(() => {
     if (bad) console.warn("[rlt] recap/bad_filter", { value: raw });
   }, [bad, raw]);

@@ -26,7 +26,7 @@ const seasons: Season[] = [
 ];
 const TODAY = "2026-10-27"; // a Tuesday
 
-const parse = (q: string) => parseTrends(new URLSearchParams(q));
+const parse = (q: string) => parseTrends(new URLSearchParams(q), "ranked");
 
 describe("the URL", () => {
   test("left out: last 30 days, all ranked, win %, the strip on the period's year", () => {
@@ -51,7 +51,7 @@ describe("the URL", () => {
     const state: TrendsState = { spec: { kind: "week", day: "2026-10-26" }, filter: { playlist: 13 }, metric: "saves", year: 2025, x: "match" };
     expect(trendsPath(state)).toBe("/trends?kind=week&day=2026-10-26&filter=13&metric=saves&year=2025&x=match");
     expect(parse(trendsPath(state).slice("/trends?".length)).state).toEqual(state);
-    expect(trendsPath({ spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null, x: "auto" })).toBe("/trends");
+    expect(trendsPath({ spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null, x: "auto" })).toBe("/trends?filter=ranked");
     expect(trendsPath({ spec: { kind: "season", id: 3 }, filter: "everything", metric: "win", year: null, x: "date" })).toBe("/trends?kind=season&season=3&filter=everything&x=date");
   });
 

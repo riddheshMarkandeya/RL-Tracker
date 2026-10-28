@@ -17,7 +17,7 @@ test.afterEach(({ consoleErrors }) => {
 
 test("before the match: redirect, live status, chip, navigation, deep link, not found", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveURL(/\/recap\/e2e-seed-won$/);
+  await expect(page).toHaveURL(/\/recap\/e2e-seed-won(\?filter=everything)?$/);
   await expect(status(page, "connected")).toBeVisible();
   await expect(chip(page)).toHaveText("This session: 1–0");
 
@@ -25,7 +25,7 @@ test("before the match: redirect, live status, chip, navigation, deep link, not 
     const link = page.getByRole("link", { name, exact: true });
     await link.click();
     // Recap moves on to the latest session's page.
-    await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}(/[^/]+)?$`));
+    await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}(/[^/]+)?(\\?filter=\\w+)?$`));
     await expect(link).toHaveAttribute("aria-current", "page");
   }
 

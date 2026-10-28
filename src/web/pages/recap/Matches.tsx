@@ -8,6 +8,7 @@ import mvpIcon from "../../assets/icons/MVP.png";
 import { cx } from "../../components/cx";
 import { clock, plural } from "../../logic/format";
 import { flagShort, isMyMvp, letter, matchLabel, recapPath, scoreFor } from "../../logic/recap";
+import { useSettings } from "../../queries";
 import styles from "./Matches.module.css";
 
 /** Stat key, column header, and the header's spelled-out title when it's abbreviated. */
@@ -24,6 +25,7 @@ const shown = (v: number | null | undefined) => (v == null ? "–" : String(v));
 
 export function Matches({ detail, filter }: { detail: SessionDetail; filter: PlaylistFilter }) {
   const { matches, aggregate: a } = detail;
+  const { clock: hours } = useSettings();
   const wl = a.wins === null || a.losses === null ? "" : ` · ${String(a.wins)}–${String(a.losses)}`;
   return (
     <section className={styles.panel} aria-labelledby="numbers-heading">
@@ -47,8 +49,8 @@ export function Matches({ detail, filter }: { detail: SessionDetail; filter: Pla
               const flag = flagShort(m.flags);
               return (
                 <tr key={m.guid} className={cx(m.result === "win" && styles.win, m.result === "loss" && styles.loss)}>
-                  <td><Link className={styles.open} to={recapPath(detail.key, filter, { match: m.guid })} aria-label={matchLabel(m, n)}>{n}</Link></td>
-                  <td>{clock(m.startedAt)}</td>
+                  <td><Link className={styles.open} to={recapPath(detail.key, filter, { match: m.guid })} aria-label={matchLabel(m, n, hours)}>{n}</Link></td>
+                  <td>{clock(m.startedAt, hours)}</td>
                   <td>{playlistInfo(m.playlistId).name}</td>
                   <td className={styles.result}>
                     <i>{letter(m.result)}</i> {score}

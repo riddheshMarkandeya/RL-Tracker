@@ -49,4 +49,10 @@ describe("filter in the URL", () => {
     expect(parseFilter(null)).toEqual({ filter: "everything", bad: false });
     expect(parseFilter("bogus")).toEqual({ filter: "everything", bad: true });
   });
+
+  test("a page's default filter stands in for a missing or bad value, never for a real one", () => {
+    expect(parseFilter(null, "ranked")).toEqual({ filter: "ranked", bad: false });
+    expect(parseFilter("bogus", "casual")).toEqual({ filter: "casual", bad: true });
+    expect(parseFilter("everything", "ranked")).toEqual({ filter: "everything", bad: false });
+  });
 });

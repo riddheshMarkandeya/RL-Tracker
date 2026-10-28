@@ -9,7 +9,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { Loading } from "../../components/Loading";
 import { chartMode } from "../../logic/trend-chart";
 import { ENOUGH_MATCHES, parseTrends, patchTrends, stripYear, trendsPath, type TrendsState } from "../../logic/trends";
-import { usePeriod, usePlayedDays, useSeasons } from "../../queries";
+import { usePeriod, usePlayedDays, useSeasons, useSettings } from "../../queries";
 import { MetricTiles } from "./MetricTiles";
 import { PeriodControls } from "./PeriodControls";
 import { PeriodHeader, StatsLine } from "./PeriodHeader";
@@ -24,7 +24,8 @@ const NOT_ENOUGH = `Not enough data yet. Trends appear once you've played ${Stri
 function useTrendsState(): TrendsState {
   const [params] = useSearchParams();
   const query = params.toString();
-  const { state, bad } = useMemo(() => parseTrends(new URLSearchParams(query)), [query]);
+  const { trendsFilter } = useSettings();
+  const { state, bad } = useMemo(() => parseTrends(new URLSearchParams(query), trendsFilter), [query, trendsFilter]);
   const badKey = bad.join(",");
   useEffect(() => {
     if (badKey) console.warn("[rlt] trends/bad_param", { params: badKey, query });
@@ -55,7 +56,8 @@ export function TrendsPage() {
   const lastDay = range ? dayOf(range.to - 1) : today;
   const year = stripYear(state.year, lastDay, today);
   const played = usePlayedDays(year, state.filter);
-  const period = usePeriod(state.spec, state.filter, today);
+  const { rollingWindow } = useSettings();
+  const period = usePeriod(state.spec, state.filter, today, rollingWindow);
   const firstDay = played.data?.firstDay ?? null;
   const fromDay = range && range.from !== null ? dayOf(range.from) : (period.data?.firstDay ?? null);
   const days = fromDay !== null && range && range.to > (range.from ?? -Infinity) ? { from: fromDay, last: lastDay < fromDay ? fromDay : lastDay } : null;
@@ -151,7 +153,7 @@ export function TrendsPage() {
             <>
               <StatsLine view={period.data} />
               <MetricTiles view={period.data} metric={state.metric} onMetric={(metric) => { go({ metric }); }} />
-              {chart && <TrendChart view={period.data} metric={state.metric} chart={chart} seasons={seasons.data} onX={(x) => { go({ x }); }} />}
+              {chart && <TrendChart view={period.data} size={rollingWindow} metric={state.metric} chart={chart} seasons={seasons.data} onX={(x) => { go({ x }); }} />}
               <WinLossChart view={period.data} state={state} seasons={seasons.data} />
             </>
           )}

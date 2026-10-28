@@ -8,7 +8,7 @@ import type { SessionDetail, SessionSummary } from "../../../shared/schemas/resp
 import { dayLabel, durationText, monthLabel, ordinal, plural, timeRange } from "../../logic/format";
 import { groupByDay, monthRange, strip } from "../../logic/picker";
 import { recapPath, type RecapView } from "../../logic/recap";
-import { useSessionList } from "../../queries";
+import { useSessionList, useSettings } from "../../queries";
 import styles from "./SessionPicker.module.css";
 
 const STRIP_MAX = 24;
@@ -28,6 +28,7 @@ export function SessionPicker({
   buttonRef: RefObject<HTMLButtonElement | null>;
 }) {
   const [open, setOpen] = useState(false);
+  const { clock: hours } = useSettings();
   // Any navigation that keeps the picker mounted (to a cached session, Back, Forward, the filter)
   // closes the list. Kept as the last location seen, not derived from where it was opened: derived, coming
   // Forward to that entry again would reopen it.
@@ -76,7 +77,7 @@ export function SessionPicker({
           onClick={() => { setOpen((o) => !o); }}
         >
           <span className="visually-hidden">Recap: </span>
-          <b>{dayLabel(detail.day)}</b> <span className={styles.muted}>{timeRange(detail.startedAt, detail.endedAt)}</span>
+          <b>{dayLabel(detail.day)}</b> <span className={styles.muted}>{timeRange(detail.startedAt, detail.endedAt, hours)}</span>
           {summary && summary.ofDay > 1 && <span className={styles.chip}>{ordinal(summary.ordinal)} of {summary.ofDay} that day</span>}
         </button>
       </h1>
@@ -136,9 +137,10 @@ function MonthList({ id, month, currentKey, filter, view, onPick }: { id: string
 
 function Row({ s, current, filter, view, onPick }: { s: SessionSummary; current: boolean; filter: PlaylistFilter; view: PageView; onPick: () => void }) {
   const { squares, more } = strip(s.results, STRIP_MAX);
+  const { clock: hours } = useSettings();
   return (
     <Link className={styles.row} to={recapPath(s.key, filter, view)} aria-current={current} onClick={onPick}>
-      <span>{timeRange(s.startedAt, s.endedAt)}</span>
+      <span>{timeRange(s.startedAt, s.endedAt, hours)}</span>
       <span className="num">{s.wins}–{s.losses}</span>
       <span className={styles.sm}>{plural(s.matches, "match", "matches")} · {durationText(s.endedAt - s.startedAt)}</span>
       <span className={styles.wls} aria-hidden="true">

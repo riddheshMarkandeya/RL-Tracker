@@ -6,6 +6,7 @@ import { GOAL_LINE_Y, SIDE_WALL_X } from "../../shared/constants";
 import type { Goal, MyMatchWire } from "../../shared/schemas/responses";
 import { goalMarks, goalSummary, MAP_H, MAP_W, markScale, type GoalMark, type SideSummary } from "../logic/goal-map";
 import { plural } from "../logic/format";
+import { useSettings } from "../queries";
 import { cx } from "./cx";
 import styles from "./GoalMap.module.css";
 
@@ -18,7 +19,7 @@ const PAD = 12;
 
 /** With `hrefFor`, a mark is a link to its match: for the mouse only, as screen readers get the svg's label and the counts beside it. */
 export function GoalMap({ matches, goals, viewKey, hrefFor }: { matches: MyMatchWire[]; goals: Goal[]; viewKey: string; hrefFor?: (guid: string) => string }) {
-  const { marks, skipped } = goalMarks(matches, goals);
+  const { marks, skipped } = goalMarks(matches, goals, useSettings());
   const summary = goalSummary(matches, goals);
   const k = markScale(goals.length);
 

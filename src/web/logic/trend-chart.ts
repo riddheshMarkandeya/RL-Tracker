@@ -3,7 +3,7 @@
 // laid out at the measured pixel width, so axis text keeps its size on a phone.
 import { dayOf, dayStart, monthOf, type Season } from "../../shared/periods";
 import type { PeriodView } from "../../shared/schemas/responses";
-import { ROLLING_WINDOW, type BucketKind } from "../../shared/trends";
+import type { BucketKind } from "../../shared/trends";
 import { dayLabel, monthLabel, plural, shortDayLabel, shortMonthLabel } from "./format";
 import { recapPath } from "./recap";
 import { metricValue, patchTrends, polyline, rawValue, trendsPath, type MetricId, type TrendsState, type XAsk, type XMode } from "./trends";
@@ -36,16 +36,16 @@ export function chartMode(asked: XAsk, buckets: readonly ViewBucket[], rollingPo
   return { mode: auto ? "match" : "date", auto, withData };
 }
 
-export const autoNote = (withData: number, kind: BucketKind): string =>
-  `Only ${plural(withData, kind)} with matches here, so this shows a rolling average of ${String(ROLLING_WINDOW)} matches instead. Pick By date to see them.`;
+export const autoNote = (withData: number, kind: BucketKind, window: number): string =>
+  `Only ${plural(withData, kind)} with matches here, so this shows a rolling average of ${String(window)} matches instead. Pick By date to see them.`;
 
 /** The big chart's heading after the metric: "per day", or "rolling 20 matches". */
-export const modeText = (mode: XMode, kind: BucketKind): string => (mode === "match" ? `rolling ${String(ROLLING_WINDOW)} matches` : `per ${kind}`);
+export const modeText = (mode: XMode, kind: BucketKind, window: number): string => (mode === "match" ? `rolling ${String(window)} matches` : `per ${kind}`);
 
 /** What the passive chart says to a screen reader: its numbers are the tiles'. */
-export function chartSummary(metric: string, mode: XMode, kind: BucketKind, points: number, avg: string | null): string {
+export function chartSummary(metric: string, mode: XMode, kind: BucketKind, window: number, points: number, avg: string | null): string {
   const over = mode === "match" ? `over ${plural(points, "match", "matches")}` : `over ${plural(points, kind)}`;
-  return `${metric} ${modeText(mode, kind)} ${over}${avg === null ? "" : `; period average ${avg}`}`;
+  return `${metric} ${modeText(mode, kind, window)} ${over}${avg === null ? "" : `; period average ${avg}`}`;
 }
 
 export function bucketLabel(day: string, kind: BucketKind, locale?: string): string {
@@ -70,15 +70,15 @@ export interface LinePoint {
 /** Under this many matches a bucket's dot is hollow: its value swings on one game. */
 export const FEW = 3;
 
-export function linePoints(mode: XMode, metric: MetricId, view: Pick<PeriodView, "bucket" | "buckets" | "rolling">, locale?: string): LinePoint[] {
+export function linePoints(mode: XMode, metric: MetricId, view: Pick<PeriodView, "bucket" | "buckets" | "rolling">, window: number, locale?: string): LinePoint[] {
   if (mode === "match") {
     return view.rolling.map((r) => {
       const short = shortDayLabel(dayOf(r.startedAt), locale);
-      const reaches = r.n < ROLLING_WINDOW ? " (reaches before this period)" : "";
+      const reaches = r.n < window ? " (reaches before this period)" : "";
       return {
         value: rawValue(metric, r.stats),
         hollow: false,
-        title: `Match ${String(r.n)} · ${short}: ${metricValue(metric, r.stats)} · last ${String(ROLLING_WINDOW)} matches${reaches}`,
+        title: `Match ${String(r.n)} · ${short}: ${metricValue(metric, r.stats)} · last ${String(window)} matches${reaches}`,
         short,
       };
     });

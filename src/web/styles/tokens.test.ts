@@ -35,7 +35,7 @@ describe("theme tokens", () => {
   });
 
   test("every theme defines the same tokens", () => {
-    for (const theme of THEMES) expect([...block(`:root[data-theme=${theme}]`).keys()].sort()).toEqual([...THEME_TOKENS].sort());
+    for (const theme of THEMES) expect([...block(`[data-theme=${theme}]`).keys()].sort()).toEqual([...THEME_TOKENS].sort());
   });
 
   test("the shared tokens live on :root", () => {
@@ -43,7 +43,7 @@ describe("theme tokens", () => {
   });
 
   describe.each(THEMES)("%s contrast", (theme) => {
-    const t = block(`:root[data-theme=${theme}]`);
+    const t = block(`[data-theme=${theme}]`);
     const get = (k: string) => t.get(k) ?? "";
     test.each([["ink", "page"], ["ink", "surf"], ["ink", "surf2"], ["ink2", "page"], ["ink2", "surf"], ["ink2", "surf2"], ["muted", "surf"]])(
       "%s on %s is at least 4.5:1",

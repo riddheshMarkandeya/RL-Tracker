@@ -40,11 +40,19 @@ describe("page params", () => {
   });
 
   test("period: one shape per kind, giving a PeriodSpec", () => {
-    expect(periodParams.parse({ kind: "week", day: "2026-10-21" })).toEqual({ spec: { kind: "week", day: "2026-10-21" }, filter: "everything" });
-    expect(periodParams.parse({ kind: "season", season: "2", filter: "ranked" })).toEqual({ spec: { kind: "season", id: 2 }, filter: "ranked" });
-    expect(periodParams.parse({ kind: "last30" })).toEqual({ spec: { kind: "last30" }, filter: "everything" });
+    expect(periodParams.parse({ kind: "week", day: "2026-10-21" })).toEqual({ spec: { kind: "week", day: "2026-10-21" }, filter: "everything", window: 20 });
+    expect(periodParams.parse({ kind: "season", season: "2", filter: "ranked" })).toEqual({ spec: { kind: "season", id: 2 }, filter: "ranked", window: 20 });
+    expect(periodParams.parse({ kind: "last30" })).toEqual({ spec: { kind: "last30" }, filter: "everything", window: 20 });
     for (const bad of [{ kind: "week" }, { kind: "season" }, { kind: "season", season: "x" }, { kind: "season", season: "1.5" }, { kind: "decade" }, {}]) {
       expect(periodParams.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
     }
+  });
+
+  test("period: the rolling window in every kind, 20 when left out", () => {
+    expect(periodParams.parse({ kind: "month", day: "2026-10-01", window: "35" }).window).toBe(35);
+    expect(periodParams.parse({ kind: "season", season: "2", window: "5" }).window).toBe(5);
+    expect(periodParams.parse({ kind: "all", window: "100" }).window).toBe(100);
+    expect(periodParams.parse({ kind: "all" }).window).toBe(20);
+    for (const window of ["4", "101", "x"]) expect(periodParams.safeParse({ kind: "all", window }).success, window).toBe(false);
   });
 });

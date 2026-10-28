@@ -21,6 +21,7 @@ import {
   statusSchema,
   type Status,
 } from "../../shared/schemas/responses";
+import { DEFAULT_SETTINGS, settingsSchema } from "../../shared/schemas/settings";
 import { startHost, type Host } from "../host";
 import { createQueryReader } from "../query/read";
 import { createRecordWriter } from "../records/save";
@@ -233,6 +234,32 @@ describe("remarks", () => {
     expect((await reroll("nope")).status).toBe(404);
     expect((await reroll("A", {})).status).toBe(403);
     expect((await fetch(url("/api/sessions/A/remarks?filter=bogus"))).status).toBe(400);
+  });
+});
+
+describe("settings", () => {
+  const save = (query: string, headers: Record<string, string> = { [REQUEST_HEADER]: "1" }) => fetch(url(`/api/settings?${query}`), { method: "POST", headers });
+
+  test("GET gives the defaults; a POST saves its keys only and answers with all of them", async () => {
+    expect(await get(settingsSchema, "/api/settings")).toEqual(DEFAULT_SETTINGS);
+    const res = await save("theme=slate&rollingWindow=35&moodLine=false");
+    expect(res.status).toBe(200);
+    const saved = { ...DEFAULT_SETTINGS, theme: "slate", rollingWindow: 35, moodLine: false };
+    expect(settingsSchema.parse(await res.json())).toEqual(saved);
+    expect(await get(settingsSchema, "/api/settings")).toEqual(saved);
+    expect(logger.events()).toContain("settings/saved");
+  });
+
+  test("400 for a bad value, an unknown key or nothing to save; 403 without the header", async () => {
+    for (const q of ["rollingWindow=4", "theme=midnight", "colour=red", ""]) expect((await save(q)).status, q).toBe(400);
+    expect((await save("theme=slate", {})).status).toBe(403);
+    expect(await get(settingsSchema, "/api/settings")).toEqual(DEFAULT_SETTINGS);
+  });
+
+  test("a period takes the rolling window", async () => {
+    const at = (window: string) => get(periodResponse, `/api/period?kind=all&window=${window}`);
+    expect((await at("5")).rolling).toEqual([]);
+    expect((await fetch(url("/api/period?kind=all&window=4"))).status).toBe(400);
   });
 });
 

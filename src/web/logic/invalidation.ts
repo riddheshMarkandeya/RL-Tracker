@@ -1,8 +1,8 @@
 // What a new match or a session break can change in the cache. Stale by default, so a query key
-// added later is refreshed without anyone remembering to list it here. The one exception is an
-// older session's detail: sessions are only appended, a break is always at now, a baseline reads
-// only the window before its session, and `prev` and `prevMonth` never change. So of the details,
-// only these can move:
+// added later is refreshed without anyone remembering to list it here. Settings are spared: a
+// match never changes them. The other exception is an older session's detail: sessions are only
+// appended, a break is always at now, a baseline reads only the window before its session, and
+// `prev` and `prevMonth` never change. So of the details, only these can move:
 // - the newest session's (its `next` is still null);
 // - the one the match landed in;
 // - after a match, those on the days it may have started a session on (a new one there changes
@@ -23,6 +23,7 @@ const field = (data: unknown, name: string): unknown => (typeof data === "object
 export function staleAfter(sessionKey: string | null, today: string | null): (query: CachedQuery) => boolean {
   const after = today === null ? null : { yesterday: shiftDay(today, -1), month: monthOf(today) };
   return ({ queryKey: [kind, key], state: { data } }) => {
+    if (kind === "settings") return false;
     if (kind !== "session" || data === undefined) return true;
     const day = field(data, "day");
     if (key === sessionKey || field(data, "next") === null || typeof day !== "string") return true;

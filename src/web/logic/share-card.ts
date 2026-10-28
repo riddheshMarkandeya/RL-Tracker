@@ -5,7 +5,7 @@ import { playlistInfo } from "../../shared/playlists";
 import type { Result } from "../../shared/result";
 import type { AggregateWire, SessionDetail, SessionSummary } from "../../shared/schemas/responses";
 import { filterLabel } from "./filter-options";
-import { clock, dayLabel, decimal, durationText } from "./format";
+import { clock, dayLabel, decimal, durationText, SPEED_LABEL, speedIn, type Units } from "./format";
 import { pct, stoodOut } from "./recap";
 
 export interface ShareCardInput {
@@ -15,6 +15,7 @@ export interface ShareCardInput {
   /** Your in-game name in the latest match; null when it couldn't be had. */
   name: string | null;
   mood: string | null;
+  units: Units;
 }
 
 export interface ShareTile { id: string; label: string; value: string; sub: string | null }
@@ -58,14 +59,14 @@ function eighthTile(a: AggregateWire): ShareTile | null {
   return null;
 }
 
-function stoodLine(a: AggregateWire, base: AggregateWire): ShareCardView["stood"] {
+function stoodLine(a: AggregateWire, base: AggregateWire, units: Units): ShareCardView["stood"] {
   const top = stoodOut(a, base)?.[0];
   if (top) return { label: top.label, text: `${decimal(top.perGame)} per game, ${String(Math.abs(top.vs.pct))}% ${top.vs.pct > 0 ? "above" : "below"} your 30-day average` };
-  if (a.hardestShotKmh !== null) return { label: "Hardest shot", text: `${decimal(a.hardestShotKmh)} km/h` };
+  if (a.hardestShotKmh !== null) return { label: "Hardest shot", text: `${decimal(speedIn(a.hardestShotKmh, units.speed))} ${SPEED_LABEL[units.speed]}` };
   return null;
 }
 
-export function shareCard({ detail, summary, filter, name, mood }: ShareCardInput): ShareCardView {
+export function shareCard({ detail, summary, filter, name, mood, units }: ShareCardInput): ShareCardView {
   const a = detail.aggregate;
   const nullStats: string[] = [];
   const fixed = (id: string, label: string, v: number | null, show: (n: number) => string = String, sub: string | null = null): ShareTile => {
@@ -85,7 +86,7 @@ export function shareCard({ detail, summary, filter, name, mood }: ShareCardInpu
   if (eighth) tiles.push(eighth);
   return {
     name,
-    when: `${dayLabel(detail.day)} · ${clock(detail.startedAt)} · ${durationText(detail.endedAt - detail.startedAt)}${detail.current ? " so far" : ""}`,
+    when: `${dayLabel(detail.day)} · ${clock(detail.startedAt, units.clock)} · ${durationText(detail.endedAt - detail.startedAt)}${detail.current ? " so far" : ""}`,
     live: detail.current,
     label: filter === "everything" ? null : filterLabel(filter),
     wins: summary.wins,
@@ -95,7 +96,7 @@ export function shareCard({ detail, summary, filter, name, mood }: ShareCardInpu
     results: summary.results,
     mood,
     tiles,
-    stood: stoodLine(a, detail.baseline),
+    stood: stoodLine(a, detail.baseline, units),
     nullStats,
   };
 }

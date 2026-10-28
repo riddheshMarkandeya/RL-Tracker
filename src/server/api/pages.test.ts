@@ -6,6 +6,7 @@ import { createQueryReader } from "../query/read";
 import { createRecordWriter } from "../records/save";
 import { openStorage, type Storage } from "../storage";
 import { goal, ME, memoryLogger, player, record, THEM } from "../testing";
+import { ROLLING_WINDOW } from "../../shared/trends";
 import { createPages } from "./pages";
 
 // Local days follow the process's zone; UTC keeps the expected instants readable.
@@ -124,7 +125,7 @@ describe("a session starting before the 4am cutoff", () => {
       [{ kind: "month", day: "2026-11-15" }, 1],
       [{ kind: "year", day: "2026-11-15" }, 2],
     ] as const) {
-      const period = p.period(spec, "everything");
+      const period = p.period(spec, "everything", ROLLING_WINDOW);
       expect([period?.aggregate.matches, period?.sessions], JSON.stringify(spec)).toEqual([matches, 1]);
     }
   });
@@ -224,21 +225,21 @@ describe("match detail, periods and seasons", () => {
     play("A", t(10, 10, 10));
     play("B", t(10, 10, 10, 10), { playlistId: CASUAL });
     watch("W", t(10, 10, 12));
-    const period = pages().period({ kind: "day", day: "2026-10-10" }, "casual");
+    const period = pages().period({ kind: "day", day: "2026-10-10" }, "casual", ROLLING_WINDOW);
     expect(period).toMatchObject({
       range: { from: t(10, 10, 4), to: t(10, 11, 4), running: false },
       aggregate: { matches: 1 },
       playlistsPresent: [CASUAL, RANKED],
       sessions: 1,
     });
-    expect(pages().period({ kind: "day", day: "2026-10-10" }, "private")?.sessions).toBe(0);
+    expect(pages().period({ kind: "day", day: "2026-10-10" }, "private", ROLLING_WINDOW)?.sessions).toBe(0);
   });
 
   test("a period's buckets: a 03:30 match counts toward the day before", () => {
     const { play, pages } = seed();
     play("A", t(10, 10, 3, 30));
     play("B", t(10, 10, 12), { won: false });
-    const period = pages().period({ kind: "month", day: "2026-10-01" }, "everything");
+    const period = pages().period({ kind: "month", day: "2026-10-01" }, "everything", ROLLING_WINDOW);
     expect(period?.bucket).toBe("day");
     expect(period?.buckets).toHaveLength(31);
     const on = (day: string) => period?.buckets.find((b) => b.day === day)?.stats;
@@ -252,22 +253,22 @@ describe("match detail, periods and seasons", () => {
     play("S", t(9, 5, 12));
     play("C", t(9, 6, 12), { playlistId: CASUAL });
     play("O", t(10, 5, 12));
-    const period = pages().period({ kind: "month", day: "2026-10-01" }, "ranked");
+    const period = pages().period({ kind: "month", day: "2026-10-01" }, "ranked", ROLLING_WINDOW);
     expect(period?.previous?.range).toEqual({ from: t(9, 1, 4), to: t(10, 1, 4), running: false });
     expect(period?.previous?.aggregate.matches).toBe(1);
-    expect(pages().period({ kind: "all" }, "ranked")?.previous).toBeNull();
+    expect(pages().period({ kind: "all" }, "ranked", ROLLING_WINDOW)?.previous).toBeNull();
   });
 
   test("all time under a filter starts at the filter's first month", () => {
     const { play, pages } = seed();
     play("C", t(8, 20, 12), { playlistId: CASUAL });
     play("R", t(10, 5, 12));
-    const days = (filter: "ranked" | "everything") => pages().period({ kind: "all" }, filter)?.buckets.map((b) => b.day);
+    const days = (filter: "ranked" | "everything") => pages().period({ kind: "all" }, filter, ROLLING_WINDOW)?.buckets.map((b) => b.day);
     expect(days("ranked")).toEqual(["2026-10-01", "2026-11-01", "2026-12-01"]);
     expect(days("everything")?.[0]).toBe("2026-08-01");
-    expect(pages().period({ kind: "all" }, "ranked")?.firstDay).toBe("2026-10-05");
-    expect(pages().period({ kind: "all" }, "ranked")?.buckets.map((b) => b.stats.matches)).toEqual([1, 0, 0]);
-    expect(pages().period({ kind: "all" }, "ranked")?.bucket).toBe("month");
+    expect(pages().period({ kind: "all" }, "ranked", ROLLING_WINDOW)?.firstDay).toBe("2026-10-05");
+    expect(pages().period({ kind: "all" }, "ranked", ROLLING_WINDOW)?.buckets.map((b) => b.stats.matches)).toEqual([1, 0, 0]);
+    expect(pages().period({ kind: "all" }, "ranked", ROLLING_WINDOW)?.bucket).toBe("month");
   });
 
   test("rolling points: the first window reaches back before the period, played and under the filter", () => {
@@ -277,12 +278,22 @@ describe("match detail, periods and seasons", () => {
     watch("W", t(9, 26, 12)); // spectated: not counted
     play("O1", t(10, 5, 12), { won: false });
     play("O2", t(10, 6, 12), { won: false });
-    const { rolling } = pages().period({ kind: "month", day: "2026-10-01" }, "ranked") ?? { rolling: [] };
+    const { rolling } = pages().period({ kind: "month", day: "2026-10-01" }, "ranked", ROLLING_WINDOW) ?? { rolling: [] };
     expect(rolling.map((p) => [p.n, p.startedAt, p.stats.matches, p.stats.wins])).toEqual([
       [1, t(10, 5, 12), 20, 19],
       [2, t(10, 6, 12), 20, 18],
     ]);
-    expect(pages().period({ kind: "month", day: "2026-10-01" }, "casual")?.rolling).toEqual([]);
+    expect(pages().period({ kind: "month", day: "2026-10-01" }, "casual", ROLLING_WINDOW)?.rolling).toEqual([]);
+  });
+
+  test("the rolling window size comes from the caller: with 5 and nothing before, the first point is match 5", () => {
+    const { play, pages } = seed();
+    for (let d = 1; d <= 6; d++) play(`M${String(d)}`, t(10, d, 12), { won: d % 2 === 0 });
+    const { rolling } = pages().period({ kind: "month", day: "2026-10-01" }, "ranked", 5) ?? { rolling: [] };
+    expect(rolling.map((p) => [p.n, p.stats.matches, p.stats.wins])).toEqual([
+      [5, 5, 2],
+      [6, 5, 3],
+    ]);
   });
 
   test("a day bucket opens the day's first listed session under the filter, else the session holding its first match", () => {
@@ -294,12 +305,12 @@ describe("match detail, periods and seasons", () => {
     play("Y", t(10, 10, 12));
     play("Z1", t(10, 20, 3, 40)); // only its tail falls on the 20th
     play("Z2", t(10, 20, 4, 5));
-    const period = pages().period({ kind: "month", day: "2026-10-01" }, "ranked");
+    const period = pages().period({ kind: "month", day: "2026-10-01" }, "ranked", ROLLING_WINDOW);
     const session = (day: string) => period?.buckets.find((b) => b.day === day)?.session;
     expect([session("2026-10-09"), session("2026-10-10"), session("2026-10-19"), session("2026-10-20")]).toEqual(["X1", "Y", "Z1", "Z1"]);
     expect(session("2026-10-11")).toBeNull();
-    expect(pages().period({ kind: "month", day: "2026-10-01" }, "casual")?.buckets.find((b) => b.day === "2026-10-10")?.session).toBe("K");
-    expect(pages().period({ kind: "this_year" }, "ranked")?.buckets.every((b) => b.session === null)).toBe(true);
+    expect(pages().period({ kind: "month", day: "2026-10-01" }, "casual", ROLLING_WINDOW)?.buckets.find((b) => b.day === "2026-10-10")?.session).toBe("K");
+    expect(pages().period({ kind: "this_year" }, "ranked", ROLLING_WINDOW)?.buckets.every((b) => b.session === null)).toBe(true);
   });
 
   test("played days: per local day under the filter; the first day and total ignore it", () => {
@@ -323,7 +334,7 @@ describe("match detail, periods and seasons", () => {
 
   test("an unknown season is null; seasons are listed", () => {
     const { pages } = seed();
-    expect(pages().period({ kind: "season", id: 99 }, "everything")).toBeNull();
+    expect(pages().period({ kind: "season", id: 99 }, "everything", ROLLING_WINDOW)).toBeNull();
     expect(pages().seasons().map((s) => s.name)).toEqual(["S22", "S23", "S24"]);
   });
 

@@ -13,7 +13,7 @@ import { GoalMap } from "../../components/GoalMap";
 import { filterValue } from "../../../shared/playlist-filter";
 import { clock } from "../../logic/format";
 import { flagLines, flagShort, isMyMvp, letter, matchLabel, recapPath, resultWord, scoreboardTeams, scoreFor, type ScoreTeam } from "../../logic/recap";
-import { useMatchDetail } from "../../queries";
+import { useMatchDetail, useSettings } from "../../queries";
 import { ExtrasSection } from "./Overview";
 import styles from "./MatchView.module.css";
 
@@ -32,6 +32,7 @@ export function MatchView({ detail, filter, guid }: { detail: SessionDetail; fil
 
 function Rail({ detail, filter, guid }: { detail: SessionDetail; filter: PlaylistFilter; guid: string }) {
   const box = useRef<HTMLElement>(null);
+  const { clock: hours } = useSettings();
   // Keeps the open match in view: centred in the list's own scroll box, so the page doesn't move.
   useLayoutEffect(() => {
     const b = box.current;
@@ -57,13 +58,13 @@ function Rail({ detail, filter, guid }: { detail: SessionDetail; filter: Playlis
                 className={cx(styles.row, m.result === "win" && styles.win, m.result === "loss" && styles.loss)}
                 to={recapPath(detail.key, filter, { match: m.guid })}
                 aria-current={m.guid === guid ? "page" : undefined}
-                aria-label={matchLabel(m, i + 1)}
+                aria-label={matchLabel(m, i + 1, hours)}
               >
                 <i aria-hidden="true">{letter(m.result)}</i>
                 <span aria-hidden="true">
                   {playlist} <span className="num">{score}</span>
                   {mvp && <img className={styles.ico} src={mvpIcon} alt="" />}
-                  <span className={styles.meta}>#{i + 1} · {clock(m.startedAt)}</span>
+                  <span className={styles.meta}>#{i + 1} · {clock(m.startedAt, hours)}</span>
                 </span>
                 <span className={styles.flag} title={flag ?? undefined} aria-hidden="true">{flag && "⚑"}</span>
               </Link>
@@ -78,6 +79,7 @@ function Rail({ detail, filter, guid }: { detail: SessionDetail; filter: Playlis
 function Match({ detail, m, n }: { detail: SessionDetail; m: MyMatchWire; n: number }) {
   const mvp = isMyMvp(m);
   const lines = flagLines(m.flags, m.result);
+  const { clock: hours } = useSettings();
   const goals = detail.goals.filter((g) => g.matchGuid === m.guid);
   return (
     <>
@@ -91,7 +93,7 @@ function Match({ detail, m, n }: { detail: SessionDetail; m: MyMatchWire; n: num
           </h2>
           <div>
             <b>{playlistInfo(m.playlistId).name}</b>
-            <div className={styles.meta}>{clock(m.startedAt)} · match {n}</div>
+            <div className={styles.meta}>{clock(m.startedAt, hours)} · match {n}</div>
           </div>
           {mvp && (
             <span className={styles.chip}>

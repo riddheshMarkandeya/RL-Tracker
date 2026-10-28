@@ -1,17 +1,6 @@
 import { Link } from "react-router";
 import { EmptyState } from "../components/EmptyState";
 
-// Each page's content arrives with its own work package; until then it says so plainly.
-
-export function SettingsPage() {
-  return (
-    <>
-      <h1 className="visually-hidden">Settings</h1>
-      <EmptyState title="Settings are coming in a later update." />
-    </>
-  );
-}
-
 export function NotFoundPage() {
   return (
     <>

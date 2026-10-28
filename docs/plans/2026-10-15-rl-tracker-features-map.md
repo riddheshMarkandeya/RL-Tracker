@@ -324,6 +324,14 @@ mobile app are avoided, but that app is not designed here.
 - **Settings page** (grilling, 2026-10-16). Rule for v1: a setting ships now if it's a single value
   read when a page renders or a query runs, without changing stored data, or if the app is wrong
   without it. Settings that rewrite or delete data, or reach outside the app, come later.
+  - **Revisited 2026-10-28, simplest settings first (user).** This note overrides the items
+    below and in "Settings layout" where they differ:
+    - Out of v1: the headline comparison, the per-tier and per-trigger remark switches (with
+      the half-way state), the toast switch, the inline Undo, and B's theme cards (plain
+      swatches instead).
+    - Moved: the Friends link goes to WP9; the sticky section list goes to WP8b, with the You
+      and Seasons tables.
+    - Record: `2026-10-28-wp8a-settings.md`.
   - Layout: one page with a sticky list of sections on the left. The look is decided by the
     "Settings layout" prototype (below).
   - v1 sections:

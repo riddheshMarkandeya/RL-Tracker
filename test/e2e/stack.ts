@@ -158,6 +158,7 @@ async function main(): Promise<void> {
     // The installed path, so the tracker's default staticDir is what's served.
     cpSync(dist, join(dir, "bin", "web"), { recursive: true });
     const mode = process.argv[2];
+    // `settings` seeds as `rich`; its own name only buys a separate stack, so the settings it saves stay there.
     seed(dir, mode === "empty" || mode === "few" || mode === "share" ? mode : "rich");
   } catch (err) {
     removeDir(dir);

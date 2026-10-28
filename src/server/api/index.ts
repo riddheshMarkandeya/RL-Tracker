@@ -19,10 +19,12 @@ import {
   statusSchema,
   type Status,
 } from "../../shared/schemas/responses";
+import { settingsPatch, settingsSchema } from "../../shared/schemas/settings";
 import type { Db } from "../db/sqlite";
 import type { Logger } from "../log";
 import type { QueryReader } from "../query/read";
 import { createRemarks } from "../remarks/store";
+import { createSettings } from "../settings";
 import { createEventHub, type EventHubOptions } from "./events";
 import { createPages } from "./pages";
 import { matchRoute, type Route } from "./router";
@@ -70,6 +72,7 @@ export function createApi({ tracker, reader, status, staticDir, logger, now = Da
   const pages = createPages({ reader, now });
   const hub = createEventHub({ status, logger, ...eventOptions });
   const remarks = createRemarks({ tracker, pages, logger, now });
+  const settings = createSettings({ tracker, logger });
 
   const routes: Route<RouteHandler>[] = [
     { method: "GET", path: "/api/status", handler: () => ok(statusSchema, status()) },
@@ -143,7 +146,7 @@ export function createApi({ tracker, reader, status, staticDir, logger, now = Da
       path: "/api/period",
       handler: ({ query }) => {
         const p = parse(periodParams, query);
-        return orNotFound(periodResponse, pages.period(p.spec, p.filter));
+        return orNotFound(periodResponse, pages.period(p.spec, p.filter, p.window));
       },
     },
     {
@@ -155,6 +158,9 @@ export function createApi({ tracker, reader, status, staticDir, logger, now = Da
       },
     },
     { method: "GET", path: "/api/seasons", handler: () => ok(seasonsResponse, { seasons: pages.seasons() }) },
+    { method: "GET", path: "/api/settings", handler: () => ok(settingsSchema, settings.get()) },
+    // The changes ride in the query string: every setting is one scalar, and handlers are synchronous.
+    { method: "POST", path: "/api/settings", handler: ({ query }) => ok(settingsSchema, settings.save(parse(settingsPatch, query))) },
   ];
 
   function api(req: Request, server: Server<undefined>, url: URL): Response {

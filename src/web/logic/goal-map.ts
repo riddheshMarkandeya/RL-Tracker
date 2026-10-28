@@ -3,6 +3,7 @@
 import { GOAL_LINE_Y, SIDE_WALL_X } from "../../shared/constants";
 import { goalRange } from "../../shared/goal-range";
 import type { Goal, MyMatchWire } from "../../shared/schemas/responses";
+import { SPEED_LABEL, speedIn, type Units } from "./format";
 
 export const MAP_W = 560;
 export const MAP_H = (MAP_W * SIDE_WALL_X) / GOAL_LINE_Y;
@@ -63,12 +64,12 @@ function sided(matches: readonly MyMatchWire[], goals: readonly Goal[]): { goals
 
 const metres = (uu: number) => `${String(Math.round(uu / 100))} m`;
 
-function titleOf({ goal, match, side, yours }: Sided, distance: number, z: number): string {
+function titleOf({ goal, match, side, yours }: Sided, distance: number, z: number, units: Units): string {
   const who = side === "conceded" ? "conceded" : yours ? "your goal" : "a teammate's goal";
   return [
     `Match ${String(match)}`,
     who,
-    goal.speedKmh !== null && `${String(Math.round(goal.speedKmh))} km/h`,
+    goal.speedKmh !== null && `${String(Math.round(speedIn(goal.speedKmh, units.speed)))} ${SPEED_LABEL[units.speed]}`,
     `${metres(distance)} out`,
     // Height only for aerials: z is the ball's centre, so a ground ball would read "1 m up".
     goal.aerial && `aerial, ${metres(z)} up`,
@@ -79,7 +80,7 @@ function titleOf({ goal, match, side, yours }: Sided, distance: number, z: numbe
 }
 
 /** A mark per placed goal. Own goals and goals with no known scoring touch get none. */
-export function goalMarks(matches: readonly MyMatchWire[], goals: readonly Goal[]): { marks: GoalMark[]; skipped: { guid: string; goals: number }[] } {
+export function goalMarks(matches: readonly MyMatchWire[], goals: readonly Goal[], units: Units): { marks: GoalMark[]; skipped: { guid: string; goals: number }[] } {
   const { goals: all, skipped } = sided(matches, goals);
   const marks = all.flatMap((s): GoalMark[] => {
     const { goal } = s;
@@ -93,7 +94,7 @@ export function goalMarks(matches: readonly MyMatchWire[], goals: readonly Goal[
         yours: s.yours,
         aerial: goal.aerial,
         deflected: goal.deflected,
-        title: titleOf(s, goal.distance, goal.pos.z),
+        title: titleOf(s, goal.distance, goal.pos.z, units),
       },
     ];
   });

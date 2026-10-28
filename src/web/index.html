@@ -6,6 +6,10 @@
     <title>RL Tracker</title>
     <!-- No icon yet; an empty one stops the browser's /favicon.ico request and its 404. -->
     <link rel="icon" href="data:," />
+    <!-- The saved theme before the first paint (rlt-theme, written by the app): no carbon flash. -->
+    <script>
+      try { var t = localStorage.getItem("rlt-theme"); if (t === "slate" || t === "oled" || t === "carbon") document.documentElement.dataset.theme = t; } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -53,3 +53,8 @@ test("every other key is stale by default, lists and keys added later alike", ()
   expect(staleAfter("C", TODAY)(q(["period", "last7", "ranked"], {}))).toBe(true);
   expect(staleAfter(null, null)(q(["something-new"]))).toBe(true);
 });
+
+test("settings are spared: only a save changes them, and it writes the answer into the cache", () => {
+  expect(staleAfter("C", TODAY)(q(["settings"], {}))).toBe(false);
+  expect(staleAfter(null, null)(q(["settings"], {}))).toBe(false);
+});

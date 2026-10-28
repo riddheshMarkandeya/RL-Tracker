@@ -7,7 +7,7 @@ import { daysBefore, dayOf, monthOf, periodRange, type PeriodRange, type PeriodS
 import { inFilter, playlistsPresent, type PlaylistFilter } from "../../shared/playlist-filter";
 import type { LatestSession, MatchDetail, MonthFolds, PeriodView, PlayedDays, SessionDetail, SessionList, SessionSummary } from "../../shared/schemas/responses";
 import { aggregate, baseline, byPlaylist, type MyMatch } from "../../shared/aggregate";
-import { bucketKind, buckets, previousRange, ROLLING_WINDOW, rollingWindows, trendStats } from "../../shared/trends";
+import { bucketKind, buckets, previousRange, rollingWindows, trendStats } from "../../shared/trends";
 import type { MatchResult, QueryReader } from "../query/read";
 import { currentSession, cutSessions, type Session } from "../query/sessions";
 
@@ -136,7 +136,7 @@ export function createPages({ reader, now }: { reader: QueryReader; now: () => n
    * Each match counts in the period it started in; a session across an edge counts in both. Null
    * for an unknown season. Buckets and the previous period follow the filter like the aggregate.
    */
-  function period(spec: PeriodSpec, filter: PlaylistFilter): PeriodView | null {
+  function period(spec: PeriodSpec, filter: PlaylistFilter, window: number): PeriodView | null {
     const at = now();
     const seasons = reader.readSeasons();
     const range = periodRange(spec, { now: at, seasons });
@@ -169,7 +169,7 @@ export function createPages({ reader, now }: { reader: QueryReader; now: () => n
         const first = matches[start];
         return { ...b, stats: trendStats(aggregate(matches.slice(start, next))), session: next > start && first ? sessionOf(b.day, first.guid) : null };
       }),
-      rolling: rolling(idx, range, filter, matches),
+      rolling: rolling(idx, range, filter, matches, window),
     };
   }
 
@@ -186,14 +186,14 @@ export function createPages({ reader, now }: { reader: QueryReader; now: () => n
     return (day: string, firstGuid: string) => firstOfDay.get(day) ?? byGuid(firstGuid) ?? null;
   }
 
-  /** Only the last ROLLING_WINDOW − 1 matches before the period are read, so a window never needs the whole history. */
-  function rolling({ results }: Index, range: PeriodRange, filter: PlaylistFilter, matches: MyMatch[]) {
+  /** Only the last `size` − 1 matches before the period are read, so a window never needs the whole history. */
+  function rolling({ results }: Index, range: PeriodRange, filter: PlaylistFilter, matches: MyMatch[], size: number) {
     const from = range.from;
     const wanted = yours(filter);
     const prior = from === null ? [] : results.filter((r) => r.played && r.startedAt < from && wanted(r));
-    const reach = prior.slice(Math.max(0, prior.length - (ROLLING_WINDOW - 1)));
+    const reach = prior.slice(Math.max(0, prior.length - (size - 1)));
     const before = reach.length ? reader.readMyMatches({ guids: reach.map((r) => r.guid) }).filter(played) : [];
-    return rollingWindows(before, matches, ROLLING_WINDOW).map(({ n, end, window }) => ({ n, startedAt: end.startedAt, stats: trendStats(aggregate(window)) }));
+    return rollingWindows(before, matches, size).map(({ n, end, window }) => ({ n, startedAt: end.startedAt, stats: trendStats(aggregate(window)) }));
   }
 
   /** Read from the results alone (in start order): a day's count needs no sessions. */

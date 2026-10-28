@@ -3,12 +3,14 @@
 import { z } from "zod";
 import type { PeriodSpec } from "../periods";
 import type { PlaylistFilter } from "../playlist-filter";
+import { ROLLING_WINDOW } from "../trends";
+import { groupFilter, windowParam } from "./settings";
 
 const wholeId = z.string().regex(/^\d{1,9}$/).transform(Number);
 
 /** `everything | ranked | casual | extra | private | <playlist id>`, everything when left out. */
 export const filterParam = z
-  .union([z.enum(["everything", "ranked", "casual", "extra", "private"]), wholeId.transform((playlist) => ({ playlist }))])
+  .union([groupFilter, wholeId.transform((playlist) => ({ playlist }))])
   .default("everything") satisfies z.ZodType<PlaylistFilter, string | undefined>;
 
 // From 1000 on: Date maps years 0-99 onto 1900-1999, so an early day would land in the wrong century.
@@ -28,22 +30,25 @@ export const sessionsParams = z
 
 export const monthsParams = z.object({ filter: filterParam, before: dayParam });
 
+// The Trends rolling window: the page sends its setting, so the cached period is keyed by it.
+const common = { filter: filterParam, window: windowParam.default(ROLLING_WINDOW) };
+
 export const periodParams = z
   .discriminatedUnion("kind", [
-    z.object({ kind: z.enum(["day", "week", "month", "year"]), day: dayParam, filter: filterParam }),
-    z.object({ kind: z.literal("season"), season: wholeId, filter: filterParam }),
-    z.object({ kind: z.enum(["last7", "last30", "this_year", "all"]), filter: filterParam }),
+    z.object({ kind: z.enum(["day", "week", "month", "year"]), day: dayParam, ...common }),
+    z.object({ kind: z.literal("season"), season: wholeId, ...common }),
+    z.object({ kind: z.enum(["last7", "last30", "this_year", "all"]), ...common }),
   ])
-  .transform((p): { spec: PeriodSpec; filter: PlaylistFilter } => {
+  .transform((p): { spec: PeriodSpec; filter: PlaylistFilter; window: number } => {
     switch (p.kind) {
       case "season":
-        return { spec: { kind: "season", id: p.season }, filter: p.filter };
+        return { spec: { kind: "season", id: p.season }, filter: p.filter, window: p.window };
       case "day":
       case "week":
       case "month":
       case "year":
-        return { spec: { kind: p.kind, day: p.day }, filter: p.filter };
+        return { spec: { kind: p.kind, day: p.day }, filter: p.filter, window: p.window };
       default:
-        return { spec: { kind: p.kind }, filter: p.filter };
+        return { spec: { kind: p.kind }, filter: p.filter, window: p.window };
     }
   });

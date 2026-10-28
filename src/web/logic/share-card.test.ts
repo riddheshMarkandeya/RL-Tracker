@@ -20,6 +20,7 @@ const input = (over: { aggregate?: Partial<AggregateWire>; baseline?: AggregateW
   filter: over.filter ?? "everything",
   name: over.name === undefined ? "Ridd" : over.name,
   mood: over.mood === undefined ? "Tonight you were the ball's favorite." : over.mood,
+  units: over.units ?? { clock: "24h", speed: "kmh" },
 });
 const tiles = (i: ShareCardInput) => shareCard(i).tiles.map((t) => [t.label, t.value, t.sub]);
 
@@ -100,6 +101,7 @@ describe("shareCard stood out", () => {
     expect(shareCard(input({ aggregate: { hardestShotKmh: 134.24 } })).stood).toEqual({ label: "Hardest shot", text: "134 km/h" });
     expect(shareCard(input({ baseline: agg({}), aggregate: { hardestShotKmh: 98.46 } })).stood).toEqual({ label: "Hardest shot", text: "98.46 km/h" });
     expect(shareCard(input()).stood).toBeNull();
+    expect(shareCard(input({ baseline: agg({}), aggregate: { hardestShotKmh: 100 }, units: { clock: "24h", speed: "mph" } })).stood).toEqual({ label: "Hardest shot", text: "62.14 mph" });
   });
 });
 
@@ -113,9 +115,10 @@ describe("shareCard header and record", () => {
   });
 
   test("when it was and how long; a live session says so far", () => {
-    expect(shareCard(input()).when).toBe(`${dayLabel("2026-10-27")} · ${clock(START)} · 2 h 35 min`);
+    expect(shareCard(input()).when).toBe(`${dayLabel("2026-10-27")} · ${clock(START, "24h")} · 2 h 35 min`);
+    expect(shareCard(input({ units: { clock: "12h", speed: "kmh" } })).when).toBe(`${dayLabel("2026-10-27")} · ${clock(START, "12h")} · 2 h 35 min`);
     const live = shareCard(input({ current: true }));
-    expect([live.when, live.live]).toEqual([`${dayLabel("2026-10-27")} · ${clock(START)} · 2 h 35 min so far`, true]);
+    expect([live.when, live.live]).toEqual([`${dayLabel("2026-10-27")} · ${clock(START, "24h")} · 2 h 35 min so far`, true]);
   });
 
   test("the filter's label, the name and the mood pass through; missing ones stay null", () => {

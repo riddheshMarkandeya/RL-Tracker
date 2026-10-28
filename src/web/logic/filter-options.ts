@@ -14,10 +14,11 @@ export interface FilterGroup {
   options: FilterOption[];
 }
 
-/** The filter a query value names; left out is everything, a bad value is everything and `bad`. */
-export function parseFilter(value: string | null): { filter: PlaylistFilter; bad: boolean } {
-  const parsed = filterParam.safeParse(value ?? undefined);
-  return parsed.success ? { filter: parsed.data, bad: false } : { filter: "everything", bad: true };
+/** The filter a query value names; left out is the fallback (the page's default), a bad value is the fallback and `bad`. */
+export function parseFilter(value: string | null, fallback: PlaylistFilter = "everything"): { filter: PlaylistFilter; bad: boolean } {
+  if (value === null) return { filter: fallback, bad: false };
+  const parsed = filterParam.safeParse(value);
+  return parsed.success ? { filter: parsed.data, bad: false } : { filter: fallback, bad: true };
 }
 
 // Each group's playlists are listed singly under its "All" entry. Private is one entry (its ids are

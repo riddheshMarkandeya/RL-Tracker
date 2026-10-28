@@ -4,7 +4,9 @@ Tags: `[type, priority, effort]` — type bug/refactor/feature/performance/test-
 priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
 
 - [ ] **[feature, High, Substantial]** v1 roadmap: `docs/plans/2026-10-16-v1-roadmap.md`. Next:
-  WP8 (Settings). WP7 (Trends) is deployed: WP7b (the big chart,
+  WP8 (Settings), split 2026-10-28: WP8a done and reviewed, awaiting deploy
+  and the user's check on the real DB (`docs/plans/2026-10-28-wp8a-settings.md`),
+  then WP8b (the You and Seasons tables). WP7 (Trends) is deployed: WP7b (the big chart,
   rolling 20, the W/L chart with click-through, `docs/plans/2026-10-28-wp7b-trends-charts.md`) and
   WP7a (Trends page, controls and tiles, `docs/plans/2026-10-27-wp7a-trends-page.md`). WP6c (share card, `docs/plans/2026-10-27-wp6c-share-card.md`) is deployed. WP6b (remarks, `docs/plans/2026-10-27-wp6b-remarks.md`) is deployed. WP6a
   (recap pages) is deployed: WP6a-c (match page, Matches & numbers, links,
@@ -29,10 +31,12 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
     +X is assumed to be blue's left, which nothing has verified. A wrong guess mirrors the map top
     to bottom; left/right (your goal) is confirmed by real data. Fix it in `toScreen`, which has
     the tests. Record: `docs/plans/2026-10-27-wp6a-b-overview-sections.md`.
-  - **[feature, Med, Standard]** WP8 remarks settings: the master, mood-line, per-tier and
-    per-trigger switches drop triggers before `pick()` (a stored pick whose trigger is switched
-    off then re-picks, as a cut line does); the clock and speed-unit settings go through
-    `fillRemark` (the hard-shot lines carry no unit). Record: `docs/plans/2026-10-27-wp6b-remarks.md`.
+  - **[feature, Low, Standard]** Per-tier and per-trigger remark switches: deferred from v1
+    (user, 2026-10-28, simplest settings first). WP8a ships only the master and mood-line
+    switches, which change what's shown and not the pick; clock and speed go through
+    `fillRemark` there. If the switches come back, they drop triggers before `pick()`, and a
+    stored pick whose trigger is switched off re-picks, as a cut line does. Record:
+    `docs/plans/2026-10-27-wp6b-remarks.md`, `docs/plans/2026-10-28-wp8a-settings.md`.
   - **[performance, Low, Standard]** The remarks GET and ↻ each build the full `sessionDetail`
     (session cut, goals, summaries, baseline), so a recap load does that work twice. Fine at 76
     matches; give remarks a lighter read if recap loads get slow. Record:
@@ -49,8 +53,8 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
     (`supervisor/started`, then `app/started`).
 - [ ] **[design, Med, Trivial]** The "no data" toast is suppressed over the full-screen game and
   only waits in the notification panel. (Its body now names the ini problem to fix.) WP5's status
-  display is the reliable signal (`statsConfig()` carries the same diagnosis); WP8 (toast
-  switch) decides whether to try an urgent/priority toast. Record: Verification results in
+  display is the reliable signal (`statsConfig()` carries the same diagnosis). WP8 has no toast switch, dropped
+  2026-10-28 (user, simplest settings first). An urgent/priority toast is still untried. Record: Verification results in
   `docs/plans/2026-10-19-wp3b-background-process.md`.
 - [ ] **[performance, Med, Standard]** The tracker's working set peaked at 108–111 MB in the three
   10× replay runs made with Rocket League open, against the user's 100 MB threshold (WP3b decision

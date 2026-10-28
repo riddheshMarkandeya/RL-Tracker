@@ -48,17 +48,19 @@ describe("the x axis", () => {
   });
 
   test("the auto note names the bucket kind", () => {
-    expect(autoNote(2, "day")).toBe("Only 2 days with matches here, so this shows a rolling average of 20 matches instead. Pick By date to see them.");
-    expect(autoNote(1, "week")).toMatch(/^Only 1 week with matches here/);
+    expect(autoNote(2, "day", 20)).toBe("Only 2 days with matches here, so this shows a rolling average of 20 matches instead. Pick By date to see them.");
+    expect(autoNote(1, "week", 20)).toMatch(/^Only 1 week with matches here/);
+    expect(autoNote(1, "week", 10)).toContain("a rolling average of 10 matches");
   });
 });
 
 describe("labels", () => {
   test("the heading and the chart's summary", () => {
-    expect(modeText("date", "week")).toBe("per week");
-    expect(modeText("match", "day")).toBe("rolling 20 matches");
-    expect(chartSummary("Win %", "date", "day", 30, "52%")).toBe("Win % per day over 30 days; period average 52%");
-    expect(chartSummary("Win %", "match", "day", 1, null)).toBe("Win % rolling 20 matches over 1 match");
+    expect(modeText("date", "week", 20)).toBe("per week");
+    expect(modeText("match", "day", 20)).toBe("rolling 20 matches");
+    expect(modeText("match", "day", 35)).toBe("rolling 35 matches");
+    expect(chartSummary("Win %", "date", "day", 20, 30, "52%")).toBe("Win % per day over 30 days; period average 52%");
+    expect(chartSummary("Win %", "match", "day", 20, 1, null)).toBe("Win % rolling 20 matches over 1 match");
   });
 
   test("per kind", () => {
@@ -79,7 +81,7 @@ describe("points", () => {
   const view = (buckets: ViewBucket[], n = 0) => ({ bucket: "day" as const, buckets, rolling: rolling(n) });
 
   test("by date: a value per bucket with matches, hollow under 3, a title per point", () => {
-    const pts = linePoints("date", "win", view(days("2026-10-13", [2, 0, 4])), "en-GB");
+    const pts = linePoints("date", "win", view(days("2026-10-13", [2, 0, 4])), 20, "en-GB");
     expect(pts.map((p) => [p.value, p.hollow])).toEqual([
       [1, true],
       [null, false],
@@ -89,11 +91,13 @@ describe("points", () => {
   });
 
   test("by match: each point's window, and whether it reaches before the period", () => {
-    const pts = linePoints("match", "win", view([], 21), "en-GB");
+    const pts = linePoints("match", "win", view([], 21), 20, "en-GB");
     expect(pts).toHaveLength(21);
     expect(pts[0]?.title).toBe("Match 1 · 5 Oct: 50% · last 20 matches (reaches before this period)");
     expect(pts[20]?.title).toBe("Match 21 · 5 Oct: 50% · last 20 matches");
     expect(pts.every((p) => !p.hollow)).toBe(true);
+    const ten = linePoints("match", "win", view([], 21), 10, "en-GB");
+    expect([ten[8]?.title.endsWith("last 10 matches (reaches before this period)"), ten[9]?.title.endsWith("last 10 matches")]).toEqual([true, true]);
   });
 });
 
@@ -228,7 +232,7 @@ describe("where a bucket goes", () => {
 
   test("a week or month opens that period on Trends, the year and x axis reset", () => {
     const b = first(days("2026-10-12", [3]));
-    expect(bucketHref({ ...b, session: null }, "week", state)).toBe("/trends?kind=week&day=2026-10-12&metric=saves");
-    expect(bucketHref({ ...b, day: "2026-10-01", session: null }, "month", state)).toBe("/trends?kind=month&day=2026-10-01&metric=saves");
+    expect(bucketHref({ ...b, session: null }, "week", state)).toBe("/trends?kind=week&day=2026-10-12&filter=ranked&metric=saves");
+    expect(bucketHref({ ...b, day: "2026-10-01", session: null }, "month", state)).toBe("/trends?kind=month&day=2026-10-01&filter=ranked&metric=saves");
   });
 });

@@ -34,7 +34,7 @@ import {
   type Vs,
 } from "../../logic/recap";
 import { fillRemark } from "../../logic/remarks";
-import { useRemarks, useRerollRemarks } from "../../queries";
+import { useRemarks, useRerollRemarks, useSettings } from "../../queries";
 import styles from "./Overview.module.css";
 
 export function Overview({ detail, summary, filter }: { detail: SessionDetail; summary: SessionSummary; filter: PlaylistFilter }) {
@@ -74,38 +74,50 @@ function Scorebug({ detail, summary }: { detail: SessionDetail; summary: Session
   );
 }
 
-/** The mood line, ↻, and the quip. Absent while loading or when they can't be fetched: the rest of the headline doesn't wait. */
+/**
+ * The mood line, ↻, and the quip. Absent while loading or when they can't be fetched: the rest of
+ * the headline doesn't wait. With the mood line switched off, ↻ follows the quip; with no quip
+ * either, there's nothing to show.
+ */
 function Remarks({ sessionKey, filter }: { sessionKey: string; filter: PlaylistFilter }) {
+  const settings = useSettings();
   const { data } = useRemarks(sessionKey, filter);
   const reroll = useRerollRemarks(sessionKey, filter);
   if (!data) return null;
+  const quip = data.quip && fillRemark(data.quip.text, data.quip.values, settings);
+  if (!settings.moodLine && !quip) return null;
   // aria-disabled, not disabled: a disabled button drops keyboard focus mid-reroll.
   const again = () => {
     if (!reroll.isPending) reroll.mutate();
   };
+  const controls = (
+    <>
+      {" "}
+      <button type="button" className={styles.reroll} aria-label="Another remark" title="Another remark" aria-disabled={reroll.isPending} onClick={again}>↻</button>
+      {reroll.isError && (
+        <span className={styles.rerollError}>
+          Couldn't re-roll · <button type="button" className={styles.retry} onClick={again}>Retry</button>
+        </span>
+      )}
+    </>
+  );
   return (
     <div aria-live="polite">
-      <p className={styles.mood}>
-        {data.mood.text}{" "}
-        <button type="button" className={styles.reroll} aria-label="Another remark" title="Another remark" aria-disabled={reroll.isPending} onClick={again}>↻</button>
-        {reroll.isError && (
-          <span className={styles.rerollError}>
-            Couldn't re-roll · <button type="button" className={styles.retry} onClick={again}>Retry</button>
-          </span>
-        )}
-      </p>
-      {data.quip && <p className={styles.quip}>{fillRemark(data.quip.text, data.quip.values)}</p>}
+      {settings.moodLine && <p className={styles.mood}>{data.mood.text}{controls}</p>}
+      {quip && <p className={styles.quip}>{quip}{!settings.moodLine && controls}</p>}
     </div>
   );
 }
 
 function Headline({ detail, filter }: { detail: SessionDetail; filter: PlaylistFilter }) {
+  // Off, the lines aren't fetched either, so no pick is stored for a headline nobody saw.
+  const { remarks } = useSettings();
   const delta = winPctDelta(detail.aggregate, detail.baseline);
   const tiles = tilesFor(detail.aggregate, detail.baseline);
   return (
     <div className={styles.sub}>
       {/* Keyed so a reroll's pending or failed state doesn't follow you to another session. */}
-      <Remarks key={`${detail.key}|${filterValue(filter)}`} sessionKey={detail.key} filter={filter} />
+      {remarks && <Remarks key={`${detail.key}|${filterValue(filter)}`} sessionKey={detail.key} filter={filter} />}
       {delta && (
         <p className={styles.delta}>
           {delta.points === 0 ? (
@@ -139,6 +151,7 @@ function Headline({ detail, filter }: { detail: SessionDetail; filter: PlaylistF
 }
 
 function MatchCards({ matches, matchPath }: { matches: MyMatchWire[]; matchPath: (guid: string) => string }) {
+  const { clock: hours } = useSettings();
   return (
     <section aria-labelledby="matches-heading">
       <div className={styles.cardsHead}>
@@ -152,8 +165,8 @@ function MatchCards({ matches, matchPath }: { matches: MyMatchWire[]; matchPath:
           const playlist = playlistInfo(m.playlistId).name;
           return (
             <li key={m.guid}>
-              <Link to={matchPath(m.guid)} className={cx(styles.card, m.result === "win" && styles.win, m.result === "loss" && styles.loss, m.flags.length > 0 && styles.flagged)} aria-label={matchLabel(m, i + 1)}>
-                <span className={styles.t} aria-hidden="true">#{i + 1} · {clock(m.startedAt)}</span>
+              <Link to={matchPath(m.guid)} className={cx(styles.card, m.result === "win" && styles.win, m.result === "loss" && styles.loss, m.flags.length > 0 && styles.flagged)} aria-label={matchLabel(m, i + 1, hours)}>
+                <span className={styles.t} aria-hidden="true">#{i + 1} · {clock(m.startedAt, hours)}</span>
                 <b className="num" aria-hidden="true"><i>{letter(m.result)}</i> {score}</b>
                 <span className={styles.p} aria-hidden="true" title={playlist}>{playlist}</span>
                 {mvp && <img className={styles.mvp} src={mvpIcon} alt="" />}
@@ -251,7 +264,7 @@ function StandoutAndPlaylists({ detail }: { detail: SessionDetail }) {
 /** The extras tiles and highlights over these matches; the Overview's "Extras", a match page's "Your match". */
 export function ExtrasSection({ agg: a, matches, heading }: { agg: AggregateWire; matches: MyMatchWire[]; heading: string }) {
   const id = useId();
-  const cards = extrasCards(a, matches);
+  const cards = extrasCards(a, matches, useSettings());
   const hl = highlights(a.statfeed);
   if (!cards.length && !hl.length) return null;
   return (

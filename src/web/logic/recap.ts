@@ -5,7 +5,7 @@ import { playlistInfo } from "../../shared/playlists";
 import type { FlagReason } from "../../shared/flags";
 import type { AggregateWire, MatchDetail, MyMatchWire, SessionDetail } from "../../shared/schemas/responses";
 import { filterValue } from "../../shared/playlist-filter";
-import { clock, decimal } from "./format";
+import { clock, decimal, SPEED_LABEL, speedIn, type Units } from "./format";
 
 /** A share as whole percent. */
 export const pct = (share: number) => Math.round(share * 100);
@@ -112,12 +112,12 @@ export interface ExtraCard {
   id: "hardest" | "fastest" | "woodwork" | "boost" | "supersonic" | "empty" | "aerial";
   label: string;
   value: string;
-  unit: "km/h" | "%" | null;
+  unit: (typeof SPEED_LABEL)[Units["speed"]] | "%" | null;
   sub: string | null;
 }
 
 /** The extras tiles; [] when no match has its extras computed. */
-export function extrasCards(a: AggregateWire, matches: readonly MyMatchWire[]): ExtraCard[] {
+export function extrasCards(a: AggregateWire, matches: readonly MyMatchWire[], units: Units): ExtraCard[] {
   if (a.extrasMatches === 0) return [];
   // The match a record came from, among those the aggregate counted; the first on a tie.
   const counted = (m: MyMatchWire) => m.me !== null && m.me.woodworkHits !== null;
@@ -126,11 +126,13 @@ export function extrasCards(a: AggregateWire, matches: readonly MyMatchWire[]): 
     const i = matches.findIndex((m) => counted(m) && has(m));
     return i < 0 ? null : `match ${String(i + 1)}`;
   };
+  const speed = (kmh: number) => decimal(speedIn(kmh, units.speed));
+  const unit = SPEED_LABEL[units.speed];
   const cards: (ExtraCard | null)[] = [
-    a.hardestShotKmh === null ? null : { id: "hardest", label: "Hardest shot", value: decimal(a.hardestShotKmh), unit: "km/h", sub: matchOf((m) => m.me?.hardestShotKmh === a.hardestShotKmh) },
+    a.hardestShotKmh === null ? null : { id: "hardest", label: "Hardest shot", value: speed(a.hardestShotKmh), unit, sub: matchOf((m) => m.me?.hardestShotKmh === a.hardestShotKmh) },
     a.fastestGoalKmh === null
       ? null
-      : { id: "fastest", label: "Fastest goal", value: decimal(a.fastestGoalKmh), unit: "km/h", sub: matchOf((m) => m.goals.some((g) => !g.ownGoal && g.speedKmh === a.fastestGoalKmh)) },
+      : { id: "fastest", label: "Fastest goal", value: speed(a.fastestGoalKmh), unit, sub: matchOf((m) => m.goals.some((g) => !g.ownGoal && g.speedKmh === a.fastestGoalKmh)) },
     a.woodworkHits === null ? null : { id: "woodwork", label: "Crossbar hits", value: String(a.woodworkHits), unit: null, sub: null },
     a.boostAvg === null ? null : { id: "boost", label: "Avg boost", value: String(Math.round(a.boostAvg)), unit: null, sub: "your car" },
     a.supersonicShare === null ? null : { id: "supersonic", label: "Supersonic", value: String(pct(a.supersonicShare)), unit: "%", sub: "of time played" },
@@ -176,11 +178,14 @@ export const isDense = (matches: number): boolean => matches > 24;
 /** Which of a session's pages: the Overview, Matches & numbers, or one match. */
 export type RecapView = "overview" | "matches" | { match: string };
 
-/** A session's recap (or the latest one's, for a null key), with the filter unless it's the default. */
+/**
+ * A session's recap (or the latest one's, for a null key), always with its filter: the default is a
+ * setting, so a URL without one would change meaning when the setting does.
+ */
 export function recapPath(key: string | null, filter: PlaylistFilter, view: RecapView = "overview"): string {
   const session = key === null ? "/recap" : `/recap/${encodeURIComponent(key)}`;
   const path = key === null || view === "overview" ? session : view === "matches" ? `${session}/matches` : `${session}/match/${encodeURIComponent(view.match)}`;
-  return filter === "everything" ? path : `${path}?filter=${filterValue(filter)}`;
+  return `${path}?filter=${filterValue(filter)}`;
 }
 
 const counted = (r: "win" | "loss") => `counted as a ${r}`;
@@ -226,8 +231,8 @@ export const flagShort = (flags: readonly FlagReason[]): string | null => (flags
 export const isMyMvp = (m: MyMatchWire): boolean => m.me !== null && m.mvpKey === m.me.playerKey;
 
 /** How a match link is announced: "Match 2, 21:04, win, 3–1, Ranked Doubles, MVP, flagged: …". */
-export function matchLabel(m: MyMatchWire, n: number): string {
-  return [`Match ${String(n)}`, clock(m.startedAt), resultWord(m.result), scoreFor(m), playlistInfo(m.playlistId).name, isMyMvp(m) && "MVP", flagShort(m.flags)]
+export function matchLabel(m: MyMatchWire, n: number, hours: Units["clock"]): string {
+  return [`Match ${String(n)}`, clock(m.startedAt, hours), resultWord(m.result), scoreFor(m), playlistInfo(m.playlistId).name, isMyMvp(m) && "MVP", flagShort(m.flags)]
     .filter(Boolean)
     .join(", ");
 }

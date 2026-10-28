@@ -4,7 +4,7 @@
 import { useMemo } from "react";
 import type { Season } from "../../../shared/periods";
 import type { PeriodView } from "../../../shared/schemas/responses";
-import { ROLLING_WINDOW, trendStats } from "../../../shared/trends";
+import { trendStats } from "../../../shared/trends";
 import { useWidth } from "../../components/useWidth";
 import { autoNote, chartSummary, FEW, lineGeometry, linePoints, modeText, seasonMarks, type ChartMode, type LineGeometry, type LinePoint } from "../../logic/trend-chart";
 import { formatMetric, isRate, METRICS, rawValue, type MetricId, type XMode } from "../../logic/trends";
@@ -48,14 +48,15 @@ function Plot({ g, points, width, height, label, marks, avgText }: { g: LineGeom
   );
 }
 
-export function TrendChart({ view, metric, chart, seasons, onX }: { view: PeriodView; metric: MetricId; chart: ChartMode; seasons: readonly Season[]; onX: (x: XMode) => void }) {
+/** `size`: the rolling window `view` was fetched with. */
+export function TrendChart({ view, size, metric, chart, seasons, onX }: { view: PeriodView; size: number; metric: MetricId; chart: ChartMode; seasons: readonly Season[]; onX: (x: XMode) => void }) {
   const { ref, width } = useWidth<HTMLDivElement>();
   const { mode } = chart;
   const label = METRICS.find((m) => m.id === metric)?.label ?? metric;
   const avg = rawValue(metric, trendStats(view.aggregate));
   const avgText = avg === null ? null : formatMetric(metric, avg);
   // Kept across resizes: only the geometry follows the width, and By match can hold thousands of points.
-  const points = useMemo(() => linePoints(mode, metric, view), [mode, metric, view]);
+  const points = useMemo(() => linePoints(mode, metric, view, size), [mode, metric, view, size]);
   const height = heightFor(width);
   const g = width > 0 ? lineGeometry(points, avg, { width, height }, { fmt: (v) => formatMetric(metric, v), rate: isRate(metric) }) : null;
   const marks = g && mode === "date" ? seasonMarks(view.buckets, seasons).map((m) => ({ x: g.xOf(m.i), name: m.name })) : [];
@@ -63,20 +64,20 @@ export function TrendChart({ view, metric, chart, seasons, onX }: { view: Period
   return (
     <section className={styles.panel} aria-labelledby="trend-chart-h">
       <div className={styles.panelHead}>
-        <h3 id="trend-chart-h" className={styles.h3}>{label} · {modeText(mode, view.bucket)}</h3>
+        <h3 id="trend-chart-h" className={styles.h3}>{label} · {modeText(mode, view.bucket, size)}</h3>
         <div className={styles.xmode} role="group" aria-label="X axis">
           <button type="button" aria-pressed={mode === "date"} onClick={() => { onX("date"); }}>By date</button>
           <button type="button" aria-pressed={mode === "match"} onClick={() => { onX("match"); }}>By match</button>
         </div>
       </div>
-      {chart.auto && <p className={styles.note}>{autoNote(chart.withData, view.bucket)}</p>}
+      {chart.auto && <p className={styles.note}>{autoNote(chart.withData, view.bucket, size)}</p>}
       <div ref={ref} className={styles.plotBox} style={{ minHeight: height }}>
         {mode === "match" && view.rolling.length === 0 ? (
-          <p className={styles.note}>By match needs {ROLLING_WINDOW} matches with these filters.</p>
+          <p className={styles.note}>By match needs {size} matches with these filters.</p>
         ) : width > 0 && g === null ? (
           <p className={styles.note}>Nothing measured for {label} in this period.</p>
         ) : (
-          g && <Plot g={g} points={points} width={width} height={height} label={chartSummary(label, mode, view.bucket, points.length, avgText)} marks={marks} avgText={avgText} />
+          g && <Plot g={g} points={points} width={width} height={height} label={chartSummary(label, mode, view.bucket, size, points.length, avgText)} marks={marks} avgText={avgText} />
         )}
       </div>
       <div className={styles.key}>
@@ -87,7 +88,7 @@ export function TrendChart({ view, metric, chart, seasons, onX }: { view: Period
           </span>
         )}
         {mode === "match" ? (
-          <span>each point = your last {ROLLING_WINDOW} matches</span>
+          <span>each point = your last {size} matches</span>
         ) : (
           <span>
             <svg width="12" height="12" aria-hidden="true"><circle className={styles.hollow} cx="6" cy="6" r="4" /></svg>

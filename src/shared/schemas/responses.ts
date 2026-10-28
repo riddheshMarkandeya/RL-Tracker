@@ -207,7 +207,7 @@ export const periodResponse = z.object({
   bucket: z.enum(["day", "week", "month"]),
   /** `session`: for a day bucket with matches, the session its recap opens on; null otherwise. */
   buckets: z.array(z.object({ from: z.number(), to: z.number(), day: z.string(), stats: trendStatsSchema, session: z.string().nullable() })),
-  /** One point per period match `n` (from 1) that ends a full window of ROLLING_WINDOW; the window reaches back before the period. */
+  /** One point per period match `n` (from 1) that ends a full rolling window (the request's `window`); the window reaches back before the period. */
   rolling: z.array(z.object({ n: z.number(), startedAt: z.number(), stats: trendStatsSchema })),
 });
 

@@ -1,6 +1,7 @@
 // Every API query the pages share, with their cache keys. Lists live under "sessions"; a session's
 // detail, the heavy one, is "session"; one match with every player is "match"; a session's headline
-// lines are "remarks"; the Trends page reads "period", "played-days" and "seasons".
+// lines are "remarks"; the Trends page reads "period", "played-days" and "seasons"; every page reads
+// "settings".
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { REQUEST_HEADER } from "../shared/constants";
 import { filterValue, type PlaylistFilter } from "../shared/playlist-filter";
@@ -16,7 +17,9 @@ import {
   sessionDetailResponse,
   sessionsResponse,
 } from "../shared/schemas/responses";
+import { DEFAULT_SETTINGS, settingsSchema, type Settings, type SettingsPatch } from "../shared/schemas/settings";
 import { getJson, postJson } from "./api";
+import { patchQuery } from "./logic/settings";
 import { periodQuery } from "./logic/trends";
 
 /** The current session under "everything", for the header chip and the Start new session button. */
@@ -69,11 +72,13 @@ const remarksPath = (key: string) => `/api/sessions/${encodeURIComponent(key)}/r
 const remarksKey = (key: string, f: string) => ["remarks", key, f] as const;
 
 /** A session's headline lines under the filter. The server stores them, so a refetch gives the same lines unless the live session moved on. */
-export function useRemarks(key: string, filter: PlaylistFilter) {
+export function useRemarks(key: string, filter: PlaylistFilter, enabled = true) {
   const f = filterValue(filter);
   return useQuery({
     queryKey: remarksKey(key, f),
     queryFn: () => getJson(`${remarksPath(key)}?filter=${f}`, remarksResponse),
+    // Off, nothing is fetched: the first GET would store a pick for a headline nobody sees.
+    enabled,
   });
 }
 
@@ -96,12 +101,12 @@ export function useRerollRemarks(key: string, filter: PlaylistFilter) {
  * A period under the filter, with the period it's compared with and its buckets. Keyed by today too:
  * cached queries never go stale, and a rolling or running period moves on at the day's cutoff.
  */
-export function usePeriod(spec: PeriodSpec, filter: PlaylistFilter, today: string) {
+export function usePeriod(spec: PeriodSpec, filter: PlaylistFilter, today: string, window: number) {
   const f = filterValue(filter);
   const q = periodQuery(spec).toString();
   return useQuery({
-    queryKey: ["period", q, f, today],
-    queryFn: () => getJson(`/api/period?${q}&filter=${f}`, periodResponse),
+    queryKey: ["period", q, f, today, window],
+    queryFn: () => getJson(`/api/period?${q}&filter=${f}&window=${String(window)}`, periodResponse),
   });
 }
 
@@ -122,5 +127,33 @@ export function useSeasons() {
     queryKey: ["seasons"],
     queryFn: () => getJson("/api/seasons", seasonsResponse),
     select: (data) => data.seasons,
+  });
+}
+
+const SETTINGS_KEY = ["settings"] as const;
+
+/** The settings query itself, for the app's first-load gate and the Settings page's error state. */
+export function useSettingsQuery() {
+  // No retries: the app waits on the first load, and on a failure it should go on with the defaults at once.
+  return useQuery({ queryKey: SETTINGS_KEY, queryFn: () => getJson("/api/settings", settingsSchema), retry: false });
+}
+
+/** The settings every page reads; the defaults until they load, or if they can't. */
+export function useSettings(): Settings {
+  return useSettingsQuery().data ?? DEFAULT_SETTINGS;
+}
+
+/** Saves some settings; the answer is all of them, put straight into the cache. */
+export function useSaveSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    // One at a time across every row: each answer is the whole object, so an older one landing last would win.
+    scope: { id: "settings" },
+    mutationFn: (patch: SettingsPatch) => postJson(`/api/settings?${patchQuery(patch)}`, { [REQUEST_HEADER]: "1" }, settingsSchema),
+    onSuccess: async (data) => {
+      // A refetch a reconnect started before the save would land with the old values.
+      await queryClient.cancelQueries({ queryKey: SETTINGS_KEY });
+      queryClient.setQueryData(SETTINGS_KEY, data);
+    },
   });
 }

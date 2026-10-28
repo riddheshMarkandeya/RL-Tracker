@@ -38,7 +38,6 @@ export type XMode = "date" | "match";
 export type XAsk = "auto" | XMode;
 
 const DEFAULT_SPEC: PeriodSpec = { kind: "last30" };
-const DEFAULT_FILTER: PlaylistFilter = "ranked";
 const TREND_KINDS = new Set(["last7", "last30", "week", "month", "season", "this_year", "all"]);
 
 /** A week as its Monday and a month as its 1st, so a quick pick and the URL compare exactly. */
@@ -49,7 +48,7 @@ function normal(spec: PeriodSpec): PeriodSpec {
 }
 
 /** The state the query string names; each bad value falls back to its default and is named in `bad`. */
-export function parseTrends(params: URLSearchParams): { state: TrendsState; bad: string[] } {
+export function parseTrends(params: URLSearchParams, defaultFilter: PlaylistFilter): { state: TrendsState; bad: string[] } {
   const bad: string[] = [];
   const get = (key: string) => params.get(key) ?? undefined;
 
@@ -61,13 +60,9 @@ export function parseTrends(params: URLSearchParams): { state: TrendsState; bad:
     else bad.push("kind");
   }
 
-  let filter = DEFAULT_FILTER;
-  const rawFilter = params.get("filter");
-  if (rawFilter !== null) {
-    const parsed = parseFilter(rawFilter);
-    if (parsed.bad) bad.push("filter");
-    else filter = parsed.filter;
-  }
+  const parsed = parseFilter(params.get("filter"), defaultFilter);
+  if (parsed.bad) bad.push("filter");
+  const filter = parsed.filter;
 
   let metric: MetricId = "win";
   const rawMetric = get("metric");
@@ -105,7 +100,8 @@ export function periodQuery(spec: PeriodSpec): URLSearchParams {
 export function trendsPath({ spec, filter, metric, year, x }: TrendsState): string {
   const q = periodQuery(spec);
   if (spec.kind === DEFAULT_SPEC.kind) q.delete("kind");
-  if (filterValue(filter) !== filterValue(DEFAULT_FILTER)) q.set("filter", filterValue(filter));
+  // Always written: the default filter is a setting, so leaving it out would change what a link means.
+  q.set("filter", filterValue(filter));
   if (metric !== "win") q.set("metric", metric);
   if (year !== null) q.set("year", String(year));
   if (x !== "auto") q.set("x", x);

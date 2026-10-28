@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import type { Goal, MyMatchWire } from "../../shared/schemas/responses";
 import { goalMarks, goalSummary, MAP_H, MAP_W, markScale, toScreen } from "./goal-map";
 
+const KMH = { clock: "24h", speed: "kmh" } as const;
+
 const match = (guid: string, teamNum: number | null, playerKey = "me") => ({ guid, me: { playerKey, teamNum } }) as unknown as MyMatchWire;
 let idx = 0;
 const goal = (matchGuid: string, over: Partial<Goal>): Goal => ({
@@ -47,7 +49,7 @@ describe("goalMarks", () => {
       goal("a", {}),
       goal("a", { scorerKey: "mate", deflected: true, speedKmh: null }),
       goal("b", { teamNum: 0, scorerKey: "opp", pos: { x: 0, y: -2000, z: 700 }, distance: 7120, aerial: true, deflected: true }),
-    ]);
+    ], KMH);
     expect(skipped).toEqual([]);
     expect(marks.map((m) => [m.matchGuid, m.side, m.yours, m.aerial, m.deflected])).toEqual([
       ["a", "scored", true, false, false],
@@ -61,13 +63,18 @@ describe("goalMarks", () => {
     ]);
   });
 
+  test("a goal's speed in the speed setting's unit", () => {
+    const { marks } = goalMarks([match("a", 0)], [goal("a", {})], { ...KMH, speed: "mph" });
+    expect(marks[0]?.title).toBe("Match 1 · your goal · 70 mph · 12 m out");
+  });
+
   test("own goals and unplaced goals get no mark", () => {
-    const { marks } = goalMarks([match("a", 0)], [goal("a", { ownGoal: true, pos: null, distance: null }), goal("a", { pos: null, distance: null })]);
+    const { marks } = goalMarks([match("a", 0)], [goal("a", { ownGoal: true, pos: null, distance: null }), goal("a", { pos: null, distance: null })], KMH);
     expect(marks).toEqual([]);
   });
 
   test("a match with no team for you is skipped, with its goal count", () => {
-    const { marks, skipped } = goalMarks([match("a", null), match("b", 0)], [goal("a", {}), goal("a", {}), goal("b", {})]);
+    const { marks, skipped } = goalMarks([match("a", null), match("b", 0)], [goal("a", {}), goal("a", {}), goal("b", {})], KMH);
     expect(marks.map((m) => m.key.split(":")[0])).toEqual(["b"]);
     expect(skipped).toEqual([{ guid: "a", goals: 2 }]);
   });
