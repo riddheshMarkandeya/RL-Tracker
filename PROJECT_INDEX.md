@@ -81,6 +81,10 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-28-wp7b-trends-charts.md`: WP7b plan (Trends charts: the big chart By date /
+  By match with rolling 20 served by `/api/period`, auto x mode and `x` in the URL, the W/L chart
+  whose columns open a day's recap or a week/month), review log.
+- `docs/reviews/2026-10-28-wp7b-trends-charts.md`: WP7b review summary (4 rounds).
 - `docs/plans/2026-10-27-wp7a-trends-page.md`: WP7a plan (Trends page: shared buckets and previous
   period, `/api/period` with previous + buckets, `/api/played-days`, period controls, year strip,
   header, six tiles with sparklines), review log.

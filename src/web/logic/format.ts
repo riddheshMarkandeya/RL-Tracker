@@ -21,17 +21,23 @@ export const clock = (ms: number, locale?: string) => new Date(ms).toLocaleTimeS
 
 export const timeRange = (start: number, end: number, locale?: string): string => `${clock(start, locale)} – ${clock(end, locale)}`;
 
-/** "Mon 19 Oct" (in the reader's locale order); the date alone, so no zone can shift it. */
-export function dayLabel(day: string, locale?: string): string {
+/** A `YYYY-MM-DD` day or `YYYY-MM` month formatted as the date alone, so no zone can shift it. */
+function utcDate(day: string, locale: string | undefined, options: Intl.DateTimeFormatOptions): string {
   const [y = 0, m = 1, d = 1] = day.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).replace(",", "");
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, { ...options, timeZone: "UTC" });
 }
 
+/** "Mon 19 Oct" (in the reader's locale order). */
+export const dayLabel = (day: string, locale?: string): string => utcDate(day, locale, { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
+
+/** "19 Oct". */
+export const shortDayLabel = (day: string, locale?: string): string => utcDate(day, locale, { day: "numeric", month: "short" });
+
 /** "September 2026" for a `YYYY-MM` month. */
-export function monthLabel(month: string, locale?: string): string {
-  const [y = 0, m = 1] = month.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(locale, { month: "long", year: "numeric", timeZone: "UTC" });
-}
+export const monthLabel = (month: string, locale?: string): string => utcDate(month, locale, { month: "long", year: "numeric" });
+
+/** "Sep 2026" for a `YYYY-MM` month. */
+export const shortMonthLabel = (month: string, locale?: string): string => utcDate(month, locale, { month: "short", year: "numeric" });
 
 /** "1 win", "2 wins"; `many` for a plural that isn't one plus "s". */
 export const plural = (n: number, one: string, many = `${one}s`): string => `${String(n)} ${n === 1 ? one : many}`;

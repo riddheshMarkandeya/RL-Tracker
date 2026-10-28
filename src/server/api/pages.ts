@@ -7,7 +7,7 @@ import { daysBefore, dayOf, monthOf, periodRange, type PeriodRange, type PeriodS
 import { inFilter, playlistsPresent, type PlaylistFilter } from "../../shared/playlist-filter";
 import type { LatestSession, MatchDetail, MonthFolds, PeriodView, PlayedDays, SessionDetail, SessionList, SessionSummary } from "../../shared/schemas/responses";
 import { aggregate, baseline, byPlaylist, type MyMatch } from "../../shared/aggregate";
-import { bucketKind, buckets, previousRange, trendStats } from "../../shared/trends";
+import { bucketKind, buckets, previousRange, ROLLING_WINDOW, rollingWindows, trendStats } from "../../shared/trends";
 import type { MatchResult, QueryReader } from "../query/read";
 import { currentSession, cutSessions, type Session } from "../query/sessions";
 
@@ -150,6 +150,8 @@ export function createPages({ reader, now }: { reader: QueryReader; now: () => n
     // the matches in one pass.
     const firstDay = matches[0] ? dayOf(matches[0].startedAt) : null;
     const prevRange = previousRange(spec, range, { now: at, seasons });
+    const kind = bucketKind(spec);
+    const sessionOf = kind === "day" ? daySessions(idx, filter) : () => null;
     let next = 0;
     return {
       range,
@@ -158,15 +160,40 @@ export function createPages({ reader, now }: { reader: QueryReader; now: () => n
       sessions: idx.all.filter((s) => idx.rowsOf(s, filter).some(inRange)).length,
       previous: prevRange && { range: prevRange, aggregate: aggregate(mine(prevRange).filter(yours(filter))) },
       firstDay,
-      bucket: bucketKind(spec),
+      bucket: kind,
       buckets: buckets(spec, range, { now: at, firstDay }).map((b) => {
         const startsBefore = (t: number) => (matches[next]?.startedAt ?? Infinity) < t;
         while (startsBefore(b.from)) next++;
         const start = next;
         while (startsBefore(b.to)) next++;
-        return { ...b, stats: trendStats(aggregate(matches.slice(start, next))) };
+        const first = matches[start];
+        return { ...b, stats: trendStats(aggregate(matches.slice(start, next))), session: next > start && first ? sessionOf(b.day, first.guid) : null };
       }),
+      rolling: rolling(idx, range, filter, matches),
     };
+  }
+
+  /**
+   * Where a day's recap opens: the day's first listed session, or, for a day holding only the tail
+   * of a session that began before the cutoff, the session of the day's first match.
+   */
+  function daySessions(idx: Index, filter: PlaylistFilter) {
+    const firstOfDay = new Map<string, string>();
+    for (const s of summaries(idx, filter)) if (!firstOfDay.has(s.day)) firstOfDay.set(s.day, s.key);
+    // The fallback is rare, so its map over every session is built on first use.
+    let keyByGuid: Map<string, string> | undefined;
+    const byGuid = (g: string) => (keyByGuid ??= new Map(idx.all.flatMap((s) => s.guids.map((guid) => [guid, s.key] as const)))).get(g);
+    return (day: string, firstGuid: string) => firstOfDay.get(day) ?? byGuid(firstGuid) ?? null;
+  }
+
+  /** Only the last ROLLING_WINDOW − 1 matches before the period are read, so a window never needs the whole history. */
+  function rolling({ results }: Index, range: PeriodRange, filter: PlaylistFilter, matches: MyMatch[]) {
+    const from = range.from;
+    const wanted = yours(filter);
+    const prior = from === null ? [] : results.filter((r) => r.played && r.startedAt < from && wanted(r));
+    const reach = prior.slice(Math.max(0, prior.length - (ROLLING_WINDOW - 1)));
+    const before = reach.length ? reader.readMyMatches({ guids: reach.map((r) => r.guid) }).filter(played) : [];
+    return rollingWindows(before, matches, ROLLING_WINDOW).map(({ n, end, window }) => ({ n, startedAt: end.startedAt, stats: trendStats(aggregate(window)) }));
   }
 
   /** Read from the results alone (in start order): a day's count needs no sessions. */

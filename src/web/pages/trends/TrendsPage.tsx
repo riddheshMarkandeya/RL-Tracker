@@ -1,18 +1,21 @@
 // The Trends page: the period controls and year strip, the period's title line, then its stats
-// line and the six tiles. The state lives in the query string. The controls and the title line are
-// built from the URL and the seasons alone, so they stay mounted while a period loads and focus
-// stays on the control used; only the stats and tiles wait for the period.
+// line, the six tiles and the two charts. The state lives in the query string. The controls and the
+// title line are built from the URL and the seasons alone, so they stay mounted while a period
+// loads and focus stays on the control used; only the stats, tiles and charts wait for the period.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { dayOf, periodRange, shiftDay } from "../../../shared/periods";
 import { EmptyState } from "../../components/EmptyState";
 import { Loading } from "../../components/Loading";
-import { ENOUGH_MATCHES, parseTrends, stripYear, trendsPath, type TrendsState } from "../../logic/trends";
+import { chartMode } from "../../logic/trend-chart";
+import { ENOUGH_MATCHES, parseTrends, patchTrends, stripYear, trendsPath, type TrendsState } from "../../logic/trends";
 import { usePeriod, usePlayedDays, useSeasons } from "../../queries";
 import { MetricTiles } from "./MetricTiles";
 import { PeriodControls } from "./PeriodControls";
 import { PeriodHeader, StatsLine } from "./PeriodHeader";
+import { TrendChart } from "./TrendChart";
 import styles from "./Trends.module.css";
+import { WinLossChart } from "./WinLossChart";
 
 const Title = () => <h1 className="visually-hidden">Trends</h1>;
 
@@ -57,7 +60,21 @@ export function TrendsPage() {
   const fromDay = range && range.from !== null ? dayOf(range.from) : (period.data?.firstDay ?? null);
   const days = fromDay !== null && range && range.to > (range.from ?? -Infinity) ? { from: fromDay, last: lastDay < fromDay ? fromDay : lastDay } : null;
 
-  const go = (patch: Partial<TrendsState>) => { void navigate(trendsPath({ ...state, ...patch })); };
+  const go = (patch: Partial<TrendsState>) => { void navigate(trendsPath(patchTrends(state, patch))); };
+
+  // Logged when the chart's mode or its inputs change, so the console says why By match was shown.
+  const chart = period.data ? chartMode(state.x, period.data.buckets, period.data.rolling.length) : null;
+  const rolling = period.data?.rolling.length;
+  const [mode, auto, withData] = [chart?.mode, chart?.auto, chart?.withData];
+  useEffect(() => {
+    if (mode !== undefined) console.debug("[rlt] trends/chart", { mode, auto, withData, rolling });
+  }, [mode, auto, withData, rolling]);
+  // A day with matches but no session to open has no link; the server's fallback should rule it out.
+  // Joined, so the effect's dependency is a value that only changes when the days do.
+  const orphans = period.data?.bucket === "day" ? period.data.buckets.filter((b) => b.stats.matches > 0 && b.session === null).map((b) => b.day).join(",") : "";
+  useEffect(() => {
+    if (orphans) console.warn("[rlt] trends/day_no_session", { days: orphans.split(",") });
+  }, [orphans]);
 
   // The filter's options are the period's playlists; kept from the last load, so the select stays
   // mounted (and focused) while the next period loads.
@@ -134,6 +151,8 @@ export function TrendsPage() {
             <>
               <StatsLine view={period.data} />
               <MetricTiles view={period.data} metric={state.metric} onMetric={(metric) => { go({ metric }); }} />
+              {chart && <TrendChart view={period.data} metric={state.metric} chart={chart} seasons={seasons.data} onX={(x) => { go({ x }); }} />}
+              <WinLossChart view={period.data} state={state} seasons={seasons.data} />
             </>
           )}
         </>

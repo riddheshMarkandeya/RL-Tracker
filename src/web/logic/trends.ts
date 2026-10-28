@@ -1,4 +1,4 @@
-// The Trends page's state and text: the period, filter, metric and strip year in the query string,
+// The Trends page's state and text: the period, filter, metric, strip year and x axis in the query string,
 // the quick picks, ‹ › and their bounds, the header's lines, the tiles and the year strip's layout.
 // Days are local `YYYY-MM-DD` with the 4am cutoff; the page passes today as `dayOf(Date.now())`.
 import { calendarSpan, monthOf, monthStart, nextMonthStart, seasonsByStart, shiftDay, weekStart, type PeriodSpec, type Season } from "../../shared/periods";
@@ -30,7 +30,12 @@ export interface TrendsState {
   metric: MetricId;
   /** The strip's year; null is the year the period ends in. */
   year: number | null;
+  /** The big chart's x axis; auto picks By match for a period with few buckets with matches. */
+  x: XAsk;
 }
+
+export type XMode = "date" | "match";
+export type XAsk = "auto" | XMode;
 
 const DEFAULT_SPEC: PeriodSpec = { kind: "last30" };
 const DEFAULT_FILTER: PlaylistFilter = "ranked";
@@ -79,7 +84,14 @@ export function parseTrends(params: URLSearchParams): { state: TrendsState; bad:
     if (parsed.success) year = parsed.data;
     else bad.push("year");
   }
-  return { state: { spec, filter, metric, year }, bad };
+
+  let x: XAsk = "auto";
+  const rawX = get("x");
+  if (rawX !== undefined) {
+    if (rawX === "auto" || rawX === "date" || rawX === "match") x = rawX;
+    else bad.push("x");
+  }
+  return { state: { spec, filter, metric, year, x }, bad };
 }
 
 /** A period as the query parameters `/api/period` and the page's URL both take. */
@@ -90,15 +102,23 @@ export function periodQuery(spec: PeriodSpec): URLSearchParams {
   return q;
 }
 
-export function trendsPath({ spec, filter, metric, year }: TrendsState): string {
+export function trendsPath({ spec, filter, metric, year, x }: TrendsState): string {
   const q = periodQuery(spec);
   if (spec.kind === DEFAULT_SPEC.kind) q.delete("kind");
   if (filterValue(filter) !== filterValue(DEFAULT_FILTER)) q.set("filter", filterValue(filter));
   if (metric !== "win") q.set("metric", metric);
   if (year !== null) q.set("year", String(year));
+  if (x !== "auto") q.set("x", x);
   const s = q.toString();
   return s ? `/trends?${s}` : "/trends";
 }
+
+/** The state after a change. A new period or filter puts the x axis back on auto: what fits one period doesn't carry over. */
+export const patchTrends = (state: TrendsState, patch: Partial<TrendsState>): TrendsState => ({
+  ...state,
+  ...("spec" in patch || "filter" in patch ? { x: "auto" } : {}),
+  ...patch,
+});
 
 /** The strip's year: the one asked for, else the year the period ends in, but never past today's. */
 export const stripYear = (asked: number | null, lastDay: string, today: string): number =>
@@ -202,7 +222,7 @@ export function comparedText(spec: PeriodSpec, { hasPrevious, previousMatches }:
 /** "still running" belongs to a calendar period that hasn't ended; the rolling ones always run. */
 export const showsRunning = (spec: PeriodSpec, running: boolean): boolean => running && ["week", "month", "season", "this_year"].includes(spec.kind);
 
-function rawValue(id: MetricId, s: TrendStats): number | null {
+export function rawValue(id: MetricId, s: TrendStats): number | null {
   switch (id) {
     case "win":
       return s.winPct;
@@ -213,13 +233,15 @@ function rawValue(id: MetricId, s: TrendStats): number | null {
   }
 }
 
-const isRate = (id: MetricId) => METRICS.find((m) => m.id === id)?.rate === true;
+export const isRate = (id: MetricId) => METRICS.find((m) => m.id === id)?.rate === true;
 
-/** The tile's value: a rate in whole percent, a per-game stat to 2 decimals, "–" when nothing was measured. */
+/** A rate in whole percent, a per-game stat to 2 decimals. */
+export const formatMetric = (id: MetricId, v: number): string => (isRate(id) ? `${String(pct(v))}%` : decimal(v));
+
+/** The tile's value, or "–" when nothing was measured. */
 export function metricValue(id: MetricId, s: TrendStats): string {
   const v = rawValue(id, s);
-  if (v === null) return "–";
-  return isRate(id) ? `${String(pct(v))}%` : decimal(v);
+  return v === null ? "–" : formatMetric(id, v);
 }
 
 export interface Delta {
@@ -250,11 +272,11 @@ export function sparkPath(id: MetricId, buckets: readonly TrendStats[]): string 
   const lo = Math.min(...have);
   const span = Math.max(...have) - lo || 1;
   const step = 100 / Math.max(1, values.length - 1);
-  return values
-    .flatMap((v, i) => (v === null ? [] : [[i * step, 22 - ((v - lo) / span) * 20] as const]))
-    .map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`)
-    .join("");
+  return polyline(values.flatMap((v, i) => (v === null ? [] : [{ x: i * step, y: 22 - ((v - lo) / span) * 20 }])));
 }
+
+/** An SVG path through the points in order. */
+export const polyline = (points: readonly { x: number; y: number }[]): string => points.map((q, i) => `${i ? "L" : "M"}${q.x.toFixed(1)} ${q.y.toFixed(1)}`).join("");
 
 export interface StripBox {
   left: number;

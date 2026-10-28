@@ -205,7 +205,10 @@ export const periodResponse = z.object({
   /** The first day with a match of yours under the filter in the range; all time starts there. */
   firstDay: z.string().nullable(),
   bucket: z.enum(["day", "week", "month"]),
-  buckets: z.array(z.object({ from: z.number(), to: z.number(), day: z.string(), stats: trendStatsSchema })),
+  /** `session`: for a day bucket with matches, the session its recap opens on; null otherwise. */
+  buckets: z.array(z.object({ from: z.number(), to: z.number(), day: z.string(), stats: trendStatsSchema, session: z.string().nullable() })),
+  /** One point per period match `n` (from 1) that ends a full window of ROLLING_WINDOW; the window reaches back before the period. */
+  rolling: z.array(z.object({ n: z.number(), startedAt: z.number(), stats: trendStatsSchema })),
 });
 
 /** Matches you played per local day of a year under the filter; `firstDay` and `totalMatches` cover every match you played, whatever the filter. */

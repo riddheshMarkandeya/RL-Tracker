@@ -270,6 +270,38 @@ describe("match detail, periods and seasons", () => {
     expect(pages().period({ kind: "all" }, "ranked")?.bucket).toBe("month");
   });
 
+  test("rolling points: the first window reaches back before the period, played and under the filter", () => {
+    const { play, watch, pages } = seed();
+    for (let d = 1; d <= 19; d++) play(`S${String(d)}`, t(9, d, 12));
+    play("C", t(9, 25, 12), { playlistId: CASUAL, won: false }); // outside the filter: not counted
+    watch("W", t(9, 26, 12)); // spectated: not counted
+    play("O1", t(10, 5, 12), { won: false });
+    play("O2", t(10, 6, 12), { won: false });
+    const { rolling } = pages().period({ kind: "month", day: "2026-10-01" }, "ranked") ?? { rolling: [] };
+    expect(rolling.map((p) => [p.n, p.startedAt, p.stats.matches, p.stats.wins])).toEqual([
+      [1, t(10, 5, 12), 20, 19],
+      [2, t(10, 6, 12), 20, 18],
+    ]);
+    expect(pages().period({ kind: "month", day: "2026-10-01" }, "casual")?.rolling).toEqual([]);
+  });
+
+  test("a day bucket opens the day's first listed session under the filter, else the session holding its first match", () => {
+    const { play, pages } = seed();
+    play("X1", t(10, 10, 3, 30)); // starts on the 9th by the cutoff, runs past it
+    play("X2", t(10, 10, 3, 55));
+    play("X3", t(10, 10, 4, 20));
+    play("K", t(10, 10, 8), { playlistId: CASUAL }); // filtered out
+    play("Y", t(10, 10, 12));
+    play("Z1", t(10, 20, 3, 40)); // only its tail falls on the 20th
+    play("Z2", t(10, 20, 4, 5));
+    const period = pages().period({ kind: "month", day: "2026-10-01" }, "ranked");
+    const session = (day: string) => period?.buckets.find((b) => b.day === day)?.session;
+    expect([session("2026-10-09"), session("2026-10-10"), session("2026-10-19"), session("2026-10-20")]).toEqual(["X1", "Y", "Z1", "Z1"]);
+    expect(session("2026-10-11")).toBeNull();
+    expect(pages().period({ kind: "month", day: "2026-10-01" }, "casual")?.buckets.find((b) => b.day === "2026-10-10")?.session).toBe("K");
+    expect(pages().period({ kind: "this_year" }, "ranked")?.buckets.every((b) => b.session === null)).toBe(true);
+  });
+
   test("played days: per local day under the filter; the first day and total ignore it", () => {
     const { play, watch, pages } = seed();
     play("C", t(3, 2, 12), { playlistId: CASUAL });

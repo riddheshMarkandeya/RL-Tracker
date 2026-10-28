@@ -106,3 +106,21 @@ export function trendStats(a: Aggregate): TrendStats {
     perGame: { goals: a.perGame.goals, assists: a.perGame.assists, saves: a.perGame.saves, shots: a.perGame.shots },
   };
 }
+
+/** How many matches a By match point averages. */
+export const ROLLING_WINDOW = 20;
+
+/**
+ * The full windows of `size` that end at each of the period's matches, in start order. `before`
+ * is the history ahead of the period, oldest first, so the first points already count `size`
+ * matches; only its last `size − 1` can reach a window. `n` numbers the period's match a window
+ * ends at (`end`), from 1.
+ */
+export function rollingWindows<T>(before: readonly T[], inPeriod: readonly T[], size: number): { n: number; end: T; window: T[] }[] {
+  const reach = before.slice(Math.max(0, before.length - (size - 1)));
+  const all = [...reach, ...inPeriod];
+  return inPeriod.flatMap((end, i) => {
+    const to = reach.length + i + 1;
+    return to >= size ? [{ n: i + 1, end, window: all.slice(to - size, to) }] : [];
+  });
+}

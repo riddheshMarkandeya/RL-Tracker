@@ -64,3 +64,37 @@
 .delta { font-size: 12px; min-height: 1.45em; }
 .spark { width: 100%; height: 24px; }
 .spark path { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+
+/* The big chart and the W/L chart: drawn at the measured width, so the axis text keeps its size. */
+.panel { margin-top: var(--s4); background: var(--surf); border: 1px solid var(--line); border-radius: var(--r); padding: var(--s4); min-width: 0; }
+.panelHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s3); }
+.h3 { margin: 0; font-size: 16px; }
+.hint2 { font-size: 13px; font-weight: 400; color: var(--muted); }
+.note { margin: var(--s2) 0 0; font-size: 12px; color: var(--ink2); }
+.xmode { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.xmode button { background: var(--surf2); border: 0; padding: 4px 12px; color: var(--ink2); font-weight: 600; cursor: pointer; transition: background-color .12s; }
+.xmode button + button { border-left: 1px solid var(--line); }
+.xmode button:hover { color: var(--ink); }
+.xmode button[aria-pressed=true] { background: var(--accent); color: var(--page); }
+/* Wider than either chart's padding, which their geometry assumes. */
+.plotBox { margin-top: var(--s3); min-width: 120px; }
+.chart { display: block; overflow: visible; }
+.axis { fill: var(--muted); font-size: 11px; }
+.grid { stroke: var(--grid); stroke-width: 1; }
+.mark { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; }
+.avg { stroke: var(--ink2); stroke-width: 1.5; stroke-dasharray: 2 3; }
+.line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.dot { fill: var(--accent); stroke: var(--surf); stroke-width: 2; }
+.hollow { fill: var(--surf); stroke: var(--accent); stroke-width: 2; }
+.col rect { fill: transparent; }
+.col line { stroke: var(--ink2); stroke-width: 1; opacity: 0; }
+.col:hover line { opacity: .5; }
+.key { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); margin-top: var(--s2); font-size: 12px; color: var(--ink2); }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.winBar { fill: var(--win); }
+.lossBar { fill: var(--loss); }
+.hit { fill: transparent; }
+.wlLink { cursor: pointer; }
+.wlLink:hover .hit { fill: var(--surf2); }
+.wlLink:focus { outline: none; }
+.wlLink:focus-visible .hit { stroke: var(--accent); stroke-width: 2; }

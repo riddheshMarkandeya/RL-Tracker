@@ -6,6 +6,7 @@ import {
   metricDelta,
   metricValue,
   parseTrends,
+  patchTrends,
   periodTitle,
   quickPicks,
   rangeText,
@@ -29,7 +30,7 @@ const parse = (q: string) => parseTrends(new URLSearchParams(q));
 
 describe("the URL", () => {
   test("left out: last 30 days, all ranked, win %, the strip on the period's year", () => {
-    expect(parse("")).toEqual({ state: { spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null }, bad: [] });
+    expect(parse("")).toEqual({ state: { spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null, x: "auto" }, bad: [] });
   });
 
   test("a week is stored as its Monday and a month as its 1st", () => {
@@ -39,18 +40,28 @@ describe("the URL", () => {
   });
 
   test("bad values fall back to the default, each named once", () => {
-    const { state, bad } = parse("kind=year&day=2026-01-01&filter=nope&metric=demos&year=26");
-    expect(state).toEqual({ spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null });
-    expect(bad).toEqual(["kind", "filter", "metric", "year"]);
+    const { state, bad } = parse("kind=year&day=2026-01-01&filter=nope&metric=demos&year=26&x=time");
+    expect(state).toEqual({ spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null, x: "auto" });
+    expect(bad).toEqual(["kind", "filter", "metric", "year", "x"]);
     expect(parse("kind=week&day=2026-02-30").bad).toEqual(["kind"]);
+    expect(parse("x=auto").bad).toEqual([]);
   });
 
   test("round trip, defaults left out", () => {
-    const state: TrendsState = { spec: { kind: "week", day: "2026-10-26" }, filter: { playlist: 13 }, metric: "saves", year: 2025 };
-    expect(trendsPath(state)).toBe("/trends?kind=week&day=2026-10-26&filter=13&metric=saves&year=2025");
+    const state: TrendsState = { spec: { kind: "week", day: "2026-10-26" }, filter: { playlist: 13 }, metric: "saves", year: 2025, x: "match" };
+    expect(trendsPath(state)).toBe("/trends?kind=week&day=2026-10-26&filter=13&metric=saves&year=2025&x=match");
     expect(parse(trendsPath(state).slice("/trends?".length)).state).toEqual(state);
-    expect(trendsPath({ spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null })).toBe("/trends");
-    expect(trendsPath({ spec: { kind: "season", id: 3 }, filter: "everything", metric: "win", year: null })).toBe("/trends?kind=season&season=3&filter=everything");
+    expect(trendsPath({ spec: { kind: "last30" }, filter: "ranked", metric: "win", year: null, x: "auto" })).toBe("/trends");
+    expect(trendsPath({ spec: { kind: "season", id: 3 }, filter: "everything", metric: "win", year: null, x: "date" })).toBe("/trends?kind=season&season=3&filter=everything&x=date");
+  });
+
+  test("a period or filter change puts the x axis back on auto; a metric or year change keeps it", () => {
+    const state: TrendsState = { spec: { kind: "last30" }, filter: "ranked", metric: "win", year: 2025, x: "date" };
+    expect(patchTrends(state, { spec: { kind: "all" }, year: null })).toMatchObject({ spec: { kind: "all" }, year: null, x: "auto" });
+    expect(patchTrends(state, { filter: "casual" }).x).toBe("auto");
+    expect(patchTrends(state, { metric: "saves" })).toEqual({ ...state, metric: "saves" });
+    expect(patchTrends(state, { year: 2026 }).x).toBe("date");
+    expect(patchTrends({ ...state, x: "auto" }, { x: "match" }).x).toBe("match");
   });
 });
 

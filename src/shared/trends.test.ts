@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { aggregate } from "./aggregate";
 import { dayStart, periodRange, type PeriodSpec, type Season } from "./periods";
-import { bucketKind, buckets, nextSpec, previousRange, previousSpec, trendStats } from "./trends";
+import { bucketKind, buckets, nextSpec, previousRange, previousSpec, rollingWindows, trendStats } from "./trends";
 
 function inZone(zone: string) {
   const before = process.env.TZ;
@@ -172,5 +172,38 @@ describe("trendStats", () => {
       shootingPct: null,
       perGame: { goals: null, assists: null, saves: null, shots: null },
     });
+  });
+});
+
+describe("rollingWindows", () => {
+  const range = (from: number, n: number) => Array.from({ length: n }, (_, i) => from + i);
+
+  test("the back-reach fills the first windows", () => {
+    const out = rollingWindows(range(1, 19), range(100, 3), 20);
+    expect(out.map((p) => p.n)).toEqual([1, 2, 3]);
+    expect(out[0]?.window).toEqual([...range(1, 19), 100]);
+    expect(out[2]?.window).toEqual([...range(3, 17), 100, 101, 102]);
+  });
+
+  test("a back-reach longer than size − 1 uses only its last size − 1", () => {
+    const out = rollingWindows(range(1, 30), [100], 20);
+    expect(out).toEqual([{ n: 1, end: 100, window: [...range(12, 19), 100] }]);
+  });
+
+  test("with a short back-reach the first point is the first full window, numbered by the period's match", () => {
+    const out = rollingWindows(range(1, 5), range(100, 20), 20);
+    expect(out.map((p) => p.n)).toEqual([15, 16, 17, 18, 19, 20]);
+    expect(out[0]?.window).toEqual([...range(1, 5), ...range(100, 15)]);
+  });
+
+  test("with no back-reach the first point is the period's 20th match", () => {
+    const out = rollingWindows([], range(100, 21), 20);
+    expect(out.map((p) => p.n)).toEqual([20, 21]);
+    expect(out[1]?.window).toEqual(range(101, 20));
+  });
+
+  test("fewer than size matches in all gives no points", () => {
+    expect(rollingWindows(range(1, 10), range(100, 9), 20)).toEqual([]);
+    expect(rollingWindows([], [], 20)).toEqual([]);
   });
 });
