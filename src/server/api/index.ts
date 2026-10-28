@@ -3,7 +3,7 @@
 import type { Server } from "bun";
 import type { z } from "zod";
 import { REQUEST_HEADER } from "../../shared/constants";
-import { filterOnly, monthsParams, periodParams, sessionsParams } from "../../shared/schemas/params";
+import { filterOnly, monthsParams, periodParams, playedDaysParams, sessionsParams } from "../../shared/schemas/params";
 import {
   breakResponse,
   currentResponse,
@@ -11,6 +11,7 @@ import {
   matchDetailResponse,
   monthsResponse,
   periodResponse,
+  playedDaysResponse,
   remarksResponse,
   seasonsResponse,
   sessionDetailResponse,
@@ -143,6 +144,14 @@ export function createApi({ tracker, reader, status, staticDir, logger, now = Da
       handler: ({ query }) => {
         const p = parse(periodParams, query);
         return orNotFound(periodResponse, pages.period(p.spec, p.filter));
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/played-days",
+      handler: ({ query }) => {
+        const p = parse(playedDaysParams, query);
+        return ok(playedDaysResponse, pages.playedDays(p.year, p.filter));
       },
     },
     { method: "GET", path: "/api/seasons", handler: () => ok(seasonsResponse, { seasons: pages.seasons() }) },

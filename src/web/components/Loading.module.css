@@ -1,0 +1,3 @@
+.loading { margin-top: var(--s3); }
+.pulse { height: 160px; border-radius: var(--r); background: var(--surf2); opacity: .5; animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: .2; } to { opacity: .6; } }

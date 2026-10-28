@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { FLAG_REASONS } from "../flags";
 import type { Season } from "../periods";
+import type { TrendStats } from "../trends";
 
 const counted = z.object({ goals: z.number(), assists: z.number(), saves: z.number(), shots: z.number(), demos: z.number(), score: z.number() });
 const countedOrNull = z.object({
@@ -181,12 +182,37 @@ export const matchDetailResponse = z.object({
   sessionKey: z.string().nullable(),
 });
 
+const rangeSchema = z.object({ from: z.number().nullable(), to: z.number(), running: z.boolean() });
+
+const orNull = z.number().nullable();
+export const trendStatsSchema = z.object({
+  matches: z.number(),
+  wins: orNull,
+  losses: orNull,
+  winPct: orNull,
+  shootingPct: orNull,
+  perGame: z.object({ goals: orNull, assists: orNull, saves: orNull, shots: orNull }),
+}) satisfies z.ZodType<TrendStats>;
+
 export const periodResponse = z.object({
-  range: z.object({ from: z.number().nullable(), to: z.number(), running: z.boolean() }),
+  range: rangeSchema,
   aggregate: aggregateSchema,
   playlistsPresent: z.array(z.number()),
   /** Sessions with a match of yours under the filter in the range; one across an edge counts in both periods. */
   sessions: z.number(),
+  /** The period compared with, under the same filter; null where there's none (this year, all time, day, year, the first season). */
+  previous: z.object({ range: rangeSchema, aggregate: aggregateSchema }).nullable(),
+  /** The first day with a match of yours under the filter in the range; all time starts there. */
+  firstDay: z.string().nullable(),
+  bucket: z.enum(["day", "week", "month"]),
+  buckets: z.array(z.object({ from: z.number(), to: z.number(), day: z.string(), stats: trendStatsSchema })),
+});
+
+/** Matches you played per local day of a year under the filter; `firstDay` and `totalMatches` cover every match you played, whatever the filter. */
+export const playedDaysResponse = z.object({
+  days: z.array(z.object({ day: z.string(), matches: z.number() })),
+  firstDay: z.string().nullable(),
+  totalMatches: z.number(),
 });
 
 export const seasonsResponse = z.object({ seasons: z.array(z.object({ id: z.number(), name: z.string(), startDate: z.string() }) satisfies z.ZodType<Season>) });
@@ -222,6 +248,7 @@ export type SessionList = z.infer<typeof sessionsResponse>;
 export type LatestSession = z.infer<typeof latestResponse>;
 export type MonthFolds = z.infer<typeof monthsResponse>;
 export type PeriodView = z.infer<typeof periodResponse>;
+export type PlayedDays = z.infer<typeof playedDaysResponse>;
 export type SessionDetail = z.infer<typeof sessionDetailResponse>;
 export type MatchDetail = z.infer<typeof matchDetailResponse>;
 export type Status = z.infer<typeof statusSchema>;

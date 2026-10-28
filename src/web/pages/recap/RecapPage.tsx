@@ -1,11 +1,12 @@
 // The recap routes. `/recap` finds the newest session under the filter and moves to it; a session's
 // pages show the picker, the playlist filter, the tabs, and the Overview, Matches & numbers or one
 // match. The filter lives in `?filter=`.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Link, Navigate, NavigationType, useNavigate, useNavigationType, useParams, useSearchParams } from "react-router";
 import { filterValue, type PlaylistFilter as Filter } from "../../../shared/playlist-filter";
 import { ApiError } from "../../api";
 import { EmptyState } from "../../components/EmptyState";
+import { Loading } from "../../components/Loading";
 import { PlaylistFilter } from "../../components/PlaylistFilter";
 import { parseFilter } from "../../logic/filter-options";
 import { recapPath, type RecapView } from "../../logic/recap";
@@ -40,22 +41,11 @@ function Notice({ title, children }: { title: string; children?: ReactNode }) {
   );
 }
 
-const LOADING_DELAY_MS = 150;
-
-/** The pulse and its announcement show only past a short delay, so a quick load doesn't flash. */
-function Loading() {
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => { setShown(true); }, LOADING_DELAY_MS);
-    return () => { clearTimeout(t); };
-  }, []);
-  // The live region is there from the start, so the text added to it is announced.
+function RecapLoading() {
   return (
     <>
       <Title />
-      <div className={styles.loading} role="status">
-        {shown && <><div className={styles.pulse} /><span className="visually-hidden">Loading the session…</span></>}
-      </div>
+      <Loading label="Loading the session…" className={styles.loading} />
     </>
   );
 }
@@ -69,7 +59,7 @@ export function RecapIndex() {
 
   if (latest.data?.session) return <Navigate to={recapPath(latest.data.session.key, filter)} replace />;
   if (latest.isError) return <Notice title="Couldn't load the recap. Is the tracker running?" />;
-  if (!latest.data) return <Loading />;
+  if (!latest.data) return <RecapLoading />;
   // Nothing under this filter: an empty history, or a filter that misses everything played.
   const { playlistsPresent } = latest.data;
   if (!playlistsPresent.length) return <Notice title={NOT_ENOUGH} />;
@@ -135,7 +125,7 @@ export function RecapSession({ view }: { view: SessionView }) {
     );
   }
   // Waits for the session rather than showing the last one, whose controls would act on old data.
-  if (!detail.data) return <Loading />;
+  if (!detail.data) return <RecapLoading />;
 
   const d = detail.data;
   const here: RecapView = view === "match" ? { match: guid } : view;

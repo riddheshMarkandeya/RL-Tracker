@@ -1,8 +1,9 @@
 import { Navigate, Route, Routes } from "react-router";
 import { Header } from "./components/Header";
 import { useLiveEvents } from "./events/useLiveEvents";
-import { NotFoundPage, SettingsPage, TrendsPage } from "./pages/Placeholders";
+import { NotFoundPage, SettingsPage } from "./pages/Placeholders";
 import { RecapIndex, RecapSession } from "./pages/recap/RecapPage";
+import { TrendsPage } from "./pages/trends/TrendsPage";
 
 export function App() {
   useLiveEvents();

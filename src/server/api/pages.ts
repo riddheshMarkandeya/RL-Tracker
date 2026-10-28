@@ -3,10 +3,11 @@
 // session belongs to the day of its first match, and its rows are always found by its guids: one
 // starting at 03:30 counts toward the day before, but its later matches start after that day ends.
 import { BASELINE_DAYS } from "../../shared/constants";
-import { daysBefore, dayOf, monthOf, periodRange, type PeriodSpec, type Season } from "../../shared/periods";
+import { daysBefore, dayOf, monthOf, periodRange, type PeriodRange, type PeriodSpec, type Season } from "../../shared/periods";
 import { inFilter, playlistsPresent, type PlaylistFilter } from "../../shared/playlist-filter";
-import type { LatestSession, MatchDetail, MonthFolds, PeriodView, SessionDetail, SessionList, SessionSummary } from "../../shared/schemas/responses";
+import type { LatestSession, MatchDetail, MonthFolds, PeriodView, PlayedDays, SessionDetail, SessionList, SessionSummary } from "../../shared/schemas/responses";
 import { aggregate, baseline, byPlaylist, type MyMatch } from "../../shared/aggregate";
+import { bucketKind, buckets, previousRange, trendStats } from "../../shared/trends";
 import type { MatchResult, QueryReader } from "../query/read";
 import { currentSession, cutSessions, type Session } from "../query/sessions";
 
@@ -131,19 +132,52 @@ export function createPages({ reader, now }: { reader: QueryReader; now: () => n
     return { ...m, goals: reader.readGoals([guid]), sessionKey: keyOf(index(), guid) };
   }
 
-  /** Each match counts in the period it started in; a session across an edge counts in both. Null for an unknown season. */
+  /**
+   * Each match counts in the period it started in; a session across an edge counts in both. Null
+   * for an unknown season. Buckets and the previous period follow the filter like the aggregate.
+   */
   function period(spec: PeriodSpec, filter: PlaylistFilter): PeriodView | null {
-    const range = periodRange(spec, { now: now(), seasons: reader.readSeasons() });
+    const at = now();
+    const seasons = reader.readSeasons();
+    const range = periodRange(spec, { now: at, seasons });
     if (!range) return null;
-    const rows = reader.readMyMatches({ from: range.from ?? undefined, to: range.to }).filter(played);
+    const mine = (r: PeriodRange) => reader.readMyMatches({ from: r.from ?? undefined, to: r.to }).filter(played);
+    const rows = mine(range);
     const matches = rows.filter(yours(filter));
     const idx = index();
     const inRange = (r: MatchResult) => (range.from === null || r.startedAt >= range.from) && r.startedAt < range.to;
+    // In start order, as the reader returns them; the buckets ascend without overlap, so they take
+    // the matches in one pass.
+    const firstDay = matches[0] ? dayOf(matches[0].startedAt) : null;
+    const prevRange = previousRange(spec, range, { now: at, seasons });
+    let next = 0;
     return {
       range,
       aggregate: aggregate(matches),
       playlistsPresent: playlistsPresent(rows.map((m) => m.playlistId)),
       sessions: idx.all.filter((s) => idx.rowsOf(s, filter).some(inRange)).length,
+      previous: prevRange && { range: prevRange, aggregate: aggregate(mine(prevRange).filter(yours(filter))) },
+      firstDay,
+      bucket: bucketKind(spec),
+      buckets: buckets(spec, range, { now: at, firstDay }).map((b) => {
+        const startsBefore = (t: number) => (matches[next]?.startedAt ?? Infinity) < t;
+        while (startsBefore(b.from)) next++;
+        const start = next;
+        while (startsBefore(b.to)) next++;
+        return { ...b, stats: trendStats(aggregate(matches.slice(start, next))) };
+      }),
+    };
+  }
+
+  /** Read from the results alone (in start order): a day's count needs no sessions. */
+  function playedDays(year: number, filter: PlaylistFilter): PlayedDays {
+    const mine = reader.readResults().filter((r) => r.played);
+    const prefix = `${String(year)}-`;
+    const days = mine.filter(yours(filter)).map((r) => dayOf(r.startedAt)).filter((d) => d.startsWith(prefix));
+    return {
+      days: [...Map.groupBy(days, (d) => d).entries()].map(([day, ds]) => ({ day, matches: ds.length })),
+      firstDay: mine[0] ? dayOf(mine[0].startedAt) : null,
+      totalMatches: mine.length,
     };
   }
 
@@ -155,6 +189,7 @@ export function createPages({ reader, now }: { reader: QueryReader; now: () => n
     sessionDetail,
     matchDetail,
     period,
+    playedDays,
     seasons: (): Season[] => reader.readSeasons(),
     sessionKeyOf: (guid: string) => keyOf(index(), guid),
   };

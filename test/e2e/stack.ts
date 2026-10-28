@@ -1,5 +1,5 @@
 // The e2e stack, run under Bun by the Playwright fixture (seeding needs bun:sqlite): a temp data dir
-// seeded per the mode in argv (`rich`, the default, `empty` or `share`), the repo's web build copied to the
+// seeded per the mode in argv (`rich`, the default, `empty`, `few` or `share`), the repo's web build copied to the
 // installed path, a gated replay of the completed fixture, and the real tracker. Protocol: prints
 // `ready {"url","dataDir"}` on stdout; the stdin line `go` releases the replay; stdin EOF tears
 // everything down.
@@ -98,6 +98,12 @@ function seed(dir: string, mode: Seed): void {
       return `${String(Math.floor(i / 12))}-${String((i % 12) + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     };
     const writer = createRecordWriter({ tracker: storage.tracker, logger });
+    if (mode === "few") {
+      // Under the Trends page's 20 matches: its "not enough data yet" note.
+      writer.save(match("e2e-few-a", day(1, 5), 10 * HOUR, true));
+      writer.save(match("e2e-few-b", day(1, 5), 10 * HOUR + 10 * MIN, false));
+      return;
+    }
     writer.save(match("e2e-old", day(2, 15), 14 * HOUR, true));
     for (let i = 0; i < 26; i++) {
       writer.save(match(`e2e-long-${String(i).padStart(2, "0")}`, day(1, 5), 10 * HOUR + i * 6 * MIN, i % 3 !== 0, i === 2 ? { playlistId: 11 } : i === 1 ? { scoreTeam0: 4 } : {}, i === 1 ? HAT_TRICK : {}));
@@ -152,7 +158,7 @@ async function main(): Promise<void> {
     // The installed path, so the tracker's default staticDir is what's served.
     cpSync(dist, join(dir, "bin", "web"), { recursive: true });
     const mode = process.argv[2];
-    seed(dir, mode === "empty" || mode === "share" ? mode : "rich");
+    seed(dir, mode === "empty" || mode === "few" || mode === "share" ? mode : "rich");
   } catch (err) {
     removeDir(dir);
     throw err;

@@ -71,6 +71,27 @@ const weekday = (day: string) => {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 };
 
+/** The first day of a day's week. */
+export const weekStart = (day: string): string => shiftDay(day, -((weekday(day) - WEEK_START_DAY + 7) % 7));
+
+/** The first day of a day's month. */
+export const monthStart = (day: string): string => `${monthOf(day)}-01`;
+
+/** The first day of the week or month a day is in, and the first day after it. */
+export function calendarSpan(kind: "week" | "month", day: string): { from: string; to: string } {
+  if (kind === "week") {
+    const from = weekStart(day);
+    return { from, to: shiftDay(from, 7) };
+  }
+  return { from: monthStart(day), to: nextMonthStart(day) };
+}
+
+/** The seasons in the order they start. */
+export const seasonsByStart = (seasons: readonly Season[]): Season[] => [...seasons].sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+/** How many days last 7 days and last 30 days cover. */
+export const rollingDays = (kind: "last7" | "last30"): number => (kind === "last7" ? ROLLING_SHORT_DAYS : ROLLING_LONG_DAYS);
+
 const closed = (fromDay: string, toDay: string, now: number): PeriodRange => {
   const from = dayStart(fromDay);
   const to = dayStart(toDay);
@@ -86,19 +107,17 @@ export function periodRange(spec: PeriodSpec, { now, seasons }: { now: number; s
   switch (spec.kind) {
     case "day":
       return closed(spec.day, shiftDay(spec.day, 1), now);
-    case "week": {
-      const start = shiftDay(spec.day, -((weekday(spec.day) - WEEK_START_DAY + 7) % 7));
-      return closed(start, shiftDay(start, 7), now);
-    }
+    case "week":
     case "month": {
-      return closed(`${monthOf(spec.day)}-01`, nextMonthStart(spec.day), now);
+      const { from, to } = calendarSpan(spec.kind, spec.day);
+      return closed(from, to, now);
     }
     case "year": {
       const [y] = parts(spec.day);
       return closed(format(y, 1, 1), format(y + 1, 1, 1), now);
     }
     case "season": {
-      const ordered = [...seasons].sort((a, b) => a.startDate.localeCompare(b.startDate));
+      const ordered = seasonsByStart(seasons);
       const i = ordered.findIndex((s) => s.id === spec.id);
       const season = ordered[i];
       if (!season) return null;
@@ -107,8 +126,7 @@ export function periodRange(spec: PeriodSpec, { now, seasons }: { now: number; s
     }
     case "last7":
     case "last30": {
-      const days = spec.kind === "last7" ? ROLLING_SHORT_DAYS : ROLLING_LONG_DAYS;
-      return open(dayStart(shiftDay(dayOf(now), -(days - 1))), now);
+      return open(dayStart(shiftDay(dayOf(now), -(rollingDays(spec.kind) - 1))), now);
     }
     case "this_year":
       return open(dayStart(`${dayOf(now).slice(0, 4)}-01-01`), now);

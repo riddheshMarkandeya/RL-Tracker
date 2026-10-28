@@ -81,6 +81,10 @@ maybe later.
   Task Scheduler doesn't restart a crashed task.
 
 ## Plans
+- `docs/plans/2026-10-27-wp7a-trends-page.md`: WP7a plan (Trends page: shared buckets and previous
+  period, `/api/period` with previous + buckets, `/api/played-days`, period controls, year strip,
+  header, six tiles with sparklines), review log.
+- `docs/reviews/2026-10-27-wp7a-trends-page.md`: WP7a review summary (2 rounds).
 - `docs/plans/2026-10-27-wp6b-remarks.md`: WP6b plan (recap remarks: mood bands, tiered quips,
   picks stored per session + filter, repeat avoidance, ↻), review log.
 - `docs/reviews/2026-10-27-wp6b-remarks.md`: WP6b review summary (3 rounds).

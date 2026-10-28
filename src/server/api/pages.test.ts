@@ -234,6 +234,61 @@ describe("match detail, periods and seasons", () => {
     expect(pages().period({ kind: "day", day: "2026-10-10" }, "private")?.sessions).toBe(0);
   });
 
+  test("a period's buckets: a 03:30 match counts toward the day before", () => {
+    const { play, pages } = seed();
+    play("A", t(10, 10, 3, 30));
+    play("B", t(10, 10, 12), { won: false });
+    const period = pages().period({ kind: "month", day: "2026-10-01" }, "everything");
+    expect(period?.bucket).toBe("day");
+    expect(period?.buckets).toHaveLength(31);
+    const on = (day: string) => period?.buckets.find((b) => b.day === day)?.stats;
+    expect(on("2026-10-09")).toMatchObject({ matches: 1, wins: 1, losses: 0, winPct: 1 });
+    expect(on("2026-10-10")).toMatchObject({ matches: 1, wins: 0, losses: 1, winPct: 0 });
+    expect(on("2026-10-11")).toMatchObject({ matches: 0, winPct: null, perGame: { goals: null } });
+  });
+
+  test("a month is compared with the month before, under the same filter", () => {
+    const { play, pages } = seed();
+    play("S", t(9, 5, 12));
+    play("C", t(9, 6, 12), { playlistId: CASUAL });
+    play("O", t(10, 5, 12));
+    const period = pages().period({ kind: "month", day: "2026-10-01" }, "ranked");
+    expect(period?.previous?.range).toEqual({ from: t(9, 1, 4), to: t(10, 1, 4), running: false });
+    expect(period?.previous?.aggregate.matches).toBe(1);
+    expect(pages().period({ kind: "all" }, "ranked")?.previous).toBeNull();
+  });
+
+  test("all time under a filter starts at the filter's first month", () => {
+    const { play, pages } = seed();
+    play("C", t(8, 20, 12), { playlistId: CASUAL });
+    play("R", t(10, 5, 12));
+    const days = (filter: "ranked" | "everything") => pages().period({ kind: "all" }, filter)?.buckets.map((b) => b.day);
+    expect(days("ranked")).toEqual(["2026-10-01", "2026-11-01", "2026-12-01"]);
+    expect(days("everything")?.[0]).toBe("2026-08-01");
+    expect(pages().period({ kind: "all" }, "ranked")?.firstDay).toBe("2026-10-05");
+    expect(pages().period({ kind: "all" }, "ranked")?.buckets.map((b) => b.stats.matches)).toEqual([1, 0, 0]);
+    expect(pages().period({ kind: "all" }, "ranked")?.bucket).toBe("month");
+  });
+
+  test("played days: per local day under the filter; the first day and total ignore it", () => {
+    const { play, watch, pages } = seed();
+    play("C", t(3, 2, 12), { playlistId: CASUAL });
+    play("A", t(10, 10, 3, 30));
+    play("B", t(10, 10, 12));
+    play("D", t(10, 9, 20));
+    watch("W", t(10, 12, 12));
+    play("Y", t(1, 1, 3)); // 2025-12-31 by the cutoff
+    expect(pages().playedDays(2026, "ranked")).toEqual({
+      days: [
+        { day: "2026-10-09", matches: 2 },
+        { day: "2026-10-10", matches: 1 },
+      ],
+      firstDay: "2025-12-31",
+      totalMatches: 5,
+    });
+    expect(pages().playedDays(2025, "everything").days).toEqual([{ day: "2025-12-31", matches: 1 }]);
+  });
+
   test("an unknown season is null; seasons are listed", () => {
     const { pages } = seed();
     expect(pages().period({ kind: "season", id: 99 }, "everything")).toBeNull();

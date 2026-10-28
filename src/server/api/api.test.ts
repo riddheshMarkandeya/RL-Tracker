@@ -13,6 +13,7 @@ import {
   matchDetailResponse,
   monthsResponse,
   periodResponse,
+  playedDaysResponse,
   remarksResponse,
   seasonsResponse,
   sessionDetailResponse,
@@ -118,6 +119,9 @@ describe("endpoints", () => {
     expect((await get(matchDetailResponse, "/api/matches/B")).sessionKey).toBe("A");
     expect((await get(periodResponse, "/api/period?kind=month&day=2026-10-01")).aggregate.matches).toBe(2);
     expect((await get(periodResponse, "/api/period?kind=season&season=3")).sessions).toBe(1);
+    const month = await get(periodResponse, "/api/period?kind=month&day=2026-10-01");
+    expect([month.bucket, month.buckets.length, month.previous?.aggregate.matches]).toEqual(["day", 31, 0]);
+    expect(await get(playedDaysResponse, "/api/played-days?year=2026")).toMatchObject({ totalMatches: 2 });
     expect((await get(seasonsResponse, "/api/seasons")).seasons).toHaveLength(3);
   });
 
@@ -127,6 +131,7 @@ describe("endpoints", () => {
     expect(await bad.json()).toMatchObject({ error: "bad_request", issues: [{ path: ["from"] }] });
     expect(logger.lines.find((l) => l.event === "bad_request")?.fields).toMatchObject({ route: "/api/sessions", issues: ["from"] });
     expect((await fetch(url("/api/period?kind=decade"))).status).toBe(400);
+    for (const year of ["0999", "26", "2026.5", ""]) expect((await fetch(url(`/api/played-days?year=${year}`))).status, year).toBe(400);
     for (const path of ["/api/sessions/nope", "/api/matches/nope", "/api/period?kind=season&season=99", "/api/nothing"]) {
       const res = await fetch(url(path));
       expect(res.status, path).toBe(404);

@@ -14,6 +14,12 @@ export const filterParam = z
 // From 1000 on: Date maps years 0-99 onto 1900-1999, so an early day would land in the wrong century.
 export const dayParam = z.iso.date().refine((day) => day >= "1000-01-01", "year before 1000");
 
+// From 1000 on: Date maps years 0-99 onto 1900-1999.
+export const playedDaysParams = z.object({
+  year: z.string().regex(/^[1-9]\d{3}$/).transform(Number),
+  filter: filterParam,
+});
+
 export const filterOnly = z.object({ filter: filterParam });
 
 export const sessionsParams = z

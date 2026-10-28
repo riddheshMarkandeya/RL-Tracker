@@ -1,8 +1,6 @@
 .title { margin: var(--s2) 0 0; font-size: 16px; }
 /* As tall as a session's page roughly is, so the scroll position survives a load. */
-.loading { min-height: 70vh; margin-top: var(--s3); }
-.pulse { height: 160px; border-radius: var(--r); background: var(--surf2); opacity: .5; animation: pulse 1s ease-in-out infinite alternate; }
-@keyframes pulse { from { opacity: .2; } to { opacity: .6; } }
+.loading { min-height: 70vh; }
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); }
 .end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
 .tabs { display: flex; gap: var(--s4); margin-top: var(--s3); border-bottom: 1px solid var(--line); }
