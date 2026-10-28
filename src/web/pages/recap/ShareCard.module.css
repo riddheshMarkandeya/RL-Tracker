@@ -1,0 +1,70 @@
+/* The share card: 360×480, exported at 3×. Its sizes are fixed px, not the
+   app's spacing scale, since the card is an image of its own; its colours are the theme's. */
+.btn {
+  background: var(--surf2); border: 1px solid var(--line); border-radius: var(--r); padding: 4px 10px;
+  cursor: pointer; color: var(--ink2); font-weight: 600; font-size: 13px; transition: color .12s, border-color .12s;
+}
+.btn:hover:not([aria-disabled="true"]) { color: var(--ink); border-color: var(--muted); }
+.btn[aria-disabled="true"] { cursor: default; opacity: .5; }
+
+/* The UA sets a dialog's text to CanvasText; the theme's ink instead. Scrolls sideways on a screen
+   narrower than the card, which keeps its size because it is the image. */
+.dialog {
+  max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; padding: 0;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--surf); color: var(--ink);
+}
+.dialog::backdrop { background: #000a; }
+.body { display: flex; flex-direction: column; gap: var(--s3); width: max-content; padding: var(--s4); }
+.head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.head h2 { margin: 0; font-size: 15px; }
+.close { width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink2); font-size: 16px; line-height: 1; cursor: pointer; }
+.close:hover { color: var(--ink); border-color: var(--ink2); }
+.frame { width: 360px; height: 480px; }
+.placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: var(--r); background: var(--surf2); color: var(--ink2); font-size: 13px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.status { font-size: 13px; color: var(--ink2); }
+
+.card {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; width: 360px; height: 480px; padding: 22px;
+  color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif;
+  background: radial-gradient(120% 70% at 0% 0%, #3987e540, transparent 60%), radial-gradient(120% 70% at 100% 100%, #d9592640, transparent 60%), var(--page);
+}
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.meta { flex: 1; min-width: 0; font-size: 12px; color: var(--ink2); }
+.meta b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
+.live { white-space: nowrap; color: var(--accent); font-weight: 600; }
+.pill {
+  display: block; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 2px 8px; border-radius: 99px; background: var(--surf2); color: var(--ink); font-size: 11px; font-weight: 600;
+}
+.hero { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 14px; }
+.rec { font-size: 64px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.small .rec { font-size: 50px; }
+.dash { margin: 0 4px; color: var(--muted); font-weight: 400; }
+.w { color: var(--win); }
+.l { color: var(--loss); }
+.pct { text-align: right; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.pct b { display: block; font-size: 28px; color: var(--ink); letter-spacing: 0; }
+
+/* Grows into whatever height the rest leaves; its own content never sizes it. */
+.slot { flex: 1 1 0; overflow: hidden; margin: 10px 0 2px; }
+.line { display: block; }
+.zero { stroke: var(--line); stroke-dasharray: 3 3; }
+.path { fill: none; stroke: var(--ink2); stroke-width: 1.6; stroke-linejoin: round; }
+.win { fill: var(--win); }
+.loss { fill: var(--loss); }
+.none { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+
+.mood { margin: 6px 4px 10px; font-size: 14px; font-style: italic; color: var(--ink); text-align: center; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px 4px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surf); text-align: center;
+}
+.v { font-size: 17px; font-weight: 700; }
+.k { margin-top: 1px; font-size: 9.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.s { font-size: 9.5px; color: var(--ink2); }
+.callout { margin-top: 8px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px; font-size: 12px; color: var(--ink2); }
+.callout b { color: var(--accent); }
+.bottom { display: flex; justify-content: flex-end; margin-top: 6px; }
+.footer { white-space: nowrap; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }

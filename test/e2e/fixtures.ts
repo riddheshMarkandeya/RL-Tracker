@@ -18,7 +18,7 @@ export interface Stack {
 }
 
 /** What the stack's DB holds. A spec file picks one with `test.use({ seed })`, and gets its own worker and stack. */
-export type Seed = "rich" | "empty";
+export type Seed = "rich" | "empty" | "share";
 
 export const test = base.extend<{ consoleErrors: string[] }, { stack: Stack; seed: Seed }>({
   seed: ["rich", { scope: "worker", option: true }],

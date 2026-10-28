@@ -14,6 +14,7 @@ import { Matches } from "./Matches";
 import { MatchView } from "./MatchView";
 import { Overview } from "./Overview";
 import { SessionPicker } from "./SessionPicker";
+import { ShareButton } from "./ShareCard";
 import styles from "./RecapPage.module.css";
 
 function useRecapFilter(): Filter {
@@ -142,7 +143,10 @@ export function RecapSession({ view }: { view: SessionView }) {
     <div data-session={d.key} ref={page}>
       <div className={styles.bar}>
         <SessionPicker detail={d} filter={filter} view={view === "overview" ? "overview" : "matches"} buttonRef={pickerButton} />
-        <PlaylistFilter value={filter} present={d.playlistsPresent} selectRef={filterSelect} onChange={(f) => { void navigate(recapPath(session, f, here)); }} />
+        <div className={styles.end}>
+          <PlaylistFilter value={filter} present={d.playlistsPresent} selectRef={filterSelect} onChange={(f) => { void navigate(recapPath(session, f, here)); }} />
+          {d.summary && <ShareButton detail={d} summary={d.summary} filter={filter} />}
+        </div>
       </div>
       <nav className={styles.tabs} aria-label="Recap pages" data-nav="tabs">
         <Link to={recapPath(session, filter)} aria-current={view === "overview" ? "page" : undefined}>Overview</Link>

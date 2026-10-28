@@ -45,10 +45,11 @@ export function useSessionDetail(key: string, filter: PlaylistFilter) {
 }
 
 /** One match with every player, for the match page's scoreboard. */
-export function useMatchDetail(guid: string) {
+export function useMatchDetail(guid: string, enabled = true) {
   return useQuery({
     queryKey: ["match", guid],
     queryFn: () => getJson(`/api/matches/${encodeURIComponent(guid)}`, matchDetailResponse),
+    enabled,
   });
 }
 

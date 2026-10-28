@@ -35,6 +35,13 @@ const SECTIONS: readonly { label: string; all: FilterOption | null; has: Has; si
 
 const EVERYTHING: FilterOption = { value: "everything", label: "Everything (excl. private)" };
 
+/** A filter's name where no dropdown is beside it to explain it. */
+export function filterLabel(filter: PlaylistFilter): string {
+  if (typeof filter === "object") return playlistInfo(filter.playlist).name;
+  if (filter === "everything") return EVERYTHING.label;
+  return SECTIONS.find((s) => s.all?.value === filter)?.all?.label ?? filter;
+}
+
 export function filterOptions(present: readonly number[], selected: PlaylistFilter): FilterGroup[] {
   const ids = [...present].sort((a, b) => a - b);
   const groups: FilterGroup[] = [{ label: null, options: [EVERYTHING] }];
@@ -46,7 +53,7 @@ export function filterOptions(present: readonly number[], selected: PlaylistFilt
   }
   const value = filterValue(selected);
   if (!groups.some((g) => g.options.some((o) => o.value === value))) {
-    const label = typeof selected === "object" ? playlistInfo(selected.playlist).name : (SECTIONS.find((s) => s.all?.value === value)?.all?.label ?? value);
+    const label = filterLabel(selected);
     const other = groups.find((g) => g.label === "Other");
     if (other) other.options.push({ value, label });
     else groups.push({ label: "Other", options: [{ value, label }] });

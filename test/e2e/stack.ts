@@ -1,5 +1,5 @@
 // The e2e stack, run under Bun by the Playwright fixture (seeding needs bun:sqlite): a temp data dir
-// seeded per the mode in argv (`rich`, the default, or `empty`), the repo's web build copied to the
+// seeded per the mode in argv (`rich`, the default, `empty` or `share`), the repo's web build copied to the
 // installed path, a gated replay of the completed fixture, and the real tracker. Protocol: prints
 // `ready {"url","dataDir"}` on stdout; the stdin line `go` releases the replay; stdin EOF tears
 // everything down.
@@ -75,6 +75,9 @@ const HAT_TRICK: Parameters<typeof record>[2] = {
  * 26-match session's only baseline match. In the 26-match session, match 2 is HAT_TRICK and match 3
  * is on Ranked Doubles.
  * `empty`: no matches at all.
+ * `share`: the share card's worst case. The current session is 48 matches of mixed results, one
+ * left early, under a 32-character name; your saves stand out against three days ago, and you
+ * hit no woodwork but had aerial touches, so the 8th tile is the two-line "Aerial touches".
  */
 function seed(dir: string, mode: Seed): void {
   const logger = createLogger({ dir });
@@ -83,6 +86,10 @@ function seed(dir: string, mode: Seed): void {
     storage.tracker.run("INSERT INTO my_ids (primary_id, name, status, added_at) VALUES (?, 'me', 'confirmed', ?)", ME, Date.now());
     if (mode === "empty") return;
     const now = Date.now();
+    if (mode === "share") {
+      seedShare(storage, logger, now);
+      return;
+    }
     // Days of months before the current session's, so which month holds each session doesn't
     // depend on the run's date.
     const [y = 0, m = 1] = dayOf(now - 10 * MIN).split("-").map(Number);
@@ -107,6 +114,22 @@ function seed(dir: string, mode: Seed): void {
   }
 }
 
+// 32 characters, the most a name has, and wide ones: it has to be cut.
+const SHARE_NAME = "WWW_MaximumWidthNameWWWWWWWWWWWW";
+
+function seedShare(storage: ReturnType<typeof openStorage>, logger: ReturnType<typeof createLogger>, now: number): void {
+  const writer = createRecordWriter({ tracker: storage.tracker, logger });
+  for (let i = 0; i < 6; i++) writer.save(record(`e2e-base-${String(i)}`, now - 3 * 24 * HOUR + i * 6 * MIN, { players: [player(ME, 0, { saves: 1 }), player(THEM, 1)] }, { endedAt: now - 3 * 24 * HOUR + i * 6 * MIN + 5 * MIN }));
+  const me = player(ME, 0, { name: SHARE_NAME, saves: 3, extras: { ...player(ME, 0).extras, woodwork_hits: 0, aerial_touches: 4 } });
+  const start = now - (47 * 6 + 10) * MIN;
+  for (let i = 0; i < 48; i++) {
+    const at = start + i * 6 * MIN;
+    const won = (i * 7) % 11 < 6;
+    const result: Partial<MatchRecord["match"]> = i === 20 ? { endKind: "left", winnerTeamNum: null, winnerSource: null } : { scoreTeam0: won ? 2 : 1, scoreTeam1: won ? 1 : 2, winnerTeamNum: won ? 0 : 1, mvpKey: won ? ME : null };
+    writer.save(record(`e2e-share-${String(i).padStart(2, "0")}`, at, { players: [me, player(THEM, 1)] }, { endedAt: at + 5 * MIN, ...result }));
+  }
+}
+
 /** Removes the temp data dir unless RLT_E2E_KEEP=1. Never throws: it runs on the failure paths too. */
 function removeDir(dir: string): void {
   if (process.env.RLT_E2E_KEEP === "1") {
@@ -128,7 +151,8 @@ async function main(): Promise<void> {
   try {
     // The installed path, so the tracker's default staticDir is what's served.
     cpSync(dist, join(dir, "bin", "web"), { recursive: true });
-    seed(dir, process.argv[2] === "empty" ? "empty" : "rich");
+    const mode = process.argv[2];
+    seed(dir, mode === "empty" || mode === "share" ? mode : "rich");
   } catch (err) {
     removeDir(dir);
     throw err;

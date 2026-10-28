@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { filterValue } from "../../shared/playlist-filter";
-import { filterOptions, parseFilter } from "./filter-options";
+import { filterLabel, filterOptions, parseFilter } from "./filter-options";
 
 const flat = (groups: ReturnType<typeof filterOptions>) => groups.map((g) => [g.label, g.options.map((o) => `${o.value}=${o.label}`)]);
 
@@ -27,6 +27,16 @@ describe("filterOptions", () => {
       ["Other", ["13=Ranked Standard"]],
     ]);
     expect(flat(filterOptions([2], "ranked"))).toContainEqual(["Other", ["ranked=All ranked"]]);
+  });
+});
+
+describe("filterLabel", () => {
+  test("a filter's name for a reader, outside the dropdown", () => {
+    expect(filterLabel("everything")).toBe("Everything (excl. private)");
+    expect(filterLabel("ranked")).toBe("All ranked");
+    expect(filterLabel("private")).toBe("Private matches");
+    expect(filterLabel({ playlist: 11 })).toBe("Ranked Doubles");
+    expect(filterLabel({ playlist: 99 })).toBe("Unknown playlist (99)");
   });
 });
 

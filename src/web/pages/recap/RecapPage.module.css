@@ -4,6 +4,7 @@
 .pulse { height: 160px; border-radius: var(--r); background: var(--surf2); opacity: .5; animation: pulse 1s ease-in-out infinite alternate; }
 @keyframes pulse { from { opacity: .2; } to { opacity: .6; } }
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); }
+.end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
 .tabs { display: flex; gap: var(--s4); margin-top: var(--s3); border-bottom: 1px solid var(--line); }
 .tabs a { padding: 8px 2px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--ink2); font-weight: 600; text-decoration: none; }
 .tabs a:hover { color: var(--ink); }

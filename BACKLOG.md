@@ -79,6 +79,10 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
 
 ## Watch list
+- [ ] **[design, Low, Standard]** Trigger: a `[rlt] share/null_stat` warn in the browser console.
+  A share card tile (streak, goals, assists, saves, shots, MVPs, demos) got a null stat and shows
+  "–"; a session with a played match shouldn't give one. Then fit the handling to that session.
+  Record: `docs/plans/2026-10-27-wp6c-share-card.md`.
 - [ ] **[feature, Low, Standard]** Trigger: deciding to record which goals were bicycle kicks. The
   `bicycle_goal` remark is inert: the game sends `BicycleHit` (34 of 76 matches) but no bicycle-goal
   event, so a rule would have to tie a BicycleHit to a goal's origin touch (an order no data has
