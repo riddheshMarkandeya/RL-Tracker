@@ -83,6 +83,39 @@ priority Low/Med/High; effort Trivial/Standard/Substantial/TBD.
   (`eventNameOf`/`matchGuidOf`), hardcoded URL and reconnect loop; reuse `parseFrame`,
   `statsApiUrl` and maybe `startStatsClient`, or retire it now the recorder stores raw events.
   Record: Review log in `docs/plans/2026-10-19-wp3a-recorder.md`.
+- [ ] **[design, Low, Trivial]** Drop the totals row from the recap's Matches & numbers table
+  (`src/web/pages/recap/Matches.tsx`, the `<tfoot>`, and the header comment that mentions it). The
+  user doesn't want totals there, as on the Friends page's match-by-match table (user, 2026-10-28,
+  Friends prototype review).
+- [ ] **[design, Med, Standard]** Display layer drift across pages (user, 2026-10-28). Tokens,
+  panels, tables and team colours are shared, but each page grew its own:
+  - big-number type: condensed italic (recap scorebug and tiles, Trends title), plain Segoe
+    (match page title, share card, Friends prototype);
+  - tile anatomy: four kinds (recap `.tiles`/`.stat`, Trends `.tile`, share card `.tile`, the
+    Friends prototype's), with different label case, size and order;
+  - heading placement: sentence-case headings above panels (Recap, Trends, Settings) against
+    uppercase headings inside panels (Friends prototype).
+  Fix: one shared Tile and one section-heading pattern in `src/web/components`, then move pages onto
+  them. The share card keeps its own scale (a 360px image), but its record should use the same
+  face. WP9 builds Friends on the existing primitives, so it doesn't add a fifth tile.
+  - Colour roles: the code mostly follows an unwritten rule, blue/orange = your side / the other
+    side (`TEAM_TONE` in `MatchView.tsx`, `GoalMap`, the Friends zones) and green/red = result
+    (`--win`/`--loss`). Write it down, then fix the leaks: the match page falls back to blue/orange
+    meaning the game's own team colours when "yours" is unknown (one colour, two meanings); the
+    share card's blue/orange background is decoration only; `--up`/`--down` is a second green/red
+    pair for deltas next to `--win`/`--loss`. Decide whether the pairs merge or the rule says why
+    they're separate.
+- [ ] **[feature, Low, Standard]** Settings › Appearance: choose the colour pair for sides (blue /
+  orange) and for results (green / red), each on its own and apart from the theme (user,
+  2026-10-28). Also helps red-green colour blindness. The pairs are already tokens
+  (`--blue`/`--orange`, `--win`/`--loss` in `src/web/styles/tokens.css`), so it's a setting that
+  overrides them on `<html>`, plus a check that each pair stays readable on every theme. Do it after
+  the colour-roles part of the drift item above, so each token has one meaning first.
+- [ ] **[feature, Low, TBD]** After v1: trio "with" (two friends on your team) and duo "against"
+  (two friends on the other team) on the Friends page. WP9's UI is single-friend, but its friend
+  API takes a list of friend ids (user, 2026-10-28), so this is mostly a picker plus a column
+  group per extra member. Raised 2026-10-28 in
+  the Friends prototype review (`prototype/friends-page`).
 
 ## Watch list
 - [ ] **[design, Low, Standard]** Trigger: an `ids/unknown_platform` warn in tracker.log, or the first
